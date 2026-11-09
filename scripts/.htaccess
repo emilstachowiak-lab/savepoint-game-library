@@ -1,0 +1,3 @@
+# Deployment scripts are run from the command line.
+Options -Indexes
+Require all denied

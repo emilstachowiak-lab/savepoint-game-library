@@ -1,0 +1,3057 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#0874bc">
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=20261030-2">
+    <link rel="icon" type="image/png" href="/favicon.png?v=20261030-2" sizes="64x64">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20261030-2" sizes="any">
+    <!-- Put data-en on text-only elements. Keep icons and controls outside the translated text. -->
+    <title data-en="Savepoint — game collection">Savepoint — kolekcja gier</title>
+    <!-- Start the connection early. The script loads Turnstile only when
+         the API supplies a challenge. -->
+    <link rel="preconnect" href="https://challenges.cloudflare.com">
+    <style>
+      /* Shared Aero palette and geometry. Common panel, border and text tokens
+         keep cards and dialogs consistent. */
+      :root {
+        color-scheme: light;
+        --bg: #032436;
+        --panel: #edf6fb;
+        --panel2: #e0eff8;
+        --line: #a8c4d6;
+        --text: #173d54;
+        --muted: #496b80;
+        --lime: #177cb6;
+        --orange: #a9662d;
+        --radius: 7px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      /* The script uses the native hidden attribute on components that also declare
+         flex or grid display. Keep it authoritative for both visibility and layout. */
+      [hidden] {
+        display: none !important;
+      }
+
+      /* Session revalidation can leave private content mounted. Conceal the collection,
+         its dialogs and its announcements until the server confirms the session. */
+      html.privacy-suspended #appShell,
+      html.privacy-suspended #modalBackdrop,
+      html.privacy-suspended #deleteModalBackdrop,
+      html.privacy-suspended #toast,
+      html.privacy-suspended #sessionWarning {
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        position: relative;
+        isolation: isolate;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.45 "Segoe UI",Tahoma,Arial,sans-serif;
+      }
+
+      button, input, select {
+        font: inherit;
+        color: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      button, input, select {
+        touch-action: manipulation;
+      }
+
+      button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
+        outline: 2px solid #197caf;
+        outline-offset: 3px;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+      }
+
+      /* The SVG symbol library stays out of layout. Icon instances inherit text color
+         and leave pointer interaction to their surrounding controls. */
+      .icon-defs {
+        position: absolute;
+        width: 0;
+        height: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+
+      .ui-icon {
+        width: 16px;
+        height: 16px;
+        display: inline-block;
+        flex: 0 0 auto;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        vertical-align: middle;
+        pointer-events: none;
+      }
+
+      /* The background stage shows a static gradient before the canvas starts or when
+         drawing fails. It stays behind the authentication and collection views. */
+      #xmbBackground {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+        overflow: hidden;
+        contain: paint;
+        pointer-events: none;
+        background: linear-gradient(155deg,#031c52,#0759a4 48%,#062352);
+      }
+
+      /* The collection shell sets a common width so its header, filters, summary
+         tiles and cards line up. */
+      .app {
+        width: calc(100% - 48px);
+        max-width: 1320px;
+        margin: 28px auto 36px;
+        padding: 0 22px 18px;
+        position: relative;
+        border: 1px solid #f5fcff;
+        border-radius: 11px;
+        background: linear-gradient(135deg,#e9f4fb,#d7eaf5);
+        box-shadow: 0 16px 40px #00142655,0 0 0 5px #c1e8ff21,inset 0 1px #fff;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-height: 72px;
+        padding: 12px 0;
+        border-bottom: 1px solid #a6c4d6;
+        box-shadow: 0 1px #ffffffb3;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        white-space: nowrap;
+        font-size: 17px;
+        font-weight: 500;
+        letter-spacing: -.45px;
+      }
+
+      .brand-mark {
+        display: block;
+        width: 34px;
+        height: 34px;
+        flex: 0 0 auto;
+        filter: drop-shadow(0 2px 3px #23617b40);
+      }
+
+      .brand em {
+        font-size: 12px;
+        font-style: normal;
+        font-weight: 400;
+        color: #56778c;
+        letter-spacing: 0;
+      }
+
+      .top-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      /* Position the disclosure relative to its toggle. The script keeps the hidden
+         state and aria-expanded in sync and handles focus on close. */
+      .app-menu-container {
+        position: relative;
+        flex: 0 0 auto;
+      }
+
+      .app-menu-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 33px;
+        padding: 6px 10px;
+        border: 1px solid #729fba;
+        border-radius: 4px;
+        background: linear-gradient(#fff,#e5f5fc 45%,#c6e0ef 49%,#edf8fd);
+        box-shadow: inset 0 1px #fff,0 1px 2px #34556c25;
+        color: #2c607e;
+        font-size: 12px;
+        white-space: nowrap;
+        text-shadow: 0 1px #fff;
+      }
+
+      .app-menu-toggle .ui-icon {
+        width: 15px;
+        height: 15px;
+      }
+
+      .app-menu-toggle .menu-chevron {
+        width: 12px;
+        height: 12px;
+      }
+
+      .app-menu-toggle[aria-expanded="true"] {
+        border-color: #3883ad;
+        background: linear-gradient(#d3eaf7,#e2f3fb);
+        box-shadow: inset 0 1px 3px #426d8830,0 0 5px #6fc7ec35;
+      }
+
+      .app-menu-toggle:hover {
+        border-color: #2b86b4;
+      }
+
+      .app-menu {
+        position: absolute;
+        top: calc(100% + 9px);
+        right: 0;
+        width: 258px;
+        max-width: calc(100vw - 48px);
+        z-index: 15;
+        border: 1px solid #7fabc7;
+        border-radius: 6px;
+        background: #f3f9fd;
+        box-shadow: 0 8px 22px #143c5c38,0 0 0 3px #e7f7ff70;
+        overflow: hidden;
+        color: #254c66;
+      }
+
+      .app-menu-title {
+        padding: 8px 12px;
+        border-bottom: 1px solid #aac9dc;
+        box-shadow: inset 0 1px #fff;
+        background: linear-gradient(#eaf7ff,#d4ebf9 46%,#bfdced 49%,#e1f1fb);
+        font-size: 11px;
+        color: #436f8b;
+        text-shadow: 0 1px #fff;
+      }
+
+      .app-menu-items {
+        padding: 5px;
+      }
+
+      .app-menu-item {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        min-height: 59px;
+        padding: 10px;
+        border: 1px solid transparent;
+        border-radius: 3px;
+        background: transparent;
+        color: #2b5c7a;
+        text-align: left;
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      .app-menu-item:hover, .app-menu-item:focus-visible {
+        border-color: #8abbd7;
+        background: linear-gradient(#f3fbff,#d8edf9);
+        box-shadow: inset 0 1px #fff;
+      }
+
+      .app-menu-icon {
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        width: 29px;
+        height: 30px;
+        border-right: 1px solid #c3d9e6;
+        padding-right: 10px;
+        color: #5a92b3;
+      }
+
+      .app-menu-icon .ui-icon {
+        width: 17px;
+        height: 17px;
+      }
+
+      .app-menu-copy {
+        display: grid;
+        gap: 3px;
+        min-width: 0;
+      }
+
+      .app-menu-copy>span {
+        font-weight: 500;
+      }
+
+      .app-menu-copy small {
+        font-size: 11px;
+        color: #648297;
+      }
+
+      .app-menu-separator {
+        height: 1px;
+        margin: 5px 10px;
+        background: #c1d7e5;
+        box-shadow: 0 1px #fff;
+      }
+
+      .app-menu-logout {
+        color: #795745;
+      }
+
+      .app-menu-logout .app-menu-icon {
+        color: #9a7d65;
+      }
+
+      .app-menu-logout small {
+        color: #856f62;
+      }
+
+      /* The color control changes the background preference. The script updates
+         the adjacent badge with the current connection or storage state. */
+      .theme-picker, .local-badge {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 11px;
+        border: 1px solid #b1c9d8;
+        border-radius: 4px;
+        min-height: 29px;
+        padding: 5px 8px;
+        background: linear-gradient(#fbfeff,#dbeaf4);
+        box-shadow: inset 0 1px #fff;
+        color: #496b80;
+      }
+
+      .theme-picker {
+        cursor: pointer;
+      }
+
+      .theme-picker input {
+        width: 20px;
+        height: 20px;
+        flex: 0 0 auto;
+        border: 1px solid #fff;
+        border-radius: 50%;
+        padding: 0;
+        background: transparent;
+        cursor: pointer;
+        overflow: hidden;
+      }
+
+      .theme-picker input::-webkit-color-swatch-wrapper {
+        padding: 0;
+      }
+
+      .theme-picker input::-webkit-color-swatch {
+        border: 1px solid #4b7993;
+        border-radius: 50%;
+      }
+
+      .theme-picker input::-moz-color-swatch {
+        border: 1px solid #4b7993;
+        border-radius: 50%;
+      }
+
+      .dot {
+        height: 6px;
+        width: 6px;
+        flex: 0 0 auto;
+        border-radius: 50%;
+        background: #4da277;
+        box-shadow: 0 0 4px #70bf7666;
+      }
+
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 20px;
+        padding: 35px 0 26px;
+      }
+
+      .eyebrow {
+        margin: 0 0 5px;
+        font-size: 11px;
+        letter-spacing: 1.6px;
+        color: #476f87;
+        text-transform: uppercase;
+      }
+
+      .hero h1 {
+        margin: 0;
+        font-size: 38px;
+        line-height: 1.12;
+        letter-spacing: -1.3px;
+        font-weight: 400;
+        text-shadow: 0 1px #fff;
+      }
+
+      .hero h1 .hero-heading-accent {
+        color: #5085a4;
+      }
+
+      .hero p:not(.eyebrow) {
+        font-size: 12px;
+        margin: 10px 0 0;
+        color: var(--muted);
+      }
+
+      .primary, .secondary, .danger {
+        border: 1px solid #6c9fba;
+        border-radius: 4px;
+        min-height: 34px;
+        padding: 7px 12px;
+        background: linear-gradient(#fff 0%,#e3f3fb 46%,#c4deec 49%,#eff9fd 100%);
+        box-shadow: inset 0 1px #fff,0 1px 2px #34556c25;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        white-space: nowrap;
+        font-size: 12px;
+        text-shadow: 0 1px #fff;
+      }
+
+      .primary {
+        border-color: #3985ad;
+        background: linear-gradient(#f7feff,#d1eefb 44%,#89c7e5 48%,#cfeefe);
+        box-shadow: inset 0 1px #fff,0 1px 3px #28608338;
+        font-weight: 500;
+      }
+
+      .primary:hover:not(:disabled), .secondary:hover:not(:disabled) {
+        border-color: #2683b6;
+        background: linear-gradient(#fff,#e0f7ff 44%,#9bd9f3 48%,#e1f7ff);
+        box-shadow: 0 0 7px #48bbec42,inset 0 1px #fff;
+      }
+
+      .danger {
+        border-color: #b36562;
+        background: linear-gradient(#fff8f5,#f7d8d3 47%,#e8aaa3 50%,#f8e0db);
+        color: #742b29;
+      }
+
+      .danger:hover {
+        border-color: #943e37;
+        background: linear-gradient(#fff9f7,#fbd9d1 47%,#e59b90 50%,#f7d2c8);
+      }
+
+      .primary:disabled, .secondary:disabled, .danger:disabled {
+        opacity: .72;
+      }
+
+      /* These totals describe the entire collection. The live result count below
+         reports how many entries match the current filters. */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3,minmax(0,1fr));
+        gap: 12px;
+        margin: 0 0 22px;
+      }
+
+      .stat {
+        position: relative;
+        padding: 14px 16px;
+        border: 1px solid #aec8d9;
+        border-radius: var(--radius);
+        background: linear-gradient(145deg,#fcfeff,#e0eff7);
+        box-shadow: inset 0 1px #fff,0 2px 4px #50718a12;
+        overflow: hidden;
+        min-width: 0;
+      }
+
+      .stat:after {
+        content: "";
+        position: absolute;
+        pointer-events: none;
+        right: -10px;
+        top: -30px;
+        transform: rotate(-20deg);
+        width: 90px;
+        height: 120px;
+        background: linear-gradient(90deg,transparent,#fff8,transparent);
+      }
+
+      .stat-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        text-transform: uppercase;
+        letter-spacing: .8px;
+        font-size: 11px;
+        color: #52758c;
+      }
+
+      .stat-label .ui-icon {
+        width: 13px;
+        height: 13px;
+        color: #548eb1;
+      }
+
+      .stat-value {
+        font-size: 27px;
+        line-height: 1.2;
+        font-weight: 400;
+        margin-top: 6px;
+        color: #204d69;
+      }
+
+      .stat-value small {
+        font-size: 11px;
+        color: #638096;
+        margin-left: 4px;
+        font-weight: 400;
+      }
+
+      /* Give search more room than individual filters on desktop. Shared input
+         styles keep the toolbar, editor and sign-in controls consistent. */
+      .toolbar {
+        display: grid;
+        grid-template-columns: minmax(150px,1.7fr) repeat(4,minmax(0,1fr)) minmax(90px,.7fr);
+        align-items: end;
+        gap: 8px;
+        padding: 12px;
+        border: 1px solid #aac7d9;
+        border-radius: var(--radius);
+        background: linear-gradient(#eaf6fd,#cfe3f0);
+        box-shadow: inset 0 1px #fff;
+        margin: 0 0 9px;
+      }
+
+      .filter-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+      }
+
+      .filter-label {
+        font-size: 11px;
+        color: #446c84;
+      }
+
+      .search {
+        position: relative;
+        display: block;
+        min-width: 0;
+      }
+
+      .search .ui-icon {
+        position: absolute;
+        left: 9px;
+        top: 10px;
+        width: 14px;
+        height: 14px;
+        color: #5588a6;
+      }
+
+      .toolbar input, .toolbar select, .field input, .field select, .auth-field input {
+        border: 1px solid #94b2c7;
+        border-top-color: #7199b3;
+        border-radius: 4px;
+        background: linear-gradient(#f1f7fa,#fff 12px);
+        box-shadow: inset 0 1px 3px #35597115;
+        padding: 8px 9px;
+        width: 100%;
+        min-width: 0;
+        min-height: 34px;
+        font-size: 12px;
+      }
+
+      .toolbar .search input {
+        padding-left: 30px;
+      }
+
+      .toolbar select {
+        padding-right: 3px;
+      }
+
+      .toolbar select option, .field select option {
+        background: #f6fbff;
+        color: var(--text);
+      }
+
+      .toolbar input:focus,
+      .toolbar select:focus,
+      .field input:focus,
+      .field select:focus,
+      .auth-field input:focus {
+        border-color: #398fc0;
+        box-shadow: 0 0 5px #56afe04d,inset 0 1px 3px #3a5c7018;
+      }
+
+      .count {
+        font-size: 11px;
+        color: #54778e;
+        text-align: right;
+        margin: 4px 1px 10px;
+        min-height: 16px;
+        text-transform: lowercase;
+      }
+
+      /* Keep covers fully visible, with a text fallback in the same media area.
+         Flexible card bodies push the status and action buttons to the bottom. */
+      .game-grid {
+        display: grid;
+        grid-template-columns: repeat(4,minmax(0,1fr));
+        gap: 11px;
+      }
+
+      .game-card {
+        display: flex;
+        flex-direction: column;
+        border: 1px solid #9cb9cd;
+        background: linear-gradient(145deg,#f9fdff,#e0eff8);
+        border-radius: var(--radius);
+        box-shadow: 0 3px 6px #2b5d7b20,inset 0 1px #fff;
+        min-width: 0;
+        overflow: hidden;
+        transition: border-color .16s,box-shadow .16s;
+      }
+
+      .game-card:hover, .game-card:focus-within {
+        border-color: #238bbf;
+        box-shadow: 0 0 0 1px #effcff,0 0 11px #31b8ed55,0 4px 8px #2b5d7b20;
+      }
+
+      .cover {
+        position: relative;
+        flex: 0 0 auto;
+        height: 185px;
+        padding: 8px;
+        background: linear-gradient(140deg,#e6f1f8,#f9fcff);
+        border-bottom: 1px solid #bdd3e1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      .cover-image {
+        width: 100%;
+        height: 100%;
+        display: block;
+        object-fit: contain;
+        filter: drop-shadow(0 3px 4px #183f5745);
+      }
+
+      .cover:after {
+        content: "";
+        pointer-events: none;
+        position: absolute;
+        inset: 0;
+        box-shadow: inset 0 1px #ffffffa6;
+      }
+
+      .cover-title {
+        position: relative;
+        color: #315773;
+        font-size: 23px;
+        font-weight: 500;
+        text-transform: uppercase;
+        text-align: center;
+        letter-spacing: -.5px;
+        line-height: 1.1;
+        overflow-wrap: anywhere;
+        max-width: 90%;
+        text-shadow: 0 1px #fff;
+      }
+
+      .card-body {
+        padding: 9px 10px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        flex: 1;
+        min-height: 112px;
+        min-width: 0;
+      }
+
+      .game-title {
+        display: flex;
+        align-items: center;
+        min-height: 43px;
+        min-width: 0;
+        padding: 10px;
+        border-bottom: 1px solid #a8c4d6;
+        background: linear-gradient(#f4fcff,#e0f1fb 46%,#cbe3f1 49%,#e7f4fc);
+        font-size: 14px;
+        line-height: 1.3;
+        font-weight: 500;
+        color: #1d435b;
+        overflow-wrap: anywhere;
+        text-shadow: 0 1px #fff;
+        margin: 0;
+      }
+
+      .edition-meta {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        color: #50758f;
+        min-height: 16px;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .edition-meta .ui-icon {
+        width: 12px;
+        height: 12px;
+      }
+
+      .edition-meta .edition-icons {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        flex: none;
+      }
+
+      .game-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        align-content: flex-start;
+        min-height: 0;
+      }
+
+      .platform-chip {
+        font-size: 11px;
+        line-height: 1.4;
+        color: #587b92;
+        background: #e7f1f8;
+        border: 1px solid #c5dce9;
+        border-radius: 3px;
+        padding: 2px 5px;
+        overflow-wrap: anywhere;
+        max-width: 100%;
+      }
+
+      .card-bottom {
+        margin-top: auto;
+        padding-top: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        color: #526d80;
+        background: #e6eef4;
+        border: 1px solid #c1d4df;
+        border-radius: 3px;
+        padding: 3px 5px;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+        max-width: 100%;
+      }
+
+      .status .ui-icon {
+        width: 12px;
+        height: 12px;
+      }
+
+      .status.ograna {
+        color: #316e4e;
+        background: #e2f1e8;
+        border-color: #c0ddca;
+      }
+
+      .status.w-trakcie {
+        color: #8d5a27;
+        background: #fff0db;
+        border-color: #e4d0ac;
+      }
+
+      .card-menu {
+        display: flex;
+        gap: 4px;
+        margin-left: auto;
+        position: relative;
+        z-index: 1;
+        opacity: 1;
+      }
+
+      .icon-btn {
+        width: 28px;
+        min-height: 28px;
+        border: 1px solid #a1bdcf;
+        border-radius: 4px;
+        background: linear-gradient(#fff,#d8eaf5);
+        display: grid;
+        place-items: center;
+        padding: 4px;
+        box-shadow: inset 0 1px #fff;
+      }
+
+      .icon-btn .ui-icon {
+        width: 14px;
+        height: 14px;
+        color: #3a6c89;
+      }
+
+      .icon-btn:hover, .card-menu:focus-within .icon-btn:focus-visible {
+        border-color: #2c86b5;
+        background: #e8f7ff;
+      }
+
+      .empty {
+        grid-column: 1/-1;
+        border: 1px dashed #a2bfd2;
+        border-radius: var(--radius);
+        padding: 45px 22px;
+        background: linear-gradient(#f6fbff,#e2f0f8);
+        text-align: center;
+        min-height: 230px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+      }
+
+      .empty-icon {
+        color: #6a9cba;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .empty-icon .ui-icon {
+        width: 30px;
+        height: 30px;
+      }
+
+      .empty h2 {
+        font-size: 18px;
+        font-weight: 400;
+        margin: 0;
+      }
+
+      .empty p {
+        font-size: 12px;
+        color: var(--muted);
+        max-width: 360px;
+        margin: 0;
+      }
+
+      .footer {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        border-top: 1px solid #aac4d5;
+        box-shadow: 0 -1px #fff8;
+        margin-top: 26px;
+        padding-top: 13px;
+        color: #54778d;
+      }
+
+      .footer-title {
+        font-size: 11px;
+        letter-spacing: .5px;
+      }
+
+      .footer-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .text-btn, .cover-search {
+        background: none;
+        border: 0;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: #356f91;
+        text-decoration: none;
+        min-height: 26px;
+      }
+
+      .text-btn .ui-icon, .cover-search .ui-icon {
+        height: 13px;
+        width: 13px;
+      }
+
+      .text-btn:hover, .cover-search:hover {
+        text-decoration: underline;
+        color: #154a6b;
+      }
+
+      /* Both dialogs use the same fixed backdrop and open-state class. The editor
+         scrolls its form body so its header and action row stay reachable. */
+      .modal-backdrop {
+        position: fixed;
+        z-index: 20;
+        inset: 0;
+        background: #173b5c70;
+        backdrop-filter: blur(5px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .modal-backdrop.open {
+        display: flex;
+      }
+
+      .modal {
+        width: min(100%,580px);
+        max-height: calc(100dvh - 40px);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        background: linear-gradient(135deg,#f5fbff,#dfedf6);
+        border: 1px solid #f5fdff;
+        border-radius: 9px;
+        box-shadow: 0 18px 45px #001d3b77,0 0 0 5px #a7cee655;
+        overflow: hidden;
+      }
+
+      .modal-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        flex: 0 0 auto;
+        padding: 13px 17px;
+        border-bottom: 1px solid #9cb9cd;
+        background: linear-gradient(#d8effc,#eaf7ff 46%,#bbd9ed 49%,#d9edfa);
+        box-shadow: inset 0 1px #fff;
+      }
+
+      .modal-heading {
+        display: flex;
+        gap: 9px;
+        align-items: flex-start;
+        min-width: 0;
+      }
+
+      .modal-heading>.ui-icon {
+        width: 20px;
+        height: 20px;
+        color: #368ab9;
+        margin-top: 2px;
+      }
+
+      .modal h2 {
+        font-size: 18px;
+        line-height: 1.3;
+        font-weight: 400;
+        text-shadow: 0 1px #fff;
+        margin: 0;
+      }
+
+      .modal-sub {
+        font-size: 12px;
+        color: #58788d;
+        margin: 4px 0 0;
+      }
+
+      .close {
+        align-self: flex-start;
+        flex: 0 0 auto;
+        border: 1px solid #a86c66;
+        border-radius: 0 0 4px 4px;
+        background: linear-gradient(#f6e2dc,#ca7c71 50%,#b46357);
+        color: #fff;
+        text-shadow: 0 1px #754139;
+        padding: 2px 11px;
+        min-height: 26px;
+        box-shadow: inset 0 1px #fffb;
+        display: grid;
+        place-items: center;
+      }
+
+      .close .ui-icon {
+        width: 14px;
+        height: 14px;
+      }
+
+      .close:hover {
+        background: linear-gradient(#fbe8e1,#d48b7d 50%,#bc5949);
+      }
+
+      #gameForm {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        padding: 18px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        min-height: 0;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+      }
+
+      .field.full {
+        grid-column: 1/-1;
+      }
+
+      .field>label, .platform-picker>legend {
+        font-size: 12px;
+        color: #3b6480;
+        font-weight: 500;
+      }
+
+      .field-help, .platform-help {
+        font-size: 11px;
+        color: #5a7a8d;
+        line-height: 1.45;
+      }
+
+      /* Manufacturer fieldsets and native checkboxes supply the initial layout.
+         Keep label hit areas and checkbox styles intact when tabs are added. */
+      .platform-picker {
+        display: block;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+      }
+
+      .platform-picker>legend {
+        padding: 0;
+        margin-bottom: 8px;
+      }
+
+      .platform-options {
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+      }
+
+      .platform-group {
+        min-width: 0;
+        border: 1px solid #bacfdd;
+        border-radius: 4px;
+        padding: 7px 9px 9px;
+        margin: 0;
+        background: #edf5fb;
+      }
+
+      .platform-group>legend {
+        padding: 0 5px;
+        color: #4e7893;
+        font-size: 11px;
+        font-weight: 500;
+      }
+
+      .platform-choice-grid {
+        display: grid;
+        grid-template-columns: repeat(3,minmax(0,1fr));
+        gap: 5px;
+      }
+
+      .platform-option {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 11px;
+        line-height: 1.35;
+        padding: 6px 5px;
+        min-height: 30px;
+        border-radius: 3px;
+        min-width: 0;
+        cursor: pointer;
+      }
+
+      .platform-option:has(input:checked) {
+        background: linear-gradient(#f7fcff,#d1e9f9);
+        box-shadow: inset 0 0 0 1px #8fb8d3;
+      }
+
+      .platform-option input {
+        appearance: auto;
+        accent-color: #227eae;
+        flex: 0 0 auto;
+        margin: 0;
+        width: 16px;
+        height: 16px;
+        min-height: 0;
+        padding: 0;
+        border: initial;
+        border-radius: initial;
+        background: initial;
+        box-shadow: none;
+      }
+
+      .platform-option span {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .platform-help {
+        display: block;
+        margin-top: 8px;
+      }
+
+      .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 9px;
+        flex: 0 0 auto;
+        padding: 13px 18px;
+        background: linear-gradient(#ecf5fb,#d6e7f2);
+        border-top: 1px solid #b3cbdc;
+      }
+
+      /* Aero game editor with a cover preview. */
+      /* The preview reserves a stable media slot so a loaded image and its
+         placeholder can share the layout without shifting the form fields. */
+      .modal.game-modal {
+        width: min(100%,680px);
+      }
+
+      .game-modal h2 {
+        font-size: 19px;
+        letter-spacing: -.35px;
+      }
+
+      .game-modal #gameForm {
+        flex: 1;
+      }
+
+      .game-modal .form-grid {
+        display: block;
+        background: linear-gradient(130deg,#f8fcff,#e8f3fb);
+      }
+
+      .game-details {
+        display: grid;
+        grid-template-columns: 132px minmax(0,1fr);
+        gap: 20px;
+        align-items: start;
+      }
+
+      .game-fields {
+        display: grid;
+        grid-template-columns: repeat(2,minmax(0,1fr));
+        gap: 14px;
+        min-width: 0;
+      }
+
+      .game-modal .field input:not([type="checkbox"]), .game-modal .field select {
+        min-height: 37px;
+        font-size: 13px;
+      }
+
+      .game-modal .field input::placeholder {
+        color: #7890a1;
+        opacity: 1;
+      }
+
+      .field-optional {
+        font-size: 11px;
+        font-weight: 400;
+        color: #698397;
+        margin-left: 4px;
+      }
+
+      .cover-preview-frame {
+        padding: 8px;
+        border: 1px solid #b5cddb;
+        border-radius: 7px;
+        background: linear-gradient(145deg,#d2e3ee,#f6fbff 65%,#d6e7f3);
+        box-shadow: inset 0 1px #fff;
+        min-width: 0;
+        text-align: center;
+      }
+
+      .cover-preview-media {
+        height: 158px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 0;
+      }
+
+      #coverPreview {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        filter: drop-shadow(0 2px 3px #274a6130);
+      }
+
+      .cover-preview-placeholder {
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #7295ad;
+      }
+
+      .cover-preview-placeholder .ui-icon {
+        width: 38px;
+        height: 38px;
+        stroke-width: 1.3;
+      }
+
+      .cover-preview-title {
+        font-size: 12px;
+        font-weight: 500;
+        color: #365e79;
+        margin: 8px 0 0;
+        overflow-wrap: anywhere;
+      }
+
+      .cover-preview-status {
+        font-size: 11px;
+        color: #5b7d94;
+        margin: 7px 0 0;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+      }
+
+      .game-modal .cover-search {
+        font-size: 11px;
+        line-height: 1.4;
+        min-height: 20px;
+        align-self: flex-start;
+      }
+
+      .cover-search-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 16px;
+      }
+
+      /* The enhanced picker displays one manufacturer at a time. Counts and chips
+         reflect selections across groups, including ones that are currently hidden. */
+      .game-modal .platform-picker {
+        margin-top: 23px;
+      }
+
+      .game-modal .platform-picker>legend {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        width: 100%;
+        margin-bottom: 10px;
+        font-size: 13px;
+        color: #365f7b;
+      }
+
+      .platform-picker-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+      }
+
+      .platform-picker-label .ui-icon {
+        width: 15px;
+        height: 15px;
+        color: #5e90ae;
+      }
+
+      .platform-selection-count {
+        font-size: 11px;
+        font-weight: 400;
+        color: #617f93;
+        white-space: nowrap;
+      }
+
+      .platform-console-box {
+        border: 1px solid #aac7d9;
+        border-radius: 7px;
+        background: #f6fbff;
+        box-shadow: inset 0 1px #fff;
+        overflow: hidden;
+      }
+
+      .platform-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px;
+        padding: 7px 8px 0;
+        border-bottom: 1px solid #b6cede;
+        background: #e6f0f8;
+      }
+
+      .platform-tab {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        min-height: 31px;
+        margin-bottom: -1px;
+        padding: 7px 10px;
+        border: 1px solid transparent;
+        border-radius: 5px 5px 0 0;
+        background: transparent;
+        color: #52758e;
+        font-size: 12px;
+        line-height: 1.35;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+      }
+
+      .platform-tab[aria-selected="true"] {
+        position: relative;
+        border-color: #aac5d8;
+        border-bottom-color: #f6fbff;
+        background: linear-gradient(#fff,#f6fbff);
+        color: #1f5477;
+      }
+
+      .platform-tab-count {
+        font-size: 11px;
+        opacity: .75;
+      }
+
+      .game-modal .platform-options {
+        padding: 12px;
+      }
+
+      .game-modal .platform-options.platform-tabs-ready {
+        display: block;
+      }
+
+      .game-modal .platform-tabs-ready>.platform-group {
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+      }
+
+      .game-modal .platform-tabs-ready>.platform-group>legend {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      .game-modal .platform-option {
+        min-height: 33px;
+        padding: 6px;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        font-size: 12px;
+        line-height: 1.35;
+        user-select: none;
+      }
+
+      .game-modal .platform-option:has(input:checked) {
+        border-color: #a5c9df;
+        background: linear-gradient(#eff9ff,#d8ebf8);
+        box-shadow: inset 0 1px #fff;
+      }
+
+      .game-modal .platform-option:hover {
+        background: #e6f2fb;
+      }
+
+      .game-modal .platform-option input {
+        width: 15px;
+        height: 15px;
+      }
+
+      .game-modal .platform-help {
+        margin: 0;
+        padding: 10px 12px;
+        background: #eef5fa;
+        border-top: 1px solid #d0e0eb;
+        font-size: 11px;
+        color: #6c889b;
+        line-height: 1.5;
+      }
+
+      .selected-platforms {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        min-height: 31px;
+        padding-top: 10px;
+      }
+
+      .selected-platforms-label {
+        font-size: 11px;
+        color: #658398;
+        margin-right: 2px;
+      }
+
+      .selected-platform-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 7px;
+        border: 1px solid #b5cddd;
+        border-radius: 4px;
+        background: #edf5fb;
+        color: #466d86;
+        font-size: 11px;
+        line-height: 1.3;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+      }
+
+      .selected-platform-chip .ui-icon {
+        width: 11px;
+        height: 11px;
+        color: #2a88a8;
+      }
+
+      .selected-platforms-empty {
+        font-size: 11px;
+        color: #70899b;
+        padding: 4px 0;
+      }
+
+      .game-modal .form-actions {
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .form-required-note {
+        margin-right: auto;
+        font-size: 11px;
+        color: #688297;
+        line-height: 1.4;
+      }
+
+      .game-modal .form-action-buttons {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        flex: none;
+        margin-left: auto;
+      }
+
+      /* Narrow layouts reduce the preview first, then move it above the fields
+         at the smallest width. The platform choices reduce to two columns. */
+      @media (max-width: 700px) {
+        .game-modal .form-grid {
+          padding: 15px;
+        }
+
+        .game-modal .game-details {
+          gap: 16px;
+        }
+
+        .game-modal .platform-choice-grid {
+          grid-template-columns: repeat(3,minmax(0,1fr));
+        }
+      }
+
+      @media (max-width: 560px) {
+        .game-modal .game-details {
+          grid-template-columns: 88px minmax(0,1fr);
+          gap: 12px;
+        }
+
+        .game-modal .game-fields {
+          grid-template-columns: minmax(0,1fr);
+          gap: 12px;
+        }
+
+        .game-modal .field.full {
+          grid-column: auto;
+        }
+
+        .game-modal .cover-preview-frame {
+          padding: 6px;
+        }
+
+        .game-modal .cover-preview-media {
+          height: 115px;
+        }
+
+        .game-modal .cover-preview-title {
+          font-size: 11px;
+        }
+
+        .game-modal .platform-picker {
+          margin-top: 21px;
+        }
+
+        .game-modal .platform-choice-grid {
+          grid-template-columns: repeat(2,minmax(0,1fr));
+        }
+
+        .game-modal .platform-tabs {
+          padding-left: 6px;
+          padding-right: 6px;
+        }
+
+        .game-modal .platform-tab {
+          padding: 8px 7px;
+          font-size: 11px;
+        }
+
+        .game-modal .platform-help {
+          padding: 10px;
+        }
+
+        .game-modal .form-actions {
+          padding: 12px 14px;
+        }
+      }
+
+      @media (max-width: 380px) {
+        .game-modal .game-details {
+          grid-template-columns: minmax(0,1fr);
+        }
+
+        .game-modal .cover-preview-frame {
+          display: grid;
+          grid-template-columns: 60px minmax(0,1fr);
+          align-items: center;
+          gap: 10px;
+          text-align: left;
+        }
+
+        .game-modal .cover-preview-media {
+          height: 80px;
+        }
+
+        .game-modal .cover-preview-title {
+          margin-top: 0;
+        }
+
+        .game-modal .platform-picker>legend {
+          font-size: 12px;
+        }
+
+        .game-modal .form-required-note {
+          width: 100%;
+          margin: 0 0 1px;
+        }
+      }
+
+      @media (pointer: coarse) {
+        .game-modal .cover-search {
+          min-height: 44px;
+        }
+
+        .game-modal .platform-option, .game-modal .platform-tab {
+          min-height: 44px;
+        }
+
+        .game-modal .field input:not([type="checkbox"]), .game-modal .field select {
+          min-height: 44px;
+          font-size: 16px;
+        }
+      }
+
+      /* Authentication has its own full-screen layer and scrollable card. The
+         brand panel and credential form sit side by side until space is limited. */
+      .auth-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: grid;
+        place-items: center;
+        padding: 18px;
+        background: #09253d33;
+      }
+
+      .auth-card {
+        width: min(100%,780px);
+        max-height: calc(100dvh - 36px);
+        display: grid;
+        grid-template-columns: minmax(220px,.83fr) minmax(0,1.17fr);
+        overflow-y: auto;
+        border: 1px solid #f3fcff;
+        border-radius: 9px;
+        background: #edf6fc;
+        box-shadow: 0 18px 40px #00172466,0 0 0 5px #c0e7ff21,inset 0 1px #fff;
+      }
+
+      .auth-brand {
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-width: 0;
+        padding: 35px 30px;
+        border-right: 1px solid #b1cfe1;
+        background: linear-gradient(145deg,#075585,#0d638c 65%,#064b76);
+        color: #f1fbff;
+      }
+
+      .auth-brand:after {
+        content: "";
+        position: absolute;
+        z-index: -1;
+        inset: 0;
+        background: linear-gradient(115deg,#ffffff14,transparent 42%,#e1f7ff0a 42.3%,transparent 79%);
+        pointer-events: none;
+      }
+
+      .auth-brand-logo {
+        display: block;
+        width: 52px;
+        height: 52px;
+        flex: 0 0 auto;
+        margin: 0 0 13px;
+        filter: drop-shadow(0 3px 5px #002b4770);
+      }
+
+      .auth-brand-title {
+        font-size: 25px;
+        line-height: 1.2;
+        font-weight: 500;
+        letter-spacing: -.8px;
+        color: #f4fcff;
+        text-shadow: 0 1px #024b72;
+      }
+
+      .auth-brand-eyebrow {
+        font-size: 11px;
+        letter-spacing: 1.5px;
+        line-height: 1.5;
+        color: #e5f3fc;
+        margin: 34px 0 9px;
+      }
+
+      .auth-brand h2 {
+        font-size: 30px;
+        font-weight: 400;
+        line-height: 1.13;
+        letter-spacing: -.8px;
+        max-width: 220px;
+        margin: 0;
+        color: #f5fcff;
+        text-shadow: 0 1px #07527d;
+      }
+
+      .auth-brand-description {
+        font-size: 12px;
+        line-height: 1.7;
+        color: #e5f3fc;
+        max-width: 235px;
+        margin: 14px 0 0;
+      }
+
+      .auth-brand-wave {
+        position: absolute;
+        z-index: -1;
+        pointer-events: none;
+        width: 190%;
+        height: 50%;
+        left: -25%;
+        bottom: -4%;
+        border-top: 1px solid #c2ecff55;
+        border-radius: 50%;
+        transform: rotate(-21deg);
+        background: #53b5d319;
+      }
+
+      .auth-brand-wave:nth-child(2) {
+        bottom: 8%;
+        left: -80%;
+        transform: rotate(22deg);
+        background: #75cbdf12;
+        border-top-color: #d2f6ff24;
+      }
+
+      .auth-body {
+        min-width: 0;
+        padding: 33px 31px 30px;
+        background: linear-gradient(125deg,#fbfeff,#e4f1fa);
+      }
+
+      .auth-heading {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .auth-language {
+        flex: 0 0 auto;
+        margin-bottom: 9px;
+      }
+
+      .auth-language select {
+        border: 1px solid #94b2c7;
+        border-radius: 4px;
+        background: #f6fbff;
+        min-height: 34px;
+        padding: 4px 6px;
+        font-size: 12px;
+      }
+
+      .auth-card h1 {
+        font-size: 25px;
+        line-height: 1.2;
+        font-weight: 400;
+        letter-spacing: -.6px;
+        margin: 0 0 9px;
+        color: #21475f;
+        text-shadow: 0 1px #fff;
+        overflow-wrap: anywhere;
+      }
+
+      .auth-intro, .auth-help {
+        font-size: 13px;
+        color: #4f7088;
+        line-height: 1.6;
+        margin: 0 0 23px;
+      }
+
+      .auth-field {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        margin: 15px 0;
+        min-width: 0;
+      }
+
+      .auth-field label {
+        font-size: 12px;
+        color: #456c86;
+        font-weight: 500;
+      }
+
+      .auth-field input {
+        min-height: 43px;
+        padding: 10px 11px;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      .auth-field input::placeholder {
+        color: #597286;
+        opacity: 1;
+      }
+
+      .auth-field input:focus {
+        border-color: #2b8cbe;
+        box-shadow: 0 0 6px #37a8d947,inset 0 1px 2px #36607912;
+      }
+
+      .auth-password {
+        position: relative;
+        min-width: 0;
+      }
+
+      .auth-password input {
+        padding-right: 46px;
+      }
+
+      .auth-password-toggle {
+        position: absolute;
+        top: 3px;
+        right: 3px;
+        width: 36px;
+        height: 37px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border: 0;
+        border-radius: 3px;
+        background: transparent;
+        color: #668ba3;
+        font-size: 11px;
+      }
+
+      .auth-password-toggle:hover {
+        background: #e6f3fb;
+        color: #266f98;
+      }
+
+      .auth-password-toggle .ui-icon {
+        width: 16px;
+        height: 16px;
+      }
+
+      .auth-card .primary {
+        width: 100%;
+        min-height: 43px;
+        margin-top: 20px;
+        padding: 10px 16px;
+        border-color: #478aaf;
+        background: linear-gradient(#f9feff,#d3eefb 43%,#91cce8 48%,#d3effb);
+        box-shadow: inset 0 1px #fff,0 2px 4px #35678324;
+        color: #1d5272;
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      /* The widget container takes space once a challenge is rendered. Empty
+         messages collapse so transient connection or validation states leave no gaps. */
+      .captcha-widget {
+        display: flex;
+        justify-content: center;
+        margin: 23px 0 0;
+        max-width: 100%;
+        overflow: visible;
+      }
+
+      .captcha-widget:empty {
+        display: none;
+      }
+
+      .captcha-status {
+        font-size: 11px;
+        color: #3f7055;
+        text-align: center;
+        margin: 10px 0 0;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+      }
+
+      .auth-message {
+        margin: 13px 0 0;
+        color: #993e33;
+        font-size: 12px;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+      }
+
+      .auth-message:empty, .captcha-status:empty {
+        display: none;
+      }
+
+      #retryConnection {
+        max-width: 100%;
+        min-height: 38px;
+        margin-top: 14px;
+        white-space: normal;
+      }
+
+      /* Keep the honeypot outside the visible layout. Its markup also keeps it
+         out of keyboard navigation and the accessibility tree. */
+      .captcha-trap {
+        position: absolute !important;
+        left: -10000px !important;
+        top: auto !important;
+        width: 1px !important;
+        height: 1px !important;
+        overflow: hidden !important;
+      }
+
+      .captcha-trap input {
+        position: absolute;
+        left: -10000px;
+      }
+
+      /* The narrow sign-in card uses a compact brand header and gives the form
+         more width for credentials and the embedded verification widget. */
+      @media (max-width: 700px) {
+        .auth-card {
+          width: min(100%,440px);
+          grid-template-columns: minmax(0,1fr);
+        }
+
+        .auth-brand {
+          display: grid;
+          grid-template-columns: 44px minmax(0,1fr);
+          align-items: center;
+          column-gap: 12px;
+          padding: 22px 26px;
+          border-right: 0;
+          border-bottom: 1px solid #b1cfe1;
+        }
+
+        .auth-brand-logo {
+          width: 44px;
+          height: 44px;
+          grid-row: 1/3;
+          margin: 0;
+        }
+
+        .auth-brand-title {
+          font-size: 22px;
+        }
+
+        .auth-brand-eyebrow {
+          margin: 2px 0 0;
+          font-size: 11px;
+          letter-spacing: .7px;
+        }
+
+        .auth-brand h2, .auth-brand-description {
+          display: none;
+        }
+
+        .auth-body {
+          padding: 24px 26px;
+        }
+      }
+
+      @media (max-width: 430px) {
+        .top-right .theme-picker span {
+          display: none;
+        }
+
+        .auth-screen {
+          padding: 13px;
+        }
+
+        .auth-card {
+          max-height: calc(100dvh - 26px);
+        }
+
+        .auth-body {
+          padding: 22px 16px;
+        }
+
+        .auth-brand {
+          padding: 20px 16px;
+        }
+      }
+
+      @media (max-width: 375px) {
+        .auth-screen {
+          padding: 4px;
+        }
+
+        .auth-card {
+          max-height: calc(100dvh - 8px);
+        }
+
+        .auth-body {
+          padding: 22px 4px;
+        }
+
+        .auth-brand {
+          padding: 20px 13px;
+        }
+      }
+
+      @media (max-width: 340px) {
+        .auth-screen {
+          padding: 0;
+        }
+
+        .auth-card {
+          max-height: 100dvh;
+        }
+
+        .auth-body {
+          padding: 20px 1px;
+        }
+
+        .auth-brand {
+          padding: 20px 10px;
+        }
+      }
+
+      @media (pointer: coarse) {
+        .app-menu-toggle {
+          min-height: 44px;
+        }
+
+        .auth-field input {
+          min-height: 46px;
+        }
+
+        .auth-card .primary {
+          min-height: 46px;
+          font-size: 14px;
+        }
+
+        .auth-password-toggle {
+          top: 2px;
+          right: 2px;
+          width: 42px;
+          height: 42px;
+        }
+      }
+
+      /* The separate destructive confirmation uses a compact layout that still
+         wraps long game titles and platform lists. */
+      .delete-modal {
+        width: min(100%,460px);
+      }
+
+      .delete-body {
+        padding: 22px 18px;
+        display: flex;
+        gap: 14px;
+        overflow-y: auto;
+      }
+
+      .delete-body>div {
+        min-width: 0;
+      }
+
+      .delete-body>.ui-icon {
+        width: 32px;
+        height: 32px;
+        color: #b58237;
+        flex-shrink: 0;
+      }
+
+      .delete-body p {
+        margin: 0;
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+
+      .delete-body strong {
+        font-weight: 500;
+      }
+
+      .delete-platforms {
+        display: block;
+        font-size: 11px;
+        color: #57778b;
+        margin-top: 8px;
+        overflow-wrap: anywhere;
+      }
+
+      .delete-note {
+        font-size: 11px;
+        color: #6b7d88;
+        margin-top: 12px !important;
+      }
+
+      /* Status announcements occupy separate screen edges. The session warning
+         stays above dialogs while the non-interactive toast reports actions. */
+      .toast {
+        position: fixed;
+        z-index: 40;
+        bottom: 22px;
+        left: 50%;
+        transform: translate(-50%,20px);
+        opacity: 0;
+        pointer-events: none;
+        background: linear-gradient(#f5fdff,#c6e6f5);
+        border: 1px solid #4d99bd;
+        color: #173b52;
+        box-shadow: 0 3px 12px #21465c55;
+        padding: 11px 16px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        max-width: calc(100% - 32px);
+        overflow-wrap: anywhere;
+        transition: opacity .2s,transform .2s;
+      }
+
+      .toast.show {
+        opacity: 1;
+        transform: translate(-50%,0);
+      }
+
+      .session-warning {
+        position: fixed;
+        z-index: 45;
+        top: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        width: max-content;
+        max-width: min(560px,calc(100% - 28px));
+        padding: 11px 14px;
+        border: 1px solid #c3a464;
+        border-radius: 6px;
+        background: linear-gradient(#fffdf3,#f6e7bc);
+        box-shadow: inset 0 1px #fff,0 4px 14px #31455038;
+        color: #665023;
+        font-size: 12px;
+        line-height: 1.45;
+        pointer-events: none;
+      }
+
+      .session-warning .ui-icon {
+        width: 17px;
+        height: 17px;
+        margin-top: 1px;
+      }
+
+      /* Collection breakpoints reduce the grid from four columns to two, then one.
+         Move search above the selects as the filter controls run out of room. */
+      @media (max-width: 900px) {
+        .game-grid {
+          grid-template-columns: repeat(2,minmax(0,1fr));
+        }
+      }
+
+      @media (max-width: 940px) {
+        .app {
+          width: calc(100% - 36px);
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+
+        .toolbar {
+          grid-template-columns: repeat(4,minmax(0,1fr)) minmax(90px,.7fr);
+        }
+
+        .filter-search {
+          grid-column: 1/-1;
+        }
+
+        .local-badge {
+          display: none;
+        }
+      }
+
+      @media (max-width: 700px) {
+        .app {
+          width: calc(100% - 24px);
+          margin: 16px auto 24px;
+          padding: 0 13px 15px;
+        }
+
+        .topbar {
+          gap: 10px;
+          min-height: 63px;
+          padding: 10px 0;
+        }
+
+        .brand {
+          font-size: 15px;
+          gap: 7px;
+        }
+
+        .brand em {
+          display: none;
+        }
+
+        .brand-mark {
+          width: 30px;
+          height: 30px;
+        }
+
+        .theme-picker {
+          font-size: 11px;
+          gap: 5px;
+          padding: 4px 6px;
+        }
+
+        .hero {
+          display: block;
+          padding: 25px 0 20px;
+        }
+
+        .hero h1 {
+          font-size: 29px;
+          letter-spacing: -.8px;
+        }
+
+        .hero>.primary {
+          margin-top: 15px;
+        }
+
+        .stats {
+          gap: 7px;
+        }
+
+        .stat {
+          padding: 12px 9px;
+        }
+
+        .stat-label {
+          font-size: 11px;
+          letter-spacing: .2px;
+          gap: 4px;
+        }
+
+        .stat-label .ui-icon {
+          display: none;
+        }
+
+        .stat-value {
+          font-size: 24px;
+        }
+
+        .stat-value small {
+          font-size: 11px;
+          margin-left: 2px;
+        }
+
+        .toolbar {
+          grid-template-columns: repeat(2,minmax(0,1fr));
+          padding: 10px;
+          gap: 9px;
+        }
+
+        .filter-search {
+          grid-column: 1/-1;
+        }
+
+        .filter-language {
+          grid-column: 2;
+          justify-self: end;
+          width: min(100%, 120px);
+        }
+
+        .cover-title {
+          font-size: 18px;
+        }
+
+        .footer {
+          display: block;
+          margin-top: 20px;
+        }
+
+        .footer-actions {
+          margin-top: 12px;
+          gap: 16px;
+        }
+
+        .modal-backdrop {
+          padding: 12px;
+        }
+
+        .modal {
+          max-height: calc(100dvh - 24px);
+        }
+
+        .modal-head {
+          padding: 12px;
+        }
+
+        .modal-sub {
+          font-size: 11px;
+        }
+
+        .form-grid {
+          gap: 12px;
+          padding: 14px;
+        }
+
+        .platform-choice-grid {
+          grid-template-columns: repeat(2,minmax(0,1fr));
+        }
+
+        .platform-option {
+          font-size: 12px;
+          padding: 7px 4px;
+        }
+      }
+
+      @media (max-width: 430px) {
+        .game-grid {
+          grid-template-columns: minmax(0,1fr);
+        }
+
+        .form-grid {
+          grid-template-columns: minmax(0,1fr);
+        }
+
+        .field.full {
+          grid-column: auto;
+        }
+
+        .stat {
+          padding: 10px 7px;
+        }
+
+        .stat-label {
+          font-size: 10px;
+          letter-spacing: 0;
+        }
+
+        .stat-value small {
+          font-size: 10px;
+        }
+
+        .form-actions {
+          padding: 12px 14px;
+        }
+      }
+
+      @media (max-width: 360px) {
+        .app {
+          width: calc(100% - 16px);
+          padding-left: 10px;
+          padding-right: 10px;
+        }
+
+        .theme-picker span {
+          display: none;
+        }
+
+        .stat-value small {
+          display: none;
+        }
+
+        .stat-label {
+          font-size: 10px;
+        }
+      }
+
+      /* Larger controls help touch users. Keep the checkbox itself small because
+         its surrounding label supplies the larger hit area. */
+      @media (pointer: coarse) {
+        .primary, .secondary, .danger, .text-btn, .icon-btn, .platform-option, .close {
+          min-height: 44px;
+        }
+
+        .icon-btn {
+          width: 34px;
+        }
+
+        .toolbar input,
+        .toolbar select,
+        .field input:not([type="checkbox"]),
+        .field select,
+        .auth-field input,
+        .auth-language select {
+          min-height: 44px;
+          font-size: 16px;
+        }
+
+        .platform-option input {
+          min-height: 0;
+        }
+      }
+
+      /* Match the canvas controller's reduced-motion handling by removing the
+         remaining CSS transitions from cards and status messages. */
+      @media (prefers-reduced-motion: reduce) {
+        .game-card, .toast {
+          transition: none;
+        }
+
+        #xmbBackground {
+          opacity: .9;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Canvas rendering mounts here when available. This decorative layer
+         stays outside both the authentication and collection views. -->
+    <div id="xmbBackground" aria-hidden="true"></div>
+    <!-- Lucide 0.468.0, https://lucide.dev/license
+ISC License
+
+Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2022.
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+Feather icons (MIT License)
+Copyright (c) 2013-present Cole Bemis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-->
+    <!-- Static controls and the script's card renderer share these local symbol
+         IDs. Keep them in sync with their use references and icon allowlist. -->
+    <svg class="icon-defs" aria-hidden="true" focusable="false" width="0" height="0">
+      <defs>
+        <symbol id="ui-icon-library-big" viewBox="0 0 24 24">
+          <rect width="8" height="18" x="3" y="3" rx="1" />
+          <path d="M7 3v18" />
+          <path d="M20.4 18.9c.2.5-.1 1.1-.6 1.3l-1.9.7c-.5.2-1.1-.1-1.3-.6L11.1 5.1c-.2-.5.1-1.1.6-1.3l1.9-.7c.5-.2 1.1.1 1.3.6Z" />
+        </symbol>
+        <symbol id="ui-icon-menu" viewBox="0 0 24 24">
+          <path d="M4 6h16M4 12h16M4 18h16" />
+        </symbol>
+        <symbol id="ui-icon-chevron-down" viewBox="0 0 24 24">
+          <path d="m6 9 6 6 6-6" />
+        </symbol>
+        <symbol id="ui-icon-gamepad-2" viewBox="0 0 24 24">
+          <line x1="6" x2="10" y1="11" y2="11" />
+          <line x1="8" x2="8" y1="9" y2="13" />
+          <line x1="15" x2="15.01" y1="12" y2="12" />
+          <line x1="18" x2="18.01" y1="10" y2="10" />
+          <path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z" />
+        </symbol>
+        <symbol id="ui-icon-circle-check" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" />
+          <path d="m9 12 2 2 4-4" />
+        </symbol>
+        <symbol id="ui-icon-plus" viewBox="0 0 24 24">
+          <path d="M5 12h14" />
+          <path d="M12 5v14" />
+        </symbol>
+        <symbol id="ui-icon-search" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.3-4.3" />
+        </symbol>
+        <symbol id="ui-icon-pencil" viewBox="0 0 24 24">
+          <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+          <path d="m15 5 4 4" />
+        </symbol>
+        <symbol id="ui-icon-trash-2" viewBox="0 0 24 24">
+          <path d="M3 6h18" />
+          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+          <line x1="10" x2="10" y1="11" y2="17" />
+          <line x1="14" x2="14" y1="11" y2="17" />
+        </symbol>
+        <symbol id="ui-icon-disc-3" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M6 12c0-1.7.7-3.2 1.8-4.2" />
+          <circle cx="12" cy="12" r="2" />
+          <path d="M18 12c0 1.7-.7 3.2-1.8 4.2" />
+        </symbol>
+        <symbol id="ui-icon-download" viewBox="0 0 24 24">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" x2="12" y1="15" y2="3" />
+        </symbol>
+        <symbol id="ui-icon-upload" viewBox="0 0 24 24">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="17 8 12 3 7 8" />
+          <line x1="12" x2="12" y1="3" y2="15" />
+        </symbol>
+        <symbol id="ui-icon-log-out" viewBox="0 0 24 24">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <polyline points="16 17 21 12 16 7" />
+          <line x1="21" x2="9" y1="12" y2="12" />
+        </symbol>
+        <symbol id="ui-icon-external-link" viewBox="0 0 24 24">
+          <path d="M15 3h6v6" />
+          <path d="M10 14 21 3" />
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+        </symbol>
+        <symbol id="ui-icon-x" viewBox="0 0 24 24">
+          <path d="M18 6 6 18" />
+          <path d="m6 6 12 12" />
+        </symbol>
+        <symbol id="ui-icon-check" viewBox="0 0 24 24">
+          <path d="M20 6 9 17l-5-5" />
+        </symbol>
+        <symbol id="ui-icon-shield-check" viewBox="0 0 24 24">
+          <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+          <path d="m9 12 2 2 4-4" />
+        </symbol>
+        <symbol id="ui-icon-triangle-alert" viewBox="0 0 24 24">
+          <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
+          <path d="M12 9v4" />
+          <path d="M12 17h.01" />
+        </symbol>
+        <symbol id="ui-icon-search-x" viewBox="0 0 24 24">
+          <path d="m13.5 8.5-5 5" />
+          <path d="m8.5 8.5 5 5" />
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.3-4.3" />
+        </symbol>
+        <symbol id="ui-icon-circle" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" />
+        </symbol>
+        <symbol id="ui-icon-play" viewBox="0 0 24 24">
+          <polygon points="6 3 20 12 6 21 6 3" />
+        </symbol>
+        <symbol id="ui-icon-eye" viewBox="0 0 24 24">
+          <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+          <circle cx="12" cy="12" r="3" />
+        </symbol>
+        <symbol id="ui-icon-eye-off" viewBox="0 0 24 24">
+          <path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" />
+          <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242" />
+          <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" />
+          <path d="m2 2 20 20" />
+        </symbol>
+      </defs>
+    </svg>
+    <!-- The authentication view is visible before session state is known.
+         The same view also presents session checks and connection retries. -->
+    <div class="auth-screen" id="authScreen">
+      <section class="auth-card" aria-labelledby="authTitle">
+        <div class="auth-brand">
+          <span class="auth-brand-wave" aria-hidden="true"></span>
+          <span class="auth-brand-wave" aria-hidden="true"></span>
+          <img class="auth-brand-logo" src="/favicon.svg?v=20261030-2" width="52" height="52" alt="">
+          <div class="auth-brand-title">savepoint</div>
+          <p class="auth-brand-eyebrow" data-en="YOUR LIBRARY">TWOJA BIBLIOTEKA</p>
+          <h2><span data-en="Games you">Gry, które</span><br><span data-en="own.">masz.</span></h2>
+          <p class="auth-brand-description" data-en="All your boxed games and digital purchases in one place.">Wszystkie pudełka i cyfrowe zakupy w jednym miejscu.</p>
+        </div>
+        <div class="auth-body">
+          <div class="auth-heading">
+            <h1 id="authTitle" data-en="Sign in">Zaloguj się</h1>
+            <label class="filter-field auth-language">
+              <span class="filter-label" data-en="Language">Język</span>
+              <select data-ui-language aria-label="Język interfejsu" data-en-aria-label="Interface language">
+                <option value="pl" lang="pl">Polski</option>
+                <option value="en" lang="en">English</option>
+              </select>
+            </label>
+          </div>
+          <p class="auth-intro" id="authIntro" data-en="Enter your account details. The automatic bot check runs in the background.">Wpisz dane konta. Automatyczna kontrola antybotowa działa w tle.</p>
+          <!-- The script submits credentials to the API. The submit button stays
+               disabled until the current Turnstile challenge returns a token. -->
+          <form id="loginForm">
+            <div class="auth-field">
+              <label for="loginUsername" data-en="Username">Nazwa użytkownika</label>
+              <input
+                id="loginUsername"
+                type="text"
+                autocomplete="username"
+                placeholder="Wpisz nazwę użytkownika" data-en-placeholder="Enter your username"
+                required>
+            </div>
+            <div class="auth-field">
+              <label for="loginPassword" data-en="Password">Hasło</label>
+              <div class="auth-password">
+                <input
+                  id="loginPassword"
+                  type="password"
+                  autocomplete="current-password"
+                  placeholder="Wpisz hasło" data-en-placeholder="Enter your password"
+                  required>
+                <button
+                  class="auth-password-toggle"
+                  id="toggleLoginPassword"
+                  type="button"
+                  aria-label="Pokaż hasło"
+                  data-en-aria-label="Show password"
+                  aria-pressed="false">
+                  <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-eye"></use></svg>
+                </button>
+              </div>
+            </div>
+            <div id="captchaWidget" class="captcha-widget" aria-label="Weryfikacja CAPTCHA" data-en-aria-label="CAPTCHA verification"></div>
+            <p id="captchaStatus" class="captcha-status" role="status" aria-live="polite" data-en="Preparing automatic verification…">Przygotowuję automatyczną weryfikację…</p>
+            <button class="primary" id="loginButton" type="submit" disabled data-en="Checking security…">Sprawdzam zabezpieczenie…</button>
+          </form>
+          <label class="captcha-trap" aria-hidden="true"><span data-en="Leave this field blank">Pozostaw to pole puste</span><input id="websiteField" name="website" tabindex="-1" autocomplete="off"></label>
+          <p class="auth-message" id="authMessage" role="status" aria-live="polite"></p>
+          <button class="secondary" id="retryConnection" type="button" hidden data-en="Try again">Spróbuj ponownie</button>
+        </div>
+      </section>
+    </div>
+    <!-- Keep the private collection shell hidden until authentication succeeds.
+         Stable IDs let the script update controls and rendered content in place. -->
+    <div class="app" id="appShell" hidden>
+      <header class="topbar">
+        <div class="brand"><img class="brand-mark" src="/favicon.svg?v=20261030-2" width="34" height="34" alt="">savepoint <em data-en="/ your collection">/ twoja kolekcja</em></div>
+        <div class="top-right">
+          <label class="theme-picker" for="backgroundColor">
+            <span data-en="Background color">Kolor tła</span>
+            <input id="backgroundColor" type="color" value="#0874bc" aria-label="Wybierz kolor tła" data-en-aria-label="Choose a background color">
+          </label>
+          <span class="local-badge" id="connectionStatus"><i class="dot"></i> zapis w bazie danych</span>
+          <!-- The menu is a disclosure with native buttons. The script updates the
+               toggle's expanded state and handles keyboard navigation. -->
+          <div class="app-menu-container" id="appMenuContainer">
+            <button
+              type="button"
+              class="app-menu-toggle"
+              id="appMenuToggle"
+              aria-expanded="false"
+              aria-controls="appMenu">
+              <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-menu"></use></svg>
+              <span>Menu</span>
+              <svg class="ui-icon menu-chevron" aria-hidden="true" focusable="false"><use href="#ui-icon-chevron-down"></use></svg>
+            </button>
+            <section class="app-menu" id="appMenu" aria-label="Menu aplikacji" data-en-aria-label="Application menu" hidden>
+              <div class="app-menu-title" data-en="Application menu">Menu aplikacji</div>
+              <div class="app-menu-items">
+                <button type="button" class="app-menu-item" id="importBtn">
+                  <span class="app-menu-icon">
+                    <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-upload"></use></svg>
+                  </span>
+                  <span class="app-menu-copy">
+                    <span data-en="Import data">Importuj dane</span>
+                    <small data-en="Load a JSON file">Wczytaj plik JSON</small>
+                  </span>
+                </button>
+                <button type="button" class="app-menu-item" id="exportBtn">
+                  <span class="app-menu-icon">
+                    <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-download"></use></svg>
+                  </span>
+                  <span class="app-menu-copy">
+                    <span data-en="Export data">Eksportuj dane</span>
+                    <small data-en="Download a JSON file">Pobierz plik JSON</small>
+                  </span>
+                </button>
+                <div class="app-menu-separator"></div>
+                <button type="button" class="app-menu-item app-menu-logout" id="logoutBtn">
+                  <span class="app-menu-icon">
+                    <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-log-out"></use></svg>
+                  </span>
+                  <span class="app-menu-copy">
+                    <span data-en="Log out">Wyloguj</span>
+                    <small data-en="End the session">Zakończ sesję</small>
+                  </span>
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </header>
+      <main>
+        <section class="hero">
+          <div>
+            <p class="eyebrow" data-en="Your library">Twoja biblioteka</p>
+            <h1><span data-en="Games you">Gry, które</span> <span class="hero-heading-accent" data-en="own.">masz.</span></h1>
+            <p data-en="All your boxed games and digital purchases in one place.">Wszystkie pudełka i cyfrowe zakupy w jednym miejscu.</p>
+          </div>
+          <button class="primary" id="addBtn"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-plus"></use></svg><span data-en="Add a game">Dodaj grę</span></button>
+        </section>
+        <section class="stats" aria-label="Statystyki kolekcji" data-en-aria-label="Collection statistics">
+          <div class="stat">
+            <div class="stat-label"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-library-big"></use></svg><span data-en="In collection">W kolekcji</span></div>
+            <div class="stat-value" id="statTotal">0 <small>gier</small></div>
+          </div>
+          <div class="stat">
+            <div class="stat-label"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-gamepad-2"></use></svg><span data-en="Consoles">Konsole</span></div>
+            <div class="stat-value" id="statPlatforms">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-circle-check"></use></svg><span data-en="Completed">Ukończone</span></div>
+            <div class="stat-value" id="statDone">0 <small>gier</small></div>
+          </div>
+        </section>
+        <!-- Filters feed the client-side renderer. The script fills the grid
+             and updates the live count with the matching results. -->
+        <section aria-label="Kolekcja gier" data-en-aria-label="Game collection">
+          <div class="toolbar">
+            <label class="filter-field filter-search" for="search">
+              <span class="filter-label" data-en="Search your collection">Szukaj w kolekcji</span>
+              <span class="search">
+                <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-search"></use></svg>
+                <input
+                  id="search"
+                  type="search"
+                  placeholder="Szukaj tytułu, konsoli…" data-en-placeholder="Search by title or console…"
+                  aria-label="Szukaj gier" data-en-aria-label="Search games">
+              </span>
+            </label>
+            <label class="filter-field" for="platformFilter">
+              <span class="filter-label" data-en="Console">Konsola</span>
+              <select id="platformFilter" aria-label="Filtruj po konsoli" data-en-aria-label="Filter by console">
+                <option value="" data-en="All consoles">Wszystkie konsole</option>
+              </select>
+            </label>
+            <label class="filter-field" for="editionFilter">
+              <span class="filter-label" data-en="Edition">Wydanie</span>
+              <select id="editionFilter" aria-label="Filtruj po wydaniu" data-en-aria-label="Filter by edition">
+                <option value="" data-en="All editions">Wszystkie wydania</option>
+                <option value="Fizyczne" data-en="Physical">Fizyczne</option>
+                <option value="Cyfrowe" data-en="Digital">Cyfrowe</option>
+              </select>
+            </label>
+            <label class="filter-field" for="statusFilter">
+              <span class="filter-label" data-en="Status">Status</span>
+              <select id="statusFilter" aria-label="Filtruj po statusie" data-en-aria-label="Filter by status">
+                <option value="" data-en="All statuses">Każdy status</option>
+                <option value="Do ogrania" data-en="To play">Do ogrania</option>
+                <option value="W trakcie" data-en="In progress">W trakcie</option>
+                <option value="Ograna" data-en="Completed">Ograna</option>
+              </select>
+            </label>
+            <label class="filter-field" for="sort">
+              <span class="filter-label" data-en="Sort by">Sortowanie</span>
+              <select id="sort" aria-label="Sortowanie" data-en-aria-label="Sort by">
+                <option value="newest" data-en="Recently added">Ostatnio dodane</option>
+                <option value="title" data-en="Title A–Z">Tytuł A–Z</option>
+              </select>
+            </label>
+            <label class="filter-field filter-language">
+              <span class="filter-label" data-en="Language">Język</span>
+              <select data-ui-language aria-label="Język interfejsu" data-en-aria-label="Interface language">
+                <option value="pl" lang="pl">Polski</option>
+                <option value="en" lang="en">English</option>
+              </select>
+            </label>
+          </div>
+          <div class="count" id="count" aria-live="polite"></div>
+          <div class="game-grid" id="grid"></div>
+        </section>
+      </main>
+      <!-- Keep the hidden JSON input mounted so Import can open its native
+           file picker directly from the user's menu action. -->
+      <footer class="footer">
+        <span class="footer-title" data-en="SAVEPOINT · YOUR GAME COLLECTION">SAVEPOINT · TWOJA KOLEKCJA GIER</span>
+        <input id="importFile" type="file" accept="application/json" hidden>
+      </footer>
+    </div>
+    <!-- Add and edit reuse this dialog. The hidden game ID distinguishes an
+         existing record from a new entry when the script saves the form. -->
+    <div class="modal-backdrop" id="modalBackdrop">
+      <section class="modal game-modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-head">
+          <div class="modal-heading">
+            <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-gamepad-2"></use></svg>
+            <div>
+              <h2 id="modalTitle">Dodaj grę do kolekcji</h2>
+              <p class="modal-sub">Nowy tytuł, kolejny zapis w Twojej bibliotece.</p>
+            </div>
+          </div>
+          <button class="close" id="closeModal" aria-label="Zamknij" data-en-aria-label="Close" type="button">
+            <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-x"></use></svg>
+          </button>
+        </div>
+        <form id="gameForm">
+          <input type="hidden" id="gameId">
+          <div class="form-grid">
+            <div class="game-details">
+              <!-- The image starts without a source. The script validates the URL,
+                   updates the placeholder and announces preview loading or failure. -->
+              <aside class="cover-preview-frame" aria-label="Podgląd okładki" data-en-aria-label="Cover preview">
+                <div class="cover-preview-media">
+                  <img
+                    id="coverPreview"
+                    alt="Podgląd okładki gry"
+                    decoding="async"
+                    referrerpolicy="no-referrer"
+                    hidden>
+                  <div class="cover-preview-placeholder" id="coverPreviewPlaceholder">
+                    <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-gamepad-2"></use></svg>
+                  </div>
+                </div>
+                <div>
+                  <p class="cover-preview-title" id="coverPreviewTitle">Twoja okładka</p>
+                  <p class="cover-preview-status" id="coverPreviewStatus" role="status" aria-live="polite">Wklej adres okładki</p>
+                </div>
+              </aside>
+              <div class="game-fields">
+                <div class="field full">
+                  <label for="title" data-en="Game title *">Tytuł gry *</label>
+                  <input
+                    id="title"
+                    list="gameTitleSuggestions"
+                    required
+                    maxlength="80"
+                    placeholder="np. The Legend of Zelda: TOTK" data-en-placeholder="e.g. The Legend of Zelda: TOTK">
+                  <datalist id="gameTitleSuggestions"></datalist>
+                </div>
+                <div class="field full">
+                  <label for="coverUrl"><span data-en="Cover">Okładka</span> <span class="field-optional" data-en="optional">opcjonalnie</span></label>
+                  <input id="coverUrl" type="url" placeholder="Wklej bezpośredni adres obrazu okładki" data-en-placeholder="Paste the direct cover image URL">
+                  <div class="cover-search-links">
+                    <a
+                      id="googleCoverSearch"
+                      class="cover-search"
+                      href="https://www.google.com/search?udm=2&amp;q=video%20game%20cover"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Szukaj okładki w Grafice Google (otwiera nową kartę)" data-en-aria-label="Find a cover in Google Images (opens in a new tab)"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-external-link"></use></svg><span data-en="Search Google Images">Szukaj w Grafice Google</span></a>
+                    <a
+                      id="coverSearch"
+                      class="cover-search"
+                      href="https://www.thecoverproject.net/"
+                      target="_blank"
+                      rel="noopener noreferrer"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-external-link"></use></svg><span data-en="Search The Cover Project">Szukaj w The Cover Project</span></a>
+                  </div>
+                  <small class="field-help" data-en="Copy the image URL for your chosen cover and paste it above.">Po wybraniu okładki skopiuj adres obrazu i wklej go powyżej.</small>
+                </div>
+                <div class="field">
+                  <label for="edition" data-en="Edition">Wydanie</label>
+                  <select id="edition">
+                    <option value="Fizyczne" data-en="Physical">Fizyczne</option>
+                    <option value="Cyfrowe" data-en="Digital">Cyfrowe</option>
+                    <option value="Fizyczne i cyfrowe" data-en="Physical and digital">Fizyczne i cyfrowe</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="status" data-en="Status">Status</label>
+                  <select id="status">
+                    <option value="Do ogrania" data-en="To play">Do ogrania</option>
+                    <option value="W trakcie" data-en="In progress">W trakcie</option>
+                    <option value="Ograna" data-en="Completed">Ograna</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <!-- Manufacturer groups are the source for tabs built by the script.
+                 Checkboxes retain their selection when another group is displayed. -->
+            <fieldset class="field full platform-picker" id="platform" aria-describedby="platformHelp">
+              <legend>
+                <span class="platform-picker-label"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-gamepad-2"></use></svg><span data-en="Consoles *">Konsole *</span></span>
+                <span class="platform-selection-count" id="platformSelectionCount">Wybrano 0</span>
+              </legend>
+              <div class="platform-console-box">
+                <div
+                  class="platform-tabs"
+                  id="platformTabs"
+                  role="tablist"
+                  aria-label="Producent konsoli" data-en-aria-label="Console manufacturer"
+                  hidden></div>
+                <div class="platform-options" id="platformOptions">
+                  <fieldset class="platform-group" data-platform-group="Microsoft">
+                    <legend>Microsoft</legend>
+                    <div class="platform-choice-grid">
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Xbox">
+                        <span>Xbox</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Xbox 360">
+                        <span>Xbox 360</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Xbox One">
+                        <span>Xbox One</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Xbox Series">
+                        <span>Xbox Series</span>
+                      </label>
+                    </div>
+                  </fieldset>
+                  <fieldset class="platform-group" data-platform-group="Sony">
+                    <legend>Sony</legend>
+                    <div class="platform-choice-grid">
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="PlayStation">
+                        <span>PlayStation</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="PlayStation 2">
+                        <span>PlayStation 2</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="PlayStation 3">
+                        <span>PlayStation 3</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="PlayStation 4">
+                        <span>PlayStation 4</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="PlayStation 5">
+                        <span>PlayStation 5</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="PSP">
+                        <span>PSP</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="PlayStation Vita">
+                        <span>PlayStation Vita</span>
+                      </label>
+                    </div>
+                  </fieldset>
+                  <fieldset class="platform-group" data-platform-group="Nintendo">
+                    <legend>Nintendo</legend>
+                    <div class="platform-choice-grid">
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="NES">
+                        <span>NES</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Game Boy">
+                        <span>Game Boy</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Game Boy Color">
+                        <span>Game Boy Color</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Game Boy Advance">
+                        <span>Game Boy Advance</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="SNES">
+                        <span>SNES</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Nintendo 64">
+                        <span>Nintendo 64</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="GameCube">
+                        <span>GameCube</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Nintendo DS">
+                        <span>Nintendo DS</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Nintendo 3DS">
+                        <span>Nintendo 3DS</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Wii">
+                        <span>Wii</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Wii U">
+                        <span>Wii U</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Nintendo Switch">
+                        <span>Nintendo Switch</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Nintendo Switch 2">
+                        <span>Nintendo Switch 2</span>
+                      </label>
+                    </div>
+                  </fieldset>
+                  <fieldset class="platform-group" data-platform-group="Sega">
+                    <legend>Sega</legend>
+                    <div class="platform-choice-grid">
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="SG-1000">
+                        <span>SG-1000</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Master System">
+                        <span>Master System</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Mega Drive / Genesis">
+                        <span>Mega Drive / Genesis</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Game Gear">
+                        <span>Game Gear</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Sega CD / Mega-CD">
+                        <span>Sega CD / Mega-CD</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="32X">
+                        <span>32X</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Sega Saturn">
+                        <span>Sega Saturn</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Dreamcast">
+                        <span>Dreamcast</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Sega Pico">
+                        <span>Sega Pico</span>
+                      </label>
+                    </div>
+                  </fieldset>
+                  <fieldset class="platform-group" data-platform-group="Pozostałe">
+                    <legend data-en="Other">Pozostałe</legend>
+                    <div class="platform-choice-grid">
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="PC">
+                        <span>PC</span>
+                      </label>
+                      <label class="platform-option">
+                        <input type="checkbox" name="platform" value="Inna">
+                        <span data-en="Other">Inna</span>
+                      </label>
+                    </div>
+                  </fieldset>
+                </div>
+                <small id="platformHelp" class="platform-help" data-en="You can select consoles from multiple groups. Select at least one.">Możesz zaznaczyć konsole z kilku grup. Wymagana jest przynajmniej jedna.</small>
+              </div>
+              <div class="selected-platforms" id="selectedPlatforms" aria-live="polite"></div>
+            </fieldset>
+          </div>
+          <div class="form-actions">
+            <span class="form-required-note" data-en="* Required fields: title and console">* Pola wymagane: tytuł i konsola</span>
+            <div class="form-action-buttons">
+              <button type="button" class="secondary" id="cancelBtn" data-en="Cancel">Anuluj</button>
+              <button class="primary" type="submit"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-check"></use></svg><span data-en="Save game">Zapisz grę</span></button>
+            </div>
+          </div>
+        </form>
+      </section>
+    </div>
+    <!-- The script fills game details as text and initially focuses Cancel.
+         The separate confirmation keeps editor submission and deletion distinct. -->
+    <div class="modal-backdrop" id="deleteModalBackdrop">
+      <section
+        class="modal delete-modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="deleteDialogTitle"
+        aria-describedby="deleteDialogDescription">
+        <div class="modal-head">
+          <div class="modal-heading">
+            <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-trash-2"></use></svg>
+            <div>
+              <h2 id="deleteDialogTitle" data-en="Delete game">Usuń grę</h2>
+              <p class="modal-sub" data-en="Confirm the change to your collection.">Potwierdź zmianę w kolekcji.</p>
+            </div>
+          </div>
+          <button class="close" id="deleteClose" type="button" aria-label="Zamknij" data-en-aria-label="Close">
+            <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-x"></use></svg>
+          </button>
+        </div>
+        <div class="delete-body">
+          <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-triangle-alert"></use></svg>
+          <div>
+            <p id="deleteDialogDescription"><span data-en="Remove">Czy usunąć</span> <strong id="deleteGameName"></strong> <span data-en="from your collection?">z kolekcji?</span></p>
+            <span id="deleteGamePlatforms" class="delete-platforms"></span>
+            <p class="delete-note" data-en="This action cannot be undone.">Tej operacji nie można cofnąć.</p>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="secondary" type="button" id="deleteCancelButton" data-en="Cancel">Anuluj</button>
+          <button class="danger" type="button" id="deleteConfirmButton"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-trash-2"></use></svg><span data-en="Delete game">Usuń grę</span></button>
+        </div>
+      </section>
+    </div>
+    <!-- Screen readers receive action feedback and session warnings through
+         live regions. Keep these siblings covered by the private-view guard. -->
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <aside class="session-warning" id="sessionWarning" role="status" aria-live="polite" hidden>
+      <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-triangle-alert"></use></svg>
+      <span id="sessionWarningText"></span>
+    </aside>
+    <!-- The deferred script connects the static controls after parsing and
+         retrieves session state before populating the collection. -->
+    <script src="app.js?v=20261108-language-2" defer></script>
+  </body>
+</html>

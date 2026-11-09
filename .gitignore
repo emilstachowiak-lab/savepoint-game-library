@@ -1,0 +1,23 @@
+# Local configuration, private runtime storage and exported collections.
+*.local.php
+.env
+.env.*
+/private/
+/backups/
+savepoint-kolekcja*.json
+*.img
+*.log
+
+# Private key and certificate bundle formats.
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Database dumps and archives. Keep the versioned schema for new installations.
+*.sql
+!/api/schema.sql
+*.sql.gz
+*.zip
+*.tar
+*.tar.gz

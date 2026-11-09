@@ -1,0 +1,25 @@
+# The directory index returns a controlled response. API calls use games.php.
+Options -Indexes
+DirectoryIndex index.php
+
+# Bound request bodies before Apache passes them to FastCGI.
+LimitRequestBody 65536
+
+# Inherit the site rules and reject oversized or multipart requests before PHP
+# reads the API body. The endpoint accepts JSON for POST requests.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteOptions InheritBefore
+
+    RewriteCond expr "req_novary('Content-Length') =~ /^[0-9]+$/ && req_novary('Content-Length') -gt 65536"
+    RewriteRule ^ - [R=413,L]
+
+    RewriteCond %{REQUEST_METHOD} =POST
+    RewriteCond %{HTTP:Content-Type} ^[[:space:]]*multipart/ [NC]
+    RewriteRule ^ - [R=415,L]
+</IfModule>
+
+# Protect deployment files if they are copied into the public API directory.
+<FilesMatch "^(config\.local\.php|auth\.local\.php|config\.example\.php|schema\.sql)$">
+    Require all denied
+</FilesMatch>
