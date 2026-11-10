@@ -9,6 +9,12 @@ use PHPMailer\PHPMailer\SMTP;
 // Optional private module loaded by the API after a successful login. It sends
 // a single notification without adding SMTP data to the HTTP response.
 
+function notificationLanguage(string $acceptLanguage): string
+{
+    $preferred = strtolower(trim(explode(',', $acceptLanguage, 2)[0]));
+    return preg_match('/\Aen(?:-[a-z0-9]{1,8})*\z/', $preferred) === 1 ? 'en' : 'pl';
+}
+
 /** Register one notification for a completed login, never for session checks. */
 function scheduleLoginNotification(string $username, string $ip, int $timestamp, string $appOrigin): void
 {
@@ -17,8 +23,13 @@ function scheduleLoginNotification(string $username, string $ip, int $timestamp,
         return;
     }
     $scheduled = true;
-    // Retain only the intended event fields and the trusted application origin.
-    $event = ['username' => $username, 'ip' => $ip, 'timestamp' => $timestamp];
+    // Capture the sign-in language before the deferred callback sends the email.
+    $event = [
+        'username' => $username,
+        'ip' => $ip,
+        'timestamp' => $timestamp,
+        'language' => notificationLanguage((string)($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '')),
+    ];
     register_shutdown_function(static function () use ($event, $appOrigin): void {
         if (http_response_code() !== 200) {
             return;
@@ -122,8 +133,10 @@ function sendLoginNotificationWithConfig(array $event, string $appOrigin, array 
         ) {
             throw new \RuntimeException('Invalid notification event.');
         }
+        $english = ($event['language'] ?? 'pl') === 'en';
+        $unknownIp = $english ? 'unknown' : 'nieznany';
         $peerAddress = $event['ip'] ?? null;
-        $ip = is_string($peerAddress) && filter_var($peerAddress, FILTER_VALIDATE_IP) ? $peerAddress : 'nieznany';
+        $ip = is_string($peerAddress) && filter_var($peerAddress, FILTER_VALIDATE_IP) ? $peerAddress : $unknownIp;
         $when = (new \DateTimeImmutable('@' . $timestamp))->setTimezone(new \DateTimeZone('Europe/Warsaw'));
 
         $mail = $mailerFactory ? $mailerFactory() : createLoginNotificationMailer();
@@ -160,13 +173,25 @@ function sendLoginNotificationWithConfig(array $event, string $appOrigin, array 
         $mail->isHTML(false);
         $mail->setFrom($config['from'], 'Savepoint');
         $mail->addAddress($config['to']);
-        $mail->Subject = 'Savepoint — udane logowanie';
-        $mail->Body = "Zarejestrowano udane logowanie do aplikacji Savepoint.\n\n"
-            . 'Konto: ' . $username . "\n"
-            . 'Data i czas: ' . $when->format('Y-m-d H:i:s T (P)') . "\n"
-            . 'Adres IP: ' . $ip . "\n"
-            . 'Aplikacja: ' . $appOrigin . "/\n\n"
-            . "Jeżeli to nie Twoje logowanie, zmień hasło aplikacji i sprawdź dostęp do hostingu.\n";
+        $appUrl = $appOrigin . '/';
+        $localTime = $when->format('Y-m-d H:i:s T (P)');
+        if ($english) {
+            $mail->Subject = 'Savepoint — successful sign-in';
+            $mail->Body = "A successful sign-in to Savepoint was recorded.\n\n"
+                . 'Account: ' . $username . "\n"
+                . 'Date and time: ' . $localTime . "\n"
+                . 'IP address: ' . $ip . "\n"
+                . 'Application: ' . $appUrl . "\n\n"
+                . "If this wasn't you, change your Savepoint password and check access to your hosting account.\n";
+        } else {
+            $mail->Subject = 'Savepoint — udane logowanie';
+            $mail->Body = "Zarejestrowano udane logowanie do aplikacji Savepoint.\n\n"
+                . 'Konto: ' . $username . "\n"
+                . 'Data i czas: ' . $localTime . "\n"
+                . 'Adres IP: ' . $ip . "\n"
+                . 'Aplikacja: ' . $appUrl . "\n\n"
+                . "Jeżeli to nie Twoje logowanie, zmień hasło aplikacji i sprawdź dostęp do hostingu.\n";
+        }
         if (!$mail->send()) {
             throw new \RuntimeException('Notification transport failed.');
         }

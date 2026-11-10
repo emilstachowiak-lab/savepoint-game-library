@@ -148,6 +148,41 @@ namespace {
     mailExpect($logs === [], 'A successful send should not produce diagnostic logs.');
     echo "PASS: fixed recipients, private transport configuration, TLS validation and a single plain-text login notice.\n";
 
+    foreach ([
+        'en' => 'en',
+        ' EN-GB , pl;q=0.8' => 'en',
+        'pl' => 'pl',
+        'pl, en;q=0.8' => 'pl',
+        'de, en;q=0.8' => 'pl',
+        'english' => 'pl',
+        '' => 'pl',
+    ] as $header => $expectedLanguage) {
+        mailExpect(\Savepoint\Mail\notificationLanguage($header) === $expectedLanguage, 'The first language tag selects English only for en or an English variant.');
+    }
+
+    $event = mailEvent();
+    $when = (new DateTimeImmutable('@' . $event['timestamp']))->setTimezone(new DateTimeZone('Europe/Warsaw'));
+    $date = $when->format('Y-m-d H:i:s T (P)');
+    $applicationUrl = MAIL_TEST_ORIGIN . '/';
+    $polishBody = "Zarejestrowano udane logowanie do aplikacji Savepoint.\n\n"
+        . "Konto: {$event['username']}\nData i czas: $date\nAdres IP: {$event['ip']}\nAplikacja: $applicationUrl\n\n"
+        . "Jeżeli to nie Twoje logowanie, zmień hasło aplikacji i sprawdź dostęp do hostingu.\n";
+    foreach ([[], ['language' => 'pl'], ['language' => 'de']] as $fields) {
+        $mailer = new FakeMailer();
+        [$sent, $output] = sendFakeMail($event + $fields, mailConfig(), $mailer);
+        mailExpect($sent && $output === '' && $mailer->Subject === 'Savepoint — udane logowanie' && $mailer->Body === $polishBody,
+            'Polish and fallback messages must preserve the original subject and body.');
+    }
+
+    $mailer = new FakeMailer();
+    [$sent, $output] = sendFakeMail(array_replace($event, ['language' => 'en', 'ip' => 'invalid-ip']), mailConfig(), $mailer);
+    $englishBody = "A successful sign-in to Savepoint was recorded.\n\n"
+        . "Account: {$event['username']}\nDate and time: $date\nIP address: unknown\nApplication: $applicationUrl\n\n"
+        . "If this wasn't you, change your Savepoint password and check access to your hosting account.\n";
+    mailExpect($sent && $output === '' && $mailer->Subject === 'Savepoint — successful sign-in' && $mailer->Body === $englishBody,
+        'English must translate the subject, body, labels, and unknown IP while preserving the event details and deployment origin.');
+    echo "PASS: English and original Polish email templates, with Polish as the fallback.\n";
+
     foreach (['throw', 'warning', 'false'] as $failure) {
         $mailer = new FakeMailer();
         $mailer->failure = $failure;
@@ -229,9 +264,17 @@ namespace {
     }
     echo "PASS: the real SMTP parser accepts bare 220/250/334 and multiline replies, rejects mixed codes and restores its I/O context.\n";
 
+    $_SERVER['HTTP_ACCEPT_LANGUAGE'] = 'en-GB, pl;q=0.8';
     \Savepoint\Mail\scheduleLoginNotification('synthetic-user', '203.0.113.25', mailEvent()['timestamp'], MAIL_TEST_ORIGIN);
+    $_SERVER['HTTP_ACCEPT_LANGUAGE'] = 'pl';
     \Savepoint\Mail\scheduleLoginNotification('synthetic-user', '203.0.113.25', mailEvent()['timestamp'], MAIL_TEST_ORIGIN);
     mailExpect(count($mailCallbacks) === 1 && $mailPrivateReads === 0, 'Scheduling must be idempotent and not read SMTP secrets before the response.');
+    // The fixture intercepts shutdown work so the captured event can be checked without SMTP.
+    $callback = (new ReflectionFunction($mailCallbacks[0]))->getStaticVariables()['callback'];
+    $captured = (new ReflectionFunction($callback))->getStaticVariables();
+    mailExpect(($captured['event']['language'] ?? null) === 'en', 'Deferred delivery must retain the locale selected at sign-in.');
+    mailExpect(($captured['appOrigin'] ?? null) === MAIL_TEST_ORIGIN, 'Deferred delivery must retain the trusted deployment origin.');
+    unset($_SERVER['HTTP_ACCEPT_LANGUAGE']);
     $mailHttpStatus = 500;
     $mailCallbacks[0]();
     mailExpect($mailPrivateReads === 0, 'A failed API response must not generate a successful-login notice.');
