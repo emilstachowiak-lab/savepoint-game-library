@@ -1,0 +1,441 @@
+/* The three optional classic skins share their native-looking controls.
+   Every selector is limited to these themes, preserving Aero and Luna. */
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) {
+  --bg: #008080;
+  --panel: #c0c0c0;
+  --panel2: #d4d0c8;
+  --line: #808080;
+  --text: #161616;
+  --muted: #333;
+  --lime: #000080;
+  --orange: #76501d;
+  --radius: 0;
+  --retro-navy: #000080;
+  --retro-face: #c0c0c0;
+  --retro-inner: #d4d0c8;
+  --retro-caption: linear-gradient(90deg, #000080, #1084d0);
+  --retro-desktop: #008080;
+  --retro-raised: inset 1px 1px #fff, inset -1px -1px #404040, inset -2px -2px #808080;
+  --retro-inset: inset 1px 1px #808080, inset -1px -1px #fff;
+  --retro-shell-padding: 22px;
+  --retro-auth-padding: 24px;
+}
+
+html[data-theme="classic2"] {
+  --bg: #376f9b;
+  --panel: #d4d0c8;
+  --panel2: #fff;
+  --retro-face: #d4d0c8;
+  --retro-inner: #fff;
+  --retro-navy: #173b72;
+  --retro-caption: linear-gradient(90deg, #0a246a, #a6caf0);
+  --retro-desktop: radial-gradient(ellipse 100% 114% at -24% 137%, #82b58c 0 48%, transparent 48.3%), radial-gradient(ellipse 90% 103% at 108% -44%, #a4d3d855 0 64%, transparent 64.4%), linear-gradient(145deg, #6f9bb7, #376f9b 62%, #325c84);
+}
+
+html[data-theme="classic3"] {
+  --bg: #3a6ea5;
+  --panel: #d4d0c8;
+  --panel2: #e3e1dc;
+  --retro-face: #d4d0c8;
+  --retro-inner: #e3e1dc;
+  --retro-navy: #0a246a;
+  --retro-caption: linear-gradient(90deg, #0a246a, #a6caf0);
+  --retro-desktop: #3a6ea5;
+}
+
+/* Static desktop backgrounds replace the decorative renderer only while one
+   of these skins is selected. The controller separately pauses its work. */
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) body {
+  background: var(--retro-desktop);
+  background-attachment: fixed;
+  font: 13px/1.45 Tahoma, "MS Sans Serif", Arial, sans-serif;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(#xmbBackground, .background-motion-control) {
+  display: none;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(button, input, select, a):focus-visible {
+  outline: 2px dotted var(--retro-navy);
+  outline-offset: 2px;
+}
+
+/* The title strip is decorative. All existing application actions remain
+   their original native controls in the toolbar beneath it. */
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .app {
+  margin-top: 58px;
+  margin-bottom: 42px;
+  border: 1px solid var(--retro-face);
+  border-radius: 0;
+  background: var(--retro-face);
+  box-shadow: var(--retro-raised), 1px 1px #002f2f;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .app::before {
+  display: block;
+  margin: 3px calc(-1 * var(--retro-shell-padding) + 3px) 0;
+  padding: 4px 7px;
+  min-height: 27px;
+  background: var(--retro-caption);
+  color: #fff;
+  font-size: 12px;
+  font-weight: bold;
+  content: "Savepoint";
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .topbar {
+  border-bottom-color: #808080;
+  background: var(--retro-face);
+  box-shadow: 0 1px #fff;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .brand {
+  color: var(--retro-navy);
+  font-weight: bold;
+  text-shadow: none;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.brand em, .stat-label, .stat-value small, .filter-label, .count, .edition-meta, .edition-meta .ui-icon, .footer, .footer-title) {
+  color: var(--muted);
+  text-shadow: none;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .brand-mark {
+  filter: none;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.theme-picker, .local-badge) {
+  border-color: #808080;
+  border-radius: 0;
+  background: var(--retro-inner);
+  color: var(--text);
+  box-shadow: var(--retro-inset);
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .hero {
+  padding: 25px 0 21px;
+  background: transparent;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .hero h1 {
+  color: var(--retro-navy);
+  font-size: 34px;
+  font-weight: bold;
+  text-shadow: none;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .hero h1 .hero-heading-accent {
+  color: inherit;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.hero .eyebrow, .hero p:not(.eyebrow)) {
+  color: var(--muted);
+}
+
+html[data-theme="classic2"] .hero {
+  margin: 16px 0 14px;
+  padding: 18px 15px;
+  border-left: 5px solid #76a76a;
+  background: #f8faf7;
+  box-shadow: inset 0 -1px #afbdc4;
+}
+
+html[data-theme="classic2"] .hero .eyebrow { color: #3d6b48; }
+
+html[data-theme="classic3"] .hero {
+  margin: 16px 0 14px;
+  padding: 18px 15px;
+  border-left: 5px solid #0a246a;
+  background: #e8e6e0;
+  box-shadow: inset 0 -1px #808080, inset 0 1px #fff;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.primary, .secondary, .danger, .app-menu-toggle, .icon-btn, .close, .platform-tab) {
+  border: 1px solid var(--retro-face);
+  border-radius: 0;
+  background: var(--retro-face);
+  color: var(--text);
+  box-shadow: var(--retro-raised);
+  text-shadow: none;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.primary, .auth-card .primary) {
+  border-color: #333;
+  background: var(--retro-face);
+  color: #111;
+  box-shadow: var(--retro-raised);
+  font-weight: bold;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.primary, .secondary, .danger, .app-menu-toggle, .icon-btn, .close):hover:not(:disabled) {
+  border-color: var(--retro-face);
+  background: #dededb;
+  color: #111;
+  box-shadow: var(--retro-raised);
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.primary, .secondary, .danger, .app-menu-toggle, .icon-btn, .close):active:not(:disabled),
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .app-menu-toggle[aria-expanded="true"] {
+  box-shadow: inset 1px 1px #404040, inset -1px -1px #fff, inset 2px 2px #808080;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .danger { color: #7a2018; }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.stat, .toolbar) {
+  border-color: #808080;
+  border-radius: 0;
+  background: var(--retro-inner);
+  box-shadow: var(--retro-inset);
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .stat::after { display: none; }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .stat-value {
+  color: var(--text);
+  font-weight: bold;
+}
+
+html[data-theme="classic2"] .stat { background: #e8ece3; }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.stat-label .ui-icon, .search .ui-icon, .icon-btn .ui-icon, .empty-icon) { color: var(--retro-navy); }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.toolbar input, .toolbar select, .field input:not([type="checkbox"]), .field select, .auth-field input, .auth-language select, [data-ui-theme]) {
+  border: 1px solid #808080;
+  border-radius: 0;
+  background: #fff;
+  color: #161616;
+  box-shadow: inset 1px 1px #000, 1px 1px #fff;
+  accent-color: var(--retro-navy);
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.toolbar select option, .field select option) {
+  background: #fff;
+  color: #161616;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.toolbar input, .toolbar select, .field input, .field select, .auth-field input):focus {
+  border-color: #404040;
+  box-shadow: inset 1px 1px #000, 1px 1px #fff;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .game-card {
+  border-color: var(--retro-face);
+  border-radius: 0;
+  background: var(--retro-inner);
+  box-shadow: var(--retro-raised);
+  transition: none;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .game-card:hover,
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .game-card:focus-within {
+  border-color: var(--retro-navy);
+  box-shadow: var(--retro-raised);
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.cover, .cover-preview-frame) {
+  border-color: #808080;
+  border-radius: 0;
+  background: #f4f4f1;
+  box-shadow: var(--retro-inset);
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.cover-image, #coverPreview) { filter: none; }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .cover::after { box-shadow: none; }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.cover-title, .cover-preview-title, .cover-preview-placeholder) {
+  color: var(--retro-navy);
+  text-shadow: none;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .game-title {
+  border-bottom-color: #808080;
+  background: var(--retro-inner);
+  color: var(--retro-navy);
+  font-weight: bold;
+  text-shadow: none;
+}
+
+html[data-theme="classic3"] .game-title { background: #0a246a; color: #fff; }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.platform-chip, .status, .selected-platform-chip) {
+  border-color: #aaa;
+  border-radius: 0;
+  background: #e4e4e4;
+  color: #222;
+  box-shadow: inset 1px 1px #fff;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .status.ograna { background: #dee6d5; color: #284225; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .status.w-trakcie { background: #f0e7cb; color: #63461d; }
+html[data-theme="classic2"] .platform-chip { background: #e7eef3; }
+html[data-theme="classic3"] :is(.platform-chip, .status) { background: #e6e5e1; color: #222; }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .empty {
+  border-color: #808080;
+  border-radius: 0;
+  background: var(--retro-inner);
+  color: var(--text);
+  box-shadow: var(--retro-inset);
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.empty h2, .text-btn, .cover-search) { color: var(--retro-navy); }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.text-btn, .cover-search):hover { color: #000; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .footer { border-color: #808080; box-shadow: 0 -1px #fff; }
+
+/* Menus, editor tabs and messages keep their native behavior and geometry. */
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .app-menu {
+  border: 1px solid var(--retro-face);
+  border-radius: 0;
+  background: var(--retro-face);
+  color: var(--text);
+  box-shadow: var(--retro-raised), 2px 2px #0004;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.app-menu-title, .modal-head) {
+  border-color: #808080;
+  background: var(--retro-caption);
+  color: #fff;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .app-menu-item { border-radius: 0; color: var(--text); }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .app-menu-item:hover,
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .app-menu-item:focus-visible { border-color: var(--retro-navy); background: var(--retro-navy); color: #fff; }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.app-menu-icon, .app-menu-copy small, .app-menu-logout .app-menu-icon, .app-menu-logout small) { color: inherit; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .app-menu-icon { border-color: #808080; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .app-menu-separator { background: #808080; box-shadow: 0 1px #fff; }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .auth-screen { background: transparent; }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.auth-card, .modal) {
+  border: 2px solid var(--retro-face);
+  border-radius: 0;
+  background: var(--retro-face);
+  color: var(--text);
+  box-shadow: var(--retro-raised), 2px 2px #0005;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .auth-brand {
+  border-color: #808080;
+  background: var(--retro-inner);
+  color: var(--text);
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.auth-brand::after, .auth-brand-wave) { display: none; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .auth-brand-logo { filter: none; }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.auth-brand-title, .auth-brand h2) {
+  color: var(--retro-navy);
+  font-weight: bold;
+  text-shadow: none;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.auth-brand-eyebrow, .auth-brand-description) { color: var(--muted); }
+html[data-theme="classic2"] .auth-brand { border-left: 5px solid #76a76a; background: #f8faf7; }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .auth-body {
+  padding: var(--retro-auth-padding);
+  background: var(--retro-face);
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .auth-heading {
+  flex-wrap: wrap;
+  margin: calc(-1 * var(--retro-auth-padding)) calc(-1 * var(--retro-auth-padding)) 19px;
+  padding: 12px var(--retro-auth-padding) 8px;
+  border-bottom: 1px solid #808080;
+  background: var(--retro-caption);
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .auth-card h1 {
+  color: #fff;
+  font-size: 22px;
+  font-weight: bold;
+  text-shadow: none;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .auth-heading .filter-label { color: #111; text-shadow: 0 1px #ffffff99; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.auth-intro, .auth-help, .auth-field label, .field-help, .platform-help, .cover-preview-status) { color: var(--muted); }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.auth-field input, .game-modal .field input)::placeholder { color: #626262; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .auth-password-toggle { border-radius: 0; color: #444; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .auth-password-toggle:hover { background: #ddd; color: #000; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .auth-message { color: #7a2018; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .captcha-status { color: #284225; }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .modal-backdrop { background: #00383865; backdrop-filter: none; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .modal h2 { color: #fff; font-weight: bold; text-shadow: none; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.modal-heading > .ui-icon, .modal-sub) { color: #fff; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .game-modal .form-grid { background: var(--retro-face); }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.field > label, .platform-picker > legend, .platform-group > legend, .game-modal .platform-picker > legend) { color: var(--text); }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.field-optional, .platform-selection-count, .selected-platforms-label, .selected-platforms-empty, .form-required-note, .delete-platforms, .delete-note) { color: var(--muted); }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.platform-group, .platform-console-box) {
+  border-color: #808080;
+  border-radius: 0;
+  background: var(--retro-inner);
+  box-shadow: var(--retro-inset);
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .platform-tabs { border-color: #808080; background: var(--retro-face); }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .platform-tab[aria-selected="true"] { border-color: #808080; border-bottom-color: var(--retro-inner); background: var(--retro-inner); color: var(--retro-navy); box-shadow: inset 1px 1px #fff; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .platform-option { border-radius: 0; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .platform-option input { accent-color: var(--retro-navy); }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .game-modal .platform-option:has(input:checked) { border-color: #808080; background: #d5e0ec; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .game-modal .platform-option:hover { background: #e6e6e0; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .game-modal .platform-help { border-color: #808080; background: var(--retro-face); color: var(--muted); }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) :is(.selected-platform-chip .ui-icon, .platform-picker-label .ui-icon) { color: var(--retro-navy); }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .form-actions { border-color: #808080; background: var(--retro-face); box-shadow: inset 0 1px #fff; }
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .delete-body > .ui-icon { color: #76501d; }
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .toast {
+  border-color: var(--retro-face);
+  border-radius: 0;
+  background: var(--retro-inner);
+  color: var(--text);
+  box-shadow: var(--retro-raised);
+  transition: none;
+}
+
+html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .session-warning {
+  border-color: #807750;
+  border-radius: 0;
+  background: #fff3bd;
+  color: #403715;
+  box-shadow: var(--retro-raised);
+}
+
+/* Match the existing shell and authentication breakpoints rather than
+   introducing another layout system for the optional skins. */
+@media (max-width: 940px) {
+  html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) { --retro-shell-padding: 16px; }
+}
+
+@media (max-width: 700px) {
+  html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) {
+    --retro-shell-padding: 13px;
+    --retro-auth-padding: 22px;
+  }
+  html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .app { margin-top: 38px; margin-bottom: 32px; }
+  html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) .hero h1 { font-size: 29px; }
+}
+
+@media (max-width: 430px) {
+  html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) { --retro-auth-padding: 16px; }
+  html[data-theme="classic2"] .hero, html[data-theme="classic3"] .hero { padding: 14px 10px; }
+}
+
+@media (max-width: 375px) {
+  html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) { --retro-auth-padding: 10px; }
+}
+
+@media (max-width: 360px) {
+  html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) { --retro-shell-padding: 10px; }
+}
+
+@media (max-width: 340px) {
+  html:is([data-theme="classic"], [data-theme="classic2"], [data-theme="classic3"]) { --retro-auth-padding: 8px; }
+}

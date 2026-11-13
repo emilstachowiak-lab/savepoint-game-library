@@ -179,6 +179,20 @@ async function main(){
   assert.equal(login.nodes.authScreen.hidden,false);assert.equal(login.nodes.loginForm.hidden,false);assert.equal(login.nodes.appShell.hidden,true);
   console.log('PASS: idempotent cleanup, in-flight load cancellation and renderer failure isolation from real login initialization');
  }
+ {
+  const test=backgroundHarness();await test.load();
+  let theme='aero';
+  test.context.document.documentElement={getAttribute:name=>name==='data-theme'?theme:null};
+  test.animations.forEach(animation=>animation.currentTime=345);
+  for(const value of ['luna','classic','classic2','classic3']){
+   theme=value;test.controller.refresh();
+   assert(test.animations.every(animation=>animation.playState==='paused'),'Inactive Aero must pause under '+value);
+  }
+  theme='aero';test.controller.refresh();
+  assert(test.animations.every(animation=>animation.playState==='running'));
+  assert(test.animations.every(animation=>animation.currentTime===345),'Returning to Aero preserves its animation phase');
+  console.log('PASS: all other themes pause hidden Aero animation and returning to Aero resumes the same phase');
+ }
  console.log('All offline XMB oszczędne background checks passed. No network or real credentials used.');
 }
 

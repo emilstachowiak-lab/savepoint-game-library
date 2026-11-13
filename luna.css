@@ -1,0 +1,765 @@
+/* Luna is an optional skin. Scope every rule to the selected theme so the
+   existing Aero presentation keeps its original styles and responsive layout. */
+html[data-theme="luna"] {
+  --bg: #0b3d75;
+  --panel: #ece9d8;
+  --panel2: #f9f7ec;
+  --line: #c3bfa8;
+  --text: #172a4d;
+  --muted: #46526c;
+  --lime: #397d27;
+  --orange: #9d5a23;
+  --radius: 4px;
+  --luna-shell-padding: 22px;
+  --luna-auth-padding: 24px;
+  --luna-caption: linear-gradient(#3887fa 0%, #1664e5 12%, #0850d3 49%, #0649c3 52%, #1264e5 91%, #0849c3);
+  --luna-toolbar: linear-gradient(#fffdf2, #eeeadd);
+  --luna-button: linear-gradient(#fff, #eeeade);
+  --luna-green: linear-gradient(#8bd95b, #55ac34 52%, #42952c);
+}
+
+html[data-theme="luna"] body {
+  font-family: Tahoma, Verdana, sans-serif;
+}
+
+html[data-theme="luna"] :is(button, input, select, a):focus-visible {
+  outline-color: #174fa8;
+}
+
+/* Opaque cream surfaces keep the animated aquarium outside the application. */
+html[data-theme="luna"] .app {
+  margin-top: 88px;
+  margin-bottom: 88px;
+  border: 2px solid #124ab6;
+  border-radius: 9px 9px 3px 3px;
+  background: var(--panel);
+  box-shadow: 0 8px 28px #001b4866, inset 0 0 0 1px #ffffff8c;
+}
+
+html[data-theme="luna"] .topbar {
+  margin-inline: calc(-1 * var(--luna-shell-padding));
+  padding-inline: var(--luna-shell-padding);
+  border-bottom-color: #124ab6;
+  border-radius: 7px 7px 0 0;
+  background: var(--luna-caption);
+  color: #fff;
+  box-shadow: inset 0 1px #82b3ff;
+}
+
+html[data-theme="luna"] .brand {
+  font-weight: bold;
+  text-shadow: 1px 1px 1px #062d7e;
+}
+
+html[data-theme="luna"] .brand em {
+  color: #f0f6ff;
+  text-shadow: none;
+}
+
+html[data-theme="luna"] :is(.theme-picker, .local-badge) {
+  border-color: #c3bfa8;
+  background: var(--luna-toolbar);
+  color: var(--text);
+  text-shadow: none;
+}
+
+html[data-theme="luna"] [data-ui-theme] {
+  min-width: 0;
+  border: 1px solid #788fb1;
+  border-radius: 3px;
+  background: #fff;
+  color: var(--text);
+  box-shadow: inset 0 1px 2px #122b3c1c;
+}
+
+/* Static hills belong to the window header. Fish and bubbles are confined to
+   the separate background stage and cannot cover text or controls. */
+html[data-theme="luna"] .hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin: 20px 0 16px;
+  padding: 24px 22px;
+  border: 1px solid #2367a8;
+  border-radius: 5px;
+  background:
+    radial-gradient(ellipse 24px 12px at 69% 25%, #f4fbff 95%, transparent),
+    radial-gradient(ellipse 42px 9px at 71% 29%, #f4fbff 95%, transparent),
+    radial-gradient(ellipse 33px 15px at 88% 17%, #f4fbff 95%, transparent),
+    radial-gradient(ellipse 52px 9px at 87% 23%, #f4fbff 95%, transparent),
+    linear-gradient(128deg, #185bb3, #0f67c0 44%, #68bef7 80%, #b8e6fb);
+  color: #fff;
+  box-shadow: inset 0 1px #ffffff6b;
+}
+
+html[data-theme="luna"] .hero::before {
+  position: absolute;
+  z-index: -2;
+  inset: 52% -17% -76% 20%;
+  border-radius: 50% 49% 0 0;
+  background: linear-gradient(151deg, #b4dd47, #66aa2b 43%, #398931 73%);
+  transform: rotate(-7deg);
+  pointer-events: none;
+  content: "";
+}
+
+html[data-theme="luna"] .hero::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(94deg, #0c3c86 5%, #104b9a 24%, transparent 76%);
+  pointer-events: none;
+  content: "";
+}
+
+html[data-theme="luna"] .hero h1 {
+  font-weight: bold;
+  text-shadow: 0 1px 2px #12396f8c;
+}
+
+html[data-theme="luna"] .hero h1 .hero-heading-accent {
+  color: #fff;
+}
+
+html[data-theme="luna"] .hero :is(.eyebrow, p:not(.eyebrow)) {
+  color: #f1f7ff;
+}
+
+html[data-theme="luna"] :is(.primary, .secondary, .app-menu-toggle) {
+  border-color: #788fb1;
+  border-radius: 4px;
+  background: var(--luna-button);
+  color: var(--text);
+  box-shadow: inset 0 1px #ffffffb0, 0 1px 2px #142d4219;
+  text-shadow: none;
+}
+
+html[data-theme="luna"] :is(.primary, .auth-card .primary) {
+  border-color: #3a781e;
+  background: var(--luna-green);
+  color: #102c0b;
+  font-weight: bold;
+  box-shadow: inset 0 1px #ffffffad, 0 1px 2px #142d4226;
+  text-shadow: none;
+}
+
+html[data-theme="luna"] :is(.primary, .secondary):hover:not(:disabled),
+html[data-theme="luna"] .app-menu-toggle:hover {
+  border-color: #d99d3b;
+  box-shadow: inset 0 0 0 1px #f5c972, inset 0 1px #fff;
+}
+
+html[data-theme="luna"] .primary:hover:not(:disabled) {
+  background: linear-gradient(#a1e377, #65ba40 52%, #4b9c30);
+}
+
+html[data-theme="luna"] .secondary:hover:not(:disabled) {
+  background: linear-gradient(#fff, #f7f2e5);
+}
+
+html[data-theme="luna"] .danger {
+  border-color: #a45b42;
+  background: linear-gradient(#fff2e7, #f4c0a5 52%, #e4a184);
+  color: #642413;
+  text-shadow: none;
+}
+
+html[data-theme="luna"] .danger:hover:not(:disabled) {
+  border-color: #8d3d28;
+  background: linear-gradient(#fff3e6, #f6b99b 52%, #e89b79);
+}
+
+html[data-theme="luna"] :is(.stat, .game-card) {
+  border-color: var(--line);
+  background: var(--panel2);
+  box-shadow: inset 0 1px #fff, 0 1px 2px #202d4014;
+}
+
+html[data-theme="luna"] .stat::after {
+  display: none;
+}
+
+html[data-theme="luna"] .stat-value {
+  color: var(--text);
+  font-weight: bold;
+}
+
+html[data-theme="luna"] :is(.stat-label, .stat-value small, .filter-label, .count) {
+  color: var(--muted);
+}
+
+html[data-theme="luna"] :is(.stat-label .ui-icon, .search .ui-icon) {
+  color: #466586;
+}
+
+html[data-theme="luna"] .toolbar {
+  border-color: var(--line);
+  background: var(--luna-toolbar);
+}
+
+html[data-theme="luna"] :is(.toolbar input, .toolbar select, .field input, .field select, .auth-field input, .auth-language select) {
+  border-color: #788fb1;
+  border-top-color: #6d83a6;
+  border-radius: 3px;
+  background: #fff;
+  color: var(--text);
+  box-shadow: inset 0 1px 2px #122b3c1c;
+  accent-color: #2766c3;
+}
+
+html[data-theme="luna"] :is(.toolbar select option, .field select option) {
+  background: #fff;
+  color: var(--text);
+}
+
+html[data-theme="luna"] :is(.toolbar input, .toolbar select, .field input, .field select, .auth-field input):focus {
+  border-color: #1d5db3;
+  box-shadow: 0 0 0 1px #b4cff0, inset 0 1px 2px #122b3c1c;
+}
+
+html[data-theme="luna"] .game-card:hover,
+html[data-theme="luna"] .game-card:focus-within {
+  border-color: #7194bd;
+  box-shadow: 0 0 0 1px #fff, 0 2px 5px #253a5629;
+}
+
+html[data-theme="luna"] :is(.cover, .cover-preview-frame) {
+  border-color: var(--line);
+  background: linear-gradient(145deg, #e5e2cf, #fbf9f0);
+}
+
+html[data-theme="luna"] :is(.cover-title, .game-title, .cover-preview-title) {
+  color: var(--text);
+}
+
+html[data-theme="luna"] .game-title {
+  border-bottom-color: var(--line);
+  background: var(--luna-toolbar);
+  font-weight: bold;
+}
+
+html[data-theme="luna"] :is(.edition-meta, .edition-meta .ui-icon, .cover-preview-status, .cover-preview-placeholder) {
+  color: var(--muted);
+}
+
+html[data-theme="luna"] .platform-chip {
+  border-color: #c2ccdc;
+  background: #e9eff9;
+  color: #234677;
+}
+
+html[data-theme="luna"] .status {
+  border-color: #d4cbb6;
+  background: #f2ead7;
+  color: #67522b;
+}
+
+html[data-theme="luna"] .status.ograna {
+  border-color: #c2d0ac;
+  background: #e7f0d9;
+  color: #315515;
+}
+
+html[data-theme="luna"] .status.w-trakcie {
+  border-color: #bfcee5;
+  background: #e9eff9;
+  color: #234677;
+}
+
+html[data-theme="luna"] .icon-btn {
+  border-color: #b8b5a5;
+  background: var(--luna-button);
+  color: #425472;
+}
+
+html[data-theme="luna"] .icon-btn:hover {
+  border-color: #d99d3b;
+  background: #fff8e7;
+}
+
+html[data-theme="luna"] .icon-btn .ui-icon {
+  color: #425472;
+}
+
+html[data-theme="luna"] .empty {
+  border-color: var(--line);
+  background: var(--panel2);
+  color: var(--muted);
+}
+
+html[data-theme="luna"] :is(.empty h2, .empty-icon) {
+  color: #36547b;
+}
+
+html[data-theme="luna"] :is(.empty p, .footer-title) {
+  color: var(--muted);
+}
+
+html[data-theme="luna"] .footer {
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+html[data-theme="luna"] :is(.text-btn, .cover-search) {
+  color: #245ca6;
+}
+
+html[data-theme="luna"] :is(.text-btn, .cover-search):hover {
+  color: #173e77;
+}
+
+/* Menus use the same native-looking surfaces as fields and buttons. */
+html[data-theme="luna"] .app-menu-toggle[aria-expanded="true"] {
+  border-color: #5b7fa7;
+  background: #e5e2d4;
+  box-shadow: inset 0 1px 3px #5b6d8838;
+}
+
+html[data-theme="luna"] .app-menu {
+  border-color: #6f8aac;
+  border-radius: 4px;
+  background: var(--panel2);
+  color: var(--text);
+  box-shadow: 0 5px 16px #152e4e40, inset 0 0 0 1px #fff;
+}
+
+html[data-theme="luna"] .app-menu-title {
+  border-bottom-color: #124ab6;
+  background: var(--luna-caption);
+  color: #fff;
+  text-shadow: 1px 1px #16427f;
+}
+
+html[data-theme="luna"] .app-menu-item {
+  color: var(--text);
+}
+
+html[data-theme="luna"] .app-menu-item:hover,
+html[data-theme="luna"] .app-menu-item:focus-visible {
+  border-color: #9bb9e0;
+  background: #dfeafa;
+}
+
+html[data-theme="luna"] .app-menu-icon {
+  border-color: var(--line);
+  color: #416ca6;
+}
+
+html[data-theme="luna"] .app-menu-copy small {
+  color: var(--muted);
+}
+
+html[data-theme="luna"] .app-menu-separator {
+  background: var(--line);
+}
+
+html[data-theme="luna"] .app-menu-logout,
+html[data-theme="luna"] .app-menu-logout .app-menu-icon {
+  color: #8a442d;
+}
+
+/* Authentication and both dialogs keep their existing geometry and semantics. */
+html[data-theme="luna"] .auth-screen {
+  background: #052a5420;
+}
+
+html[data-theme="luna"] :is(.auth-card, .modal) {
+  border: 2px solid #124ab6;
+  border-radius: 9px 9px 3px 3px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 12px 36px #001d3b66, inset 0 0 0 1px #fff;
+}
+
+html[data-theme="luna"] .auth-brand {
+  border-color: #124ab6;
+  background: linear-gradient(145deg, #1254b6, #2781d2 64%, #75b9e9);
+}
+
+html[data-theme="luna"] .auth-brand::after {
+  background: linear-gradient(115deg, #fff1, transparent 75%);
+}
+
+html[data-theme="luna"] .auth-brand-wave {
+  border-top-color: #ddf3a58a;
+  background: linear-gradient(#9bd142, #46972c);
+}
+
+html[data-theme="luna"] .auth-brand-wave:nth-child(2) {
+  border-top-color: #d5ee9380;
+  background: linear-gradient(#78bc35, #2e7e32);
+}
+
+html[data-theme="luna"] :is(.auth-brand-title, .auth-brand h2) {
+  color: #fff;
+  font-weight: bold;
+  text-shadow: 1px 1px #16427f;
+}
+
+html[data-theme="luna"] :is(.auth-brand-eyebrow, .auth-brand-description) {
+  color: #f1f7ff;
+}
+
+html[data-theme="luna"] .auth-body {
+  padding: var(--luna-auth-padding);
+  background: var(--panel);
+}
+
+html[data-theme="luna"] .auth-heading {
+  flex-wrap: wrap;
+  margin: calc(-1 * var(--luna-auth-padding)) calc(-1 * var(--luna-auth-padding)) 19px;
+  padding: 12px var(--luna-auth-padding) 8px;
+  border-bottom: 1px solid #124ab6;
+  background: var(--luna-caption);
+}
+
+html[data-theme="luna"] .auth-card h1 {
+  color: #fff;
+  font-weight: bold;
+  font-size: 22px;
+  text-shadow: 1px 1px #16427f;
+}
+
+html[data-theme="luna"] .auth-heading .filter-label {
+  color: #fff;
+}
+
+html[data-theme="luna"] :is(.auth-intro, .auth-help, .auth-field label) {
+  color: var(--muted);
+}
+
+html[data-theme="luna"] .auth-field input::placeholder {
+  color: #657186;
+}
+
+html[data-theme="luna"] .auth-password-toggle {
+  color: #526580;
+}
+
+html[data-theme="luna"] .auth-password-toggle:hover {
+  background: #e2e8f3;
+  color: #254d85;
+}
+
+html[data-theme="luna"] .auth-message {
+  color: #8c3428;
+}
+
+html[data-theme="luna"] .captcha-status {
+  color: #3a6230;
+}
+
+html[data-theme="luna"] .modal-backdrop {
+  background: #142e5673;
+  backdrop-filter: none;
+}
+
+html[data-theme="luna"] .modal-head {
+  border-bottom-color: #124ab6;
+  background: var(--luna-caption);
+  color: #fff;
+  box-shadow: inset 0 1px #82b3ff;
+}
+
+html[data-theme="luna"] .modal h2 {
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 1px 1px #16427f;
+}
+
+html[data-theme="luna"] :is(.modal-heading > .ui-icon, .modal-sub) {
+  color: #f0f6ff;
+}
+
+html[data-theme="luna"] .close {
+  border: 1px solid #ffe0ca;
+  border-radius: 4px;
+  background: linear-gradient(#f6ae86, #e76441 50%, #c63820);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px #ffffff38;
+}
+
+html[data-theme="luna"] .close:hover {
+  background: linear-gradient(#ffc095, #f4794f 50%, #d94b2c);
+}
+
+html[data-theme="luna"] :is(.field > label, .platform-picker > legend, .platform-group > legend, .game-modal .platform-picker > legend) {
+  color: #344767;
+}
+
+html[data-theme="luna"] :is(.field-help, .platform-help, .field-optional, .platform-selection-count, .selected-platforms-label, .selected-platforms-empty, .form-required-note, .delete-platforms, .delete-note) {
+  color: var(--muted);
+}
+
+html[data-theme="luna"] :is(.platform-group, .platform-console-box) {
+  border-color: var(--line);
+  background: var(--panel2);
+}
+
+html[data-theme="luna"] .platform-tabs {
+  border-bottom-color: var(--line);
+  background: #e8e5d5;
+}
+
+html[data-theme="luna"] .platform-tab {
+  color: #465779;
+}
+
+html[data-theme="luna"] .platform-tab[aria-selected="true"] {
+  border-color: var(--line);
+  border-top-color: #d5a04b;
+  border-bottom-color: var(--panel2);
+  background: var(--panel2);
+  color: #214a81;
+  box-shadow: inset 0 2px #f3bc65;
+}
+
+html[data-theme="luna"] .platform-option input {
+  accent-color: #2766c3;
+}
+
+html[data-theme="luna"] .platform-option:has(input:checked),
+html[data-theme="luna"] .game-modal .platform-option:has(input:checked) {
+  border-color: #9bb9e0;
+  background: #e1eaf8;
+}
+
+html[data-theme="luna"] .game-modal .platform-option:hover {
+  background: #f4ecd6;
+}
+
+html[data-theme="luna"] .game-modal .platform-help {
+  border-color: var(--line);
+  background: #eeebdf;
+  color: var(--muted);
+}
+
+html[data-theme="luna"] .selected-platform-chip {
+  border-color: #b4c4db;
+  background: #e9eff9;
+  color: #234677;
+}
+
+html[data-theme="luna"] :is(.selected-platform-chip .ui-icon, .platform-picker-label .ui-icon) {
+  color: #416ca6;
+}
+
+html[data-theme="luna"] .form-actions {
+  border-color: var(--line);
+  background: var(--luna-toolbar);
+}
+
+html[data-theme="luna"] .delete-body > .ui-icon {
+  color: #a47925;
+}
+
+html[data-theme="luna"] .toast {
+  border-color: #788fb1;
+  border-radius: 4px;
+  background: var(--luna-toolbar);
+  color: var(--text);
+  box-shadow: inset 0 1px #fff, 0 3px 12px #21465c55;
+}
+
+html[data-theme="luna"] .session-warning {
+  border-color: #b8974a;
+  border-radius: 4px;
+  background: #fff2c3;
+  color: #624b1a;
+}
+
+/* The reef's black water becomes blue through screen blending. The image stays
+   self-contained and the brighter coral detail remains visible. */
+html[data-theme="luna"] #xmbBackground {
+  visibility: hidden;
+}
+
+html[data-theme="luna"] #aquariumBackground {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  overflow: hidden;
+  isolation: isolate;
+  contain: paint;
+  container-type: inline-size;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 17% -16%, #52d0ffb3, transparent 58%),
+    linear-gradient(180deg, #1965a6, #0e487e 46%, #0b3563 71%, #0a2546);
+}
+
+html[data-theme="luna"] .luna-reef {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center bottom;
+  mix-blend-mode: screen;
+}
+
+html[data-theme="luna"] .luna-bubbles {
+  position: absolute;
+  inset: 0 clamp(2px, 2.1vw, 24px) 13% auto;
+  width: 29px;
+  overflow: hidden;
+  mask-image: linear-gradient(transparent, #000 12% 85%, transparent);
+}
+
+html[data-theme="luna"] .luna-bubbles::before {
+  position: absolute;
+  inset: 0 0 -112px;
+  background:
+    radial-gradient(circle at 4px 6px, transparent 1px, #ecf9ff94 1.7px, transparent 2.6px),
+    radial-gradient(circle at 14px 19px, transparent 2px, #dcf4ffae 2.7px, transparent 3.6px),
+    radial-gradient(circle at 21px 37px, transparent 1px, #ecf9ff71 1.6px, transparent 2.6px),
+    radial-gradient(circle at 13px 43px, #eaf7ff90 1px, transparent 2px),
+    radial-gradient(circle at 22px 57px, transparent 1px, #ecf9ff83 1.8px, transparent 2.7px),
+    radial-gradient(circle at 11px 73px, transparent 1.5px, #eaf7ff95 2.4px, transparent 3.3px),
+    radial-gradient(circle at 24px 89px, #eaf7ff80 1px, transparent 2px),
+    radial-gradient(circle at 17px 105px, transparent 1px, #eaf7ff7d 1.8px, transparent 2.6px);
+  background-size: 29px 112px;
+  animation: luna-bubbles-rise 4.6s linear infinite;
+  content: "";
+}
+
+html[data-theme="luna"] .luna-fish {
+  --fish-body: radial-gradient(circle at 82% 40%, #080d1a 0 4%, #e6f3fb 4.5% 6%, transparent 7%),
+    radial-gradient(ellipse at 54% 40%, #142948 0 24%, transparent 26%),
+    linear-gradient(156deg, #a8d6ff, #547fdd 32%, #2850ad 65%, #172b64);
+  --fish-tail: linear-gradient(#fff39b, #e7be37 58%, #9c7025);
+  position: absolute;
+  left: 0;
+  top: 23px;
+  width: clamp(39px, 7cqw, 64px);
+  aspect-ratio: 2;
+  filter: drop-shadow(0 2px 3px #000a);
+  animation: luna-fish-swim 22s -15s linear infinite;
+}
+
+html[data-theme="luna"] .luna-fish span {
+  position: absolute;
+  inset: 0;
+}
+
+html[data-theme="luna"] .luna-fish span::before {
+  position: absolute;
+  z-index: 1;
+  inset: 5% 0 5% 21%;
+  border-radius: 52% 48% 45% 54%;
+  background: var(--fish-body);
+  box-shadow: inset 0 -3px 4px #07141a69;
+  content: "";
+}
+
+html[data-theme="luna"] .luna-fish span::after {
+  position: absolute;
+  inset: 13% 66% 12% 0;
+  background: var(--fish-tail);
+  clip-path: polygon(4% 2%, 99% 42%, 99% 60%, 2% 98%, 21% 50%);
+  transform-origin: right;
+  animation: luna-fish-tail .86s ease-in-out infinite alternate;
+  content: "";
+}
+
+html[data-theme="luna"] .luna-clown {
+  --fish-body: radial-gradient(circle at 83% 41%, #160f13 0 4%, #fff1d9 5% 6%, transparent 7%),
+    linear-gradient(105deg, #d64d22 8%, #f1853a 23%, #251723 26%, #fff2e0 28% 37%, #291a20 39%, #f17631 43% 59%, #23151a 62%, #fff4e5 65% 75%, #211820 77%, #e75d27 80%);
+  --fish-tail: linear-gradient(#fff2de 0 8%, #e77837 18% 81%, #3e2119 90%);
+  top: auto;
+  bottom: 25px;
+  width: clamp(35px, 5.4cqw, 49px);
+  animation-duration: 29s;
+  animation-delay: -5s;
+  animation-direction: reverse;
+}
+
+html[data-theme="luna"] .luna-clown span {
+  transform: scaleX(-1);
+}
+
+html[data-theme="luna"] .luna-yellow {
+  --fish-body: radial-gradient(circle at 84% 40%, #261e13 0 4%, #fff4b4 4.5% 6%, transparent 7%),
+    linear-gradient(157deg, #fef6a0, #e9c137 54%, #9e7125 92%);
+  --fish-tail: linear-gradient(#ffe88a, #c18e28);
+  top: 51px;
+  width: clamp(30px, 4.4cqw, 41px);
+  animation-duration: 35s;
+  animation-delay: -19s;
+  opacity: .86;
+}
+
+/* One shared data flag pauses compositor animations for hidden tabs, user
+   motion preferences and lifecycle suspension without losing their phase. */
+html[data-theme="luna"] #aquariumBackground[data-playing="false"] .luna-fish,
+html[data-theme="luna"] #aquariumBackground[data-playing="false"] .luna-bubbles::before,
+html[data-theme="luna"] #aquariumBackground[data-playing="false"] .luna-fish span::after {
+  animation-play-state: paused;
+}
+
+@keyframes luna-bubbles-rise {
+  to { transform: translateY(-112px); }
+}
+
+@keyframes luna-fish-swim {
+  0% { transform: translate3d(-70px, 1px, 0); }
+  25% { transform: translate3d(calc(25cqw - 48px), -5px, 0); }
+  50% { transform: translate3d(calc(50cqw - 25px), 7px, 0); }
+  75% { transform: translate3d(calc(75cqw - 2px), -4px, 0); }
+  100% { transform: translate3d(calc(100cqw + 22px), 2px, 0); }
+}
+
+@keyframes luna-fish-tail {
+  to { transform: scaleX(.67); }
+}
+
+@media (max-width: 940px) {
+  html[data-theme="luna"] { --luna-shell-padding: 16px; }
+}
+
+@media (max-width: 700px) {
+  html[data-theme="luna"] {
+    --luna-shell-padding: 13px;
+    --luna-auth-padding: 22px;
+  }
+
+  html[data-theme="luna"] .app {
+    margin-top: 79px;
+    margin-bottom: 68px;
+  }
+
+  html[data-theme="luna"] .hero {
+    padding: 20px 16px;
+  }
+
+  html[data-theme="luna"] .hero::after {
+    background: linear-gradient(90deg, #103c7fe8, #103c7f93);
+  }
+}
+
+@media (max-width: 430px) {
+  html[data-theme="luna"] { --luna-auth-padding: 16px; }
+  html[data-theme="luna"] .luna-reef { object-position: 82% bottom; }
+}
+
+@media (max-width: 375px) {
+  html[data-theme="luna"] { --luna-auth-padding: 10px; }
+}
+
+@media (max-width: 360px) {
+  html[data-theme="luna"] { --luna-shell-padding: 10px; }
+}
+
+@media (max-width: 340px) {
+  html[data-theme="luna"] { --luna-auth-padding: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="luna"]:not([data-background-motion="on"]) #aquariumBackground .luna-fish,
+  html[data-theme="luna"]:not([data-background-motion="on"]) #aquariumBackground .luna-bubbles::before,
+  html[data-theme="luna"]:not([data-background-motion="on"]) #aquariumBackground .luna-fish span::after {
+    animation-play-state: paused;
+  }
+}

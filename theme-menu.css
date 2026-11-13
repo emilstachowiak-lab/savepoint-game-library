@@ -1,0 +1,253 @@
+/* Appearance settings live only inside the authenticated application menu.
+   ID-scoped layout rules override former toolbar geometry without changing
+   the palette, artwork or component styles of any existing theme. */
+#appMenuContainer {
+  margin-inline-start: auto;
+}
+
+/* Keep the complete disclosure reachable on short screens. The optional
+   custom property allows a measured available height without requiring it. */
+#appMenu {
+  width: 300px;
+  max-width: calc(100vw - 48px);
+  max-height: var(--app-menu-available-height, min(620px, calc(100vh - 250px)));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  color: var(--text);
+}
+
+/* Liquid Glass's pill-shaped control radius would clip this entire panel.
+   Keep the scrollable menu corners small enough to reveal every action. */
+html[data-theme="liquidglass"] #appMenu {
+  border-radius: 17px;
+}
+
+#appMenuTheme {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+}
+
+/* Summary remains a native details disclosure. The existing action-row
+   typography and icons provide the same visual weight as Import and Export. */
+#appMenu .theme-menu-summary {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  min-height: 52px;
+  width: 100%;
+  list-style: none;
+  cursor: pointer;
+  color: var(--text);
+}
+
+#appMenu .theme-menu-summary::marker {
+  content: "";
+}
+
+#appMenu .theme-menu-summary::-webkit-details-marker {
+  display: none;
+}
+
+#appMenu .theme-menu-summary > .app-menu-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+#appMenu .theme-menu-summary .app-menu-icon,
+#appMenu .theme-menu-summary .app-menu-copy small {
+  color: var(--muted);
+}
+
+#appMenu .theme-menu-summary .theme-menu-chevron {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  color: currentColor;
+}
+
+#appMenuTheme[open] > .theme-menu-summary {
+  border-color: var(--line);
+  background: var(--panel);
+  box-shadow: none;
+  color: var(--text);
+}
+
+#appMenuTheme[open] > .theme-menu-summary .theme-menu-chevron {
+  transform: rotate(180deg);
+}
+
+#appMenu .theme-menu-summary:hover {
+  border-color: var(--line);
+  background: var(--panel);
+  box-shadow: none;
+  color: var(--text);
+}
+
+#appMenu .theme-menu-summary:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: -3px;
+}
+
+#appMenu .theme-menu-settings {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 10px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+}
+
+/* Remove decorative toolbar grouping, including Liquid Glass's pill. Each
+   original control keeps its own ID, native behavior and theme palette. */
+#appMenu .appearance-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#appMenu .appearance-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+}
+
+#appMenu .appearance-picker > span {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+#appMenu .appearance-picker select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 34px;
+  padding: 5px 8px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+#appMenu .background-motion-control {
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  min-height: 34px;
+  width: 100%;
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+}
+
+#appMenu .background-motion-control input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--lime);
+}
+
+#appMenu .background-motion-control > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* These IDs also beat narrow-toolbar rules that previously hid the text
+   beside the circular color swatch on small screens. */
+#appMenu #backgroundColorControl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text);
+  font-size: 12px;
+}
+
+#appMenu #backgroundColorControl > span {
+  display: block;
+  min-width: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+#appMenu #backgroundColor {
+  width: 44px;
+  height: 30px;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  box-shadow: none;
+}
+
+#appMenu #backgroundColor::-webkit-color-swatch {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+
+#appMenu #backgroundColor::-moz-color-swatch {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+
+@supports (height: 100dvh) {
+  #appMenu {
+    max-height: var(--app-menu-available-height, min(620px, calc(100dvh - 250px)));
+  }
+}
+
+#appMenu :is(.maze-background-status, .pipes-background-status) {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+@media (pointer: coarse) {
+  #appMenu .theme-menu-summary,
+  #appMenu .appearance-picker select,
+  #appMenu .background-motion-control,
+  #appMenu #backgroundColorControl {
+    min-height: 44px;
+  }
+
+  #appMenu .appearance-picker select {
+    font-size: 16px;
+  }
+
+  #appMenu #backgroundColor {
+    height: 44px;
+  }
+}

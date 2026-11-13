@@ -1,0 +1,372 @@
+/* Optional Mac-inspired skins. Every selector is positively scoped to the
+   three new themes; Aero, Luna and the Classic variants keep their own CSS. */
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) {
+  color-scheme: light;
+  --bg: #1a73b0;
+  --panel: #f5f7fa;
+  --panel2: #fff;
+  --line: #afbac5;
+  --text: #182a3a;
+  --muted: #515f6d;
+  --lime: #075cbe;
+  --orange: #7c4c21;
+  --radius: 5px;
+  --mac-font: "Lucida Grande", "Lucida Sans Unicode", Geneva, Arial, sans-serif;
+  --mac-shell-padding: 22px;
+  --mac-auth-padding: 24px;
+  --mac-window-radius: 9px;
+  --mac-window-border: #597184;
+  --mac-control-radius: 5px;
+  --mac-button-radius: 18px;
+  --mac-title: #254e74;
+  --mac-heading: #1e3d59;
+  --mac-caption-ink: #262d35;
+  --mac-brand-ink: #13579d;
+  --mac-brand-muted: #566271;
+  --mac-toolbar-ink: var(--text);
+  --mac-field: #fff;
+  --mac-inner: #fafdff;
+  --mac-hover: #e1edf7;
+  --mac-selected: #dcecf9;
+  --mac-border: #8c969f;
+  --mac-chrome: repeating-linear-gradient(0deg, #ffffff40 0 1px, #9fa9b31c 1px 2px), linear-gradient(#fff, #e4e6e9 58%, #d7dbdf);
+  --mac-surface: repeating-linear-gradient(0deg, #fafafa 0 2px, #f1f2f4 2px 4px);
+  --mac-toolbar: linear-gradient(#fbfcfd, #e0e6ec);
+  --mac-brand-surface: linear-gradient(#fafcfe, #e2eaf2);
+  --mac-button: linear-gradient(#fff, #f5f5f5 44%, #d8dce1 49%, #e9ecf0);
+  --mac-primary: linear-gradient(#e5f8ff, #a7dcff 43%, #64b1ec 47%, #4c9fdf 75%, #8aceff);
+  --mac-primary-border: #2064a4;
+  --mac-primary-ink: #102b45;
+  --mac-field-shadow: inset 0 1px 3px #40586c30, 0 1px #fff;
+  --mac-raised: inset 0 1px #fff, 0 1px 2px #284d6a26;
+  --mac-window-shadow: 0 14px 30px #07315b73, 0 2px 5px #09233b78, inset 0 0 0 1px #fff;
+  --mac-desktop: radial-gradient(ellipse at 8% 0, #a9edff9c, transparent 50%), radial-gradient(ellipse at 90% 100%, #063878a8, transparent 62%), linear-gradient(125deg, #194579, #198dcd 48%, #2e68aa);
+}
+
+/* Platinum uses neutral, compact bevels and the striped title bar of the
+   classic Mac interface. Its square window controls remain decorative. */
+html[data-theme="platinum"] {
+  --bg: #858da8;
+  --panel: #ddd;
+  --panel2: #eee;
+  --line: #929292;
+  --text: #202020;
+  --muted: #505050;
+  --lime: #334d86;
+  --orange: #715020;
+  --radius: 1px;
+  --mac-font: Geneva, "Lucida Sans Unicode", Tahoma, Arial, sans-serif;
+  --mac-window-radius: 2px;
+  --mac-window-border: #353535;
+  --mac-control-radius: 1px;
+  --mac-button-radius: 3px;
+  --mac-title: #303030;
+  --mac-heading: #303030;
+  --mac-caption-ink: #181818;
+  --mac-brand-ink: #334d86;
+  --mac-brand-muted: #505050;
+  --mac-field: #fff;
+  --mac-inner: #e8e8e8;
+  --mac-hover: #e4e4e4;
+  --mac-selected: #d9e0ee;
+  --mac-border: #777;
+  --mac-chrome: repeating-linear-gradient(0deg, #8f8f8f 0 1px, #f8f8f8 1px 2px, #ddd 2px 3px);
+  --mac-surface: #ddd;
+  --mac-toolbar: linear-gradient(#ededed, #d8d8d8);
+  --mac-brand-surface: #e6e6e6;
+  --mac-button: linear-gradient(#f4f4f4, #dedede 60%, #c9c9c9);
+  --mac-primary: var(--mac-button);
+  --mac-primary-border: #414141;
+  --mac-primary-ink: #1c1c1c;
+  --mac-field-shadow: inset 1px 1px #b0b0b0, 1px 1px #fff;
+  --mac-raised: inset 1px 1px #fff, inset -1px -1px #a2a2a2, 0 1px #fff;
+  --mac-window-shadow: inset 1px 1px #fff, inset -1px -1px #919191, 2px 3px 0 #454d6880, 0 9px 16px #30364d35;
+  --mac-desktop: repeating-linear-gradient(0deg, #ffffff08 0 1px, transparent 1px 4px), repeating-linear-gradient(90deg, #353a5e14 0 1px, transparent 1px 4px), #858da8;
+}
+
+/* Mountain Lion combines linen outside the window, stitched leather in its
+   toolbar and opaque warm paper beneath the collection and form content. */
+html[data-theme="mountain"] {
+  --bg: #3c3f44;
+  --panel: #f5f1e7;
+  --panel2: #fffdf7;
+  --line: #c8bdaa;
+  --text: #34332f;
+  --muted: #6b6154;
+  --lime: #3d6e9a;
+  --orange: #7b4f20;
+  --radius: 3px;
+  --mac-window-radius: 6px;
+  --mac-window-border: #25282b;
+  --mac-control-radius: 4px;
+  --mac-button-radius: 4px;
+  --mac-title: #514739;
+  --mac-heading: #514536;
+  --mac-caption-ink: #3a3a3a;
+  --mac-brand-ink: #fff1d6;
+  --mac-brand-muted: #ffefd7;
+  --mac-toolbar-ink: #fff4dd;
+  --mac-field: #fffefa;
+  --mac-inner: #ece6da;
+  --mac-hover: #ebe4d8;
+  --mac-selected: #dde9f1;
+  --mac-border: #a39f97;
+  --mac-chrome: repeating-linear-gradient(90deg, #fff2 0 1px, transparent 1px 3px), linear-gradient(#f0f0f0, #d4d4d4 55%, #bcbcbc);
+  --mac-surface: repeating-linear-gradient(0deg, #fff5 0 1px, transparent 1px 5px), repeating-linear-gradient(90deg, #b8a47e08 0 1px, transparent 1px 4px), linear-gradient(#faf8f1, #f5f1e7);
+  --mac-toolbar: radial-gradient(ellipse at 20% 50%, #27150a21 0 1px, transparent 1.8px) 0 0 / 7px 5px, radial-gradient(ellipse at 70% 25%, #ffe0ad0a 0 1px, transparent 1.4px) 3px 2px / 9px 7px, linear-gradient(#855a35, #654025);
+  --mac-brand-surface: var(--mac-toolbar);
+  --mac-button: linear-gradient(#fff, #eee 55%, #ddd);
+  --mac-primary: linear-gradient(#c7e3f9, #8cbfe7 52%, #6ba7d5);
+  --mac-primary-border: #4a7da4;
+  --mac-primary-ink: #18374b;
+  --mac-field-shadow: inset 0 1px 3px #554b3929, 0 1px #fff9;
+  --mac-raised: inset 0 1px #fff, 0 1px 2px #51433426;
+  --mac-window-shadow: 0 17px 33px #11131880, 0 2px 6px #080a0b7a, inset 0 0 0 1px #fff9;
+  --mac-desktop: repeating-linear-gradient(0deg, transparent 0 1px, #ffffff09 1px 2px, #00000010 2px 3px, transparent 3px 4px), repeating-linear-gradient(90deg, #ffffff08 0 1px, #00000016 1px 2px, transparent 2px 4px), radial-gradient(ellipse at 50% 0, #686b70, #3c3f44 74%);
+}
+
+/* Static desktops never run the Aero canvas. The existing appearance
+   controller independently pauses its animation when these themes are active. */
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) body {
+  background: var(--mac-desktop);
+  background-attachment: fixed;
+  font-family: var(--mac-font);
+}
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(#xmbBackground, .background-motion-control) { display: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(button, input, select, a):focus-visible { outline-color: var(--lime); }
+
+/* Aqua's broad desktop folds stay behind the opaque application surfaces. */
+html[data-theme="aqua"] body::before, html[data-theme="aqua"] body::after {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+}
+html[data-theme="aqua"] body::before {
+  background: radial-gradient(ellipse 140% 80% at -16% -26%, transparent 64%, #a6e6f357 66%, #c5f5ff8c 67%, #56b5dd85 67.5%, #15528f26 72%, transparent 76%);
+}
+html[data-theme="aqua"] body::after {
+  background: radial-gradient(ellipse 145% 83% at 104% 143%, transparent 54%, #b8f0ff54 54.4%, #4eacda55 56%, #24569b85 66%, transparent 75%);
+}
+
+/* Captions have no actions: the real application controls remain in their
+   original toolbar. The controller keeps these elements hidden in older skins. */
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .app {
+  margin-top: 58px;
+  margin-bottom: 42px;
+  border: 1px solid var(--mac-window-border);
+  border-radius: var(--mac-window-radius);
+  background: var(--mac-surface);
+  box-shadow: var(--mac-window-shadow);
+}
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .mac-window-caption {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) 78px;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 3px 10px;
+  border-bottom: 1px solid var(--mac-border);
+  border-radius: var(--mac-window-radius) var(--mac-window-radius) 0 0;
+  background: var(--mac-chrome);
+  box-shadow: inset 0 1px #fff;
+  color: var(--mac-caption-ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .app > .mac-window-caption { margin-inline: calc(-1 * var(--mac-shell-padding)); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .auth-card > .mac-window-caption { grid-column: 1 / -1; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .mac-caption-title { justify-self: center; max-width: 100%; text-align: center; overflow-wrap: anywhere; text-shadow: 0 1px #fff; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .mac-caption-controls { display: flex; align-items: center; gap: 7px; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .mac-caption-controls > span {
+  display: block; width: 13px; height: 13px; border: 1px solid #9b4f42; border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 20%, #fff9 0 14%, transparent 52%), linear-gradient(#ed9a8e, #f04e40 62%, #ffb19a);
+  box-shadow: 0 1px 1px #fff, inset 0 -1px 2px #8e241d80;
+}
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .mac-caption-controls > span:nth-child(2) { border-color: #a08129; background: radial-gradient(ellipse at 50% 20%, #fff9 0 14%, transparent 52%), linear-gradient(#fff39c, #efbe37 62%, #ffe588); box-shadow: 0 1px 1px #fff, inset 0 -1px 2px #89731460; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .mac-caption-controls > span:nth-child(3) { border-color: #4a8a42; background: radial-gradient(ellipse at 50% 20%, #fffc 0 14%, transparent 52%), linear-gradient(#b4ee9e, #5bc446 62%, #a7e797); box-shadow: 0 1px 1px #fff, inset 0 -1px 2px #2a761e60; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .mac-caption-end { justify-self: end; display: flex; gap: 4px; }
+html[data-theme="aqua"] .mac-caption-end { width: 23px; height: 9px; border: 1px solid #9da7b2; border-radius: 7px; background: linear-gradient(#fff, #c7cdd4, #eff2f5); box-shadow: 0 1px #fff; }
+html[data-theme="aqua"] .mac-caption-end > span { display: none; }
+html[data-theme="mountain"] .mac-caption-end > span { display: block; width: 8px; height: 8px; border: 1px solid #737373; background: #e3e3e3; }
+html[data-theme="mountain"] .mac-caption-end > span:first-child { transform: translate(3px, -2px); }
+html[data-theme="platinum"] .mac-window-caption { grid-template-columns: 28px minmax(0, 1fr) 44px; min-height: 26px; margin: 3px 3px 0; padding-inline: 5px; border-radius: 0; }
+html[data-theme="platinum"] .app > .mac-window-caption { margin-inline: calc(-1 * var(--mac-shell-padding) + 3px); }
+html[data-theme="platinum"] .mac-caption-title { padding: 0 8px; background: #ddd; text-shadow: none; }
+html[data-theme="platinum"] .mac-window-caption { font-family: Charcoal, Chicago, Geneva, Tahoma, Arial, sans-serif; }
+html[data-theme="platinum"] .mac-caption-controls { padding-right: 5px; background: #ddd; }
+html[data-theme="platinum"] .mac-caption-controls > span:first-child, html[data-theme="platinum"] .mac-caption-end > span { display: block; width: 12px; height: 12px; border: 1px solid #5d5d5d; border-radius: 0; background: linear-gradient(135deg, #fff, #d2d2d2 58%, #b4b4b4); box-shadow: inset 1px 1px #fff, inset -1px -1px #888; }
+html[data-theme="platinum"] .mac-caption-controls > span:not(:first-child) { display: none; }
+html[data-theme="platinum"] .mac-caption-end { padding-left: 4px; background: #ddd; }
+html[data-theme="platinum"] .mac-caption-end > span:first-child { box-shadow: inset 1px 1px #fff, inset -1px -1px #888, inset 0 3px #8e8e8e; }
+html[data-theme="platinum"] .mac-caption-end > span:last-child { box-shadow: inset 1px 1px #fff, inset -1px -1px #888, inset 0 5px #8e8e8e, inset 0 6px #fff; }
+
+/* The toolbar spans the window; its controls still wrap at the application's
+   existing breakpoints. Leather and title-strip rules never target old themes. */
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .topbar {
+  position: relative;
+  flex-wrap: wrap;
+  min-height: 64px;
+  margin-inline: calc(-1 * var(--mac-shell-padding));
+  padding: 12px var(--mac-shell-padding);
+  border-bottom-color: var(--line);
+  background: var(--mac-toolbar);
+  box-shadow: inset 0 1px #ffffff80, 0 1px #fff8;
+  color: var(--mac-toolbar-ink);
+}
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .brand { flex-wrap: wrap; min-width: 0; white-space: normal; color: var(--mac-brand-ink); font-size: 20px; font-weight: 500; text-shadow: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .brand em { color: var(--mac-brand-muted); font-size: 11px; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .brand-mark { filter: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .top-right { max-width: 100%; gap: 8px; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .topbar .appearance-picker { color: var(--mac-toolbar-ink); }
+html[data-theme="mountain"] .topbar { padding-top: 17px; padding-bottom: 19px; border-bottom-color: #5e3b20; box-shadow: inset 0 1px #e7bd8b66, inset 0 -3px 6px #3b221744, 0 2px 3px #3c302333; }
+html[data-theme="mountain"] .topbar::after { position: absolute; left: 9px; right: 9px; bottom: 6px; border-bottom: 1px dashed #e7bf8b; filter: drop-shadow(0 1px #3c241a); pointer-events: none; content: ""; }
+html[data-theme="mountain"] .brand { text-shadow: 0 -1px #3e271c, 0 1px #e7c69b44; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.theme-picker, .local-badge) { border-color: var(--line); border-radius: var(--mac-control-radius); background: var(--mac-inner); color: var(--text); box-shadow: var(--mac-field-shadow); text-shadow: none; }
+
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .hero { padding: 24px 0 22px; background: transparent; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .hero h1 { color: var(--mac-heading); font-size: 34px; font-weight: 500; letter-spacing: -.9px; text-shadow: 0 1px #fff; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .hero h1 .hero-heading-accent { color: inherit; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.hero .eyebrow, .hero p:not(.eyebrow)) { color: var(--muted); }
+
+/* Native actions share each skin's bevels, while focus rings remain visible. */
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.primary, .secondary, .danger, .app-menu-toggle, .icon-btn, .close, .platform-tab) {
+  border: 1px solid var(--mac-border);
+  border-radius: var(--mac-button-radius);
+  background: var(--mac-button);
+  color: var(--text);
+  box-shadow: var(--mac-raised);
+  text-shadow: 0 1px #ffffffb0;
+}
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.primary, .auth-card .primary) { border-color: var(--mac-primary-border); background: var(--mac-primary); color: var(--mac-primary-ink); box-shadow: var(--mac-raised); font-weight: 500; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.primary, .secondary, .danger, .app-menu-toggle, .icon-btn, .close):hover:not(:disabled) { border-color: var(--lime); background: var(--mac-button); box-shadow: var(--mac-raised); color: var(--text); filter: brightness(1.035); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.primary, .auth-card .primary):hover:not(:disabled) { background: var(--mac-primary); color: var(--mac-primary-ink); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.primary, .secondary, .danger, .app-menu-toggle, .icon-btn, .close):active:not(:disabled), html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .app-menu-toggle[aria-expanded="true"] { box-shadow: inset 0 1px 3px #24364955, 0 1px #fff; filter: brightness(.96); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .danger { color: #842d27; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .danger:hover:not(:disabled) { color: #842d27; }
+html[data-theme="platinum"] .primary:not(:focus-visible) { outline: 2px solid #414141; outline-offset: 2px; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .close { border-radius: var(--mac-control-radius); }
+
+/* Summary and filters use the same data and DOM as before; only their
+   presentation changes to the inset panels shown in the approved previews. */
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .stats { gap: 0; border: 1px solid var(--line); border-radius: var(--mac-control-radius); background: var(--mac-inner); box-shadow: var(--mac-field-shadow); margin-bottom: 18px; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .stat { display: flex; align-items: baseline; justify-content: center; gap: 10px; padding: 9px 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .stat + .stat { border-left: 1px solid var(--line); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .stat::after { display: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .stat-label { color: var(--muted); font-size: 11px; text-transform: none; letter-spacing: 0; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .stat-label .ui-icon { display: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .stat-value { order: -1; margin-top: 0; color: var(--mac-title); font-size: 24px; font-weight: 400; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.stat-value small, .filter-label, .count, .edition-meta, .edition-meta .ui-icon, .footer, .footer-title) { color: var(--muted); text-shadow: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .toolbar { border-color: var(--line); border-radius: var(--mac-control-radius); background: var(--mac-surface); box-shadow: 0 1px #fff; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.toolbar input, .toolbar select, .field input:not([type="checkbox"]), .field select, .auth-field input, .auth-language select, [data-ui-theme], .appearance-picker select) {
+  border: 1px solid var(--mac-border);
+  border-radius: var(--mac-control-radius);
+  background: var(--mac-field);
+  box-shadow: var(--mac-field-shadow);
+  color: var(--text);
+  accent-color: var(--lime);
+}
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.toolbar select, .field select, .auth-language select, .appearance-picker select) { background: var(--mac-button); box-shadow: var(--mac-raised); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.toolbar select option, .field select option, .auth-language select option, .appearance-picker select option) { background: var(--mac-field); color: var(--text); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.toolbar input, .toolbar select, .field input:not([type="checkbox"]), .field select, .auth-field input):focus { border-color: var(--lime); box-shadow: var(--mac-field-shadow), 0 0 0 2px #6dafe633; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.toolbar input, .field input, .auth-field input)::placeholder { color: #6e746e; opacity: 1; }
+html:is([data-theme="aqua"], [data-theme="mountain"]) .toolbar input[type="search"] { border-radius: 18px; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.search .ui-icon, .icon-btn .ui-icon, .empty-icon) { color: var(--mac-title); }
+
+/* Covers retain their original image sizing, fallback and action controls. */
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .game-card { border-color: var(--line); border-radius: var(--radius); background: var(--panel2); box-shadow: 0 2px 4px #2d403d26; transition: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .game-card:hover, html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .game-card:focus-within { border-color: var(--lime); box-shadow: 0 2px 4px #2d403d26; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.cover, .cover-preview-frame) { border-color: var(--line); border-radius: var(--radius); background: var(--mac-inner); box-shadow: var(--mac-field-shadow); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.cover-image, #coverPreview) { filter: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .cover::after { box-shadow: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.cover-title, .cover-preview-title, .cover-preview-placeholder) { color: var(--mac-title); text-shadow: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .game-title { border-bottom-color: var(--line); background: var(--mac-surface); color: var(--mac-title); font-weight: 500; text-shadow: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.platform-chip, .status, .selected-platform-chip) { border-color: var(--line); border-radius: var(--radius); background: var(--mac-inner); color: var(--text); box-shadow: inset 0 1px #ffffff80; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .status.ograna { border-color: #b6cfba; background: #eef6ed; color: #3f6b45; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .status.w-trakcie { border-color: #d8c5a3; background: #f4ead5; color: #70521e; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .empty { border-color: var(--line); border-radius: var(--radius); background: var(--panel2); color: var(--text); box-shadow: var(--mac-field-shadow); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.empty h2, .text-btn, .cover-search) { color: var(--mac-title); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.text-btn, .cover-search):hover { color: var(--text); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .footer { border-color: var(--line); box-shadow: 0 -1px #fff8; }
+
+/* Menus and all editor panels stay opaque, including selected console tabs
+   and the existing delete dialog. No authentication or data behavior changes. */
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .app-menu { border-color: var(--line); border-radius: var(--mac-control-radius); background: var(--mac-field); color: var(--text); box-shadow: 0 6px 15px #152d4055; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .app-menu-title { border-color: var(--line); background: var(--mac-chrome); color: var(--mac-caption-ink); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .app-menu-item { border-radius: var(--mac-control-radius); color: var(--text); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .app-menu-item:hover, html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .app-menu-item:focus-visible { border-color: var(--lime); background: var(--mac-selected); color: var(--text); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.app-menu-icon, .app-menu-copy small, .app-menu-logout .app-menu-icon, .app-menu-logout small) { color: inherit; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .app-menu-icon { border-color: var(--line); background: var(--mac-inner); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .app-menu-separator { background: var(--line); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .auth-screen { background: transparent; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.auth-card, .modal) { border: 1px solid var(--mac-window-border); border-radius: var(--mac-window-radius); background: var(--mac-surface); color: var(--text); box-shadow: var(--mac-window-shadow); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .auth-brand { border-color: var(--line); background: var(--mac-brand-surface); color: var(--text); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .auth-brand::after,
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .auth-brand-wave { display: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .auth-brand-logo { filter: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.auth-brand-title, .auth-brand h2) { color: var(--mac-brand-ink); font-weight: 500; text-shadow: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.auth-brand-eyebrow, .auth-brand-description) { color: var(--mac-brand-muted); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .auth-body { padding: var(--mac-auth-padding); background: var(--mac-surface); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .auth-heading { flex-wrap: wrap; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .auth-card h1 { color: var(--mac-heading); font-size: 24px; font-weight: 500; text-shadow: 0 1px #fff; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.auth-intro, .auth-help, .auth-field label, .field-help, .platform-help, .cover-preview-status) { color: var(--muted); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .auth-password-toggle { border-radius: var(--mac-control-radius); background: transparent; color: var(--muted); box-shadow: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .auth-password-toggle:hover { background: var(--mac-hover); color: var(--text); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .auth-message { color: #842d27; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .captcha-status { color: #3f6b45; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .modal-backdrop { background: #19344a66; backdrop-filter: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .modal-head { border-color: var(--line); background: var(--mac-chrome); color: var(--mac-caption-ink); box-shadow: inset 0 1px #fff; }
+/* Reserve Platinum stripes for the decorative window caption. Dialog and
+   menu headings need an uninterrupted opaque surface behind their text. */
+html[data-theme="platinum"] :is(.modal-head, .app-menu-title) { background: #ddd; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .modal h2 { color: var(--mac-caption-ink); font-weight: 500; text-shadow: 0 1px #fff; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.modal-heading > .ui-icon, .modal-sub) { color: var(--mac-caption-ink); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .game-modal .form-grid { background: var(--mac-surface); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.field > label, .platform-picker > legend, .platform-group > legend, .game-modal .platform-picker > legend) { color: var(--text); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.field-optional, .platform-selection-count, .selected-platforms-label, .selected-platforms-empty, .form-required-note, .delete-platforms, .delete-note) { color: var(--muted); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.platform-group, .platform-console-box) { border-color: var(--line); border-radius: var(--mac-control-radius); background: var(--mac-field); box-shadow: var(--mac-field-shadow); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .platform-tabs { border-color: var(--line); background: var(--mac-inner); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .platform-tab { border-color: transparent; border-bottom-color: var(--line); border-radius: var(--mac-control-radius) var(--mac-control-radius) 0 0; background: transparent; box-shadow: none; color: var(--muted); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .platform-tab[aria-selected="true"] { border-color: var(--line); border-bottom-color: var(--mac-field); background: var(--mac-field); color: var(--mac-title); box-shadow: inset 0 1px #fff; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .platform-option { border-radius: var(--mac-control-radius); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .platform-option input { accent-color: var(--lime); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .game-modal .platform-option:has(input:checked) { border-color: var(--line); background: var(--mac-selected); box-shadow: inset 0 1px #fff; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .game-modal .platform-option:hover { background: var(--mac-hover); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .game-modal .platform-help { border-color: var(--line); background: var(--mac-inner); color: var(--muted); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) :is(.selected-platform-chip .ui-icon, .platform-picker-label .ui-icon) { color: var(--mac-title); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .form-actions { border-color: var(--line); background: var(--mac-inner); box-shadow: inset 0 1px #fff; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .delete-body > .ui-icon { color: var(--orange); }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .toast { border-color: var(--line); border-radius: var(--mac-control-radius); background: var(--panel2); color: var(--text); box-shadow: var(--mac-raised); transition: none; }
+html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .session-warning { border-color: #ae985f; border-radius: var(--mac-control-radius); background: #fff3ce; color: #5a4820; box-shadow: var(--mac-raised); }
+
+/* Follow the application's current shell and authentication breakpoints.
+   Narrow authentication padding leaves room for the 300px CAPTCHA widget. */
+@media (max-width: 940px) {
+  html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) { --mac-shell-padding: 16px; }
+}
+@media (max-width: 700px) {
+  html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) { --mac-shell-padding: 13px; --mac-auth-padding: 22px; }
+  html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .app { margin-top: 38px; margin-bottom: 32px; }
+  html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .mac-window-caption { grid-template-columns: 58px minmax(0, 1fr) 32px; padding-inline: 8px; font-size: 11px; }
+  html[data-theme="platinum"] .mac-window-caption { grid-template-columns: 22px minmax(0, 1fr) 40px; }
+  html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .hero h1 { font-size: 29px; }
+  html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .stat { flex-direction: column; align-items: center; gap: 3px; padding: 9px 6px; }
+  html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .stat-value small { font-size: 11px; }
+}
+@media (max-width: 430px) {
+  html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) { --mac-auth-padding: 16px; }
+  html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .toolbar { grid-template-columns: minmax(0, 1fr); }
+  html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .filter-language { grid-column: auto; width: 100%; }
+  html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .stat-label { font-size: 11px; }
+  html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) .auth-card h1 { font-size: 22px; }
+}
+@media (max-width: 375px) {
+  html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) { --mac-auth-padding: 6px; }
+}
+@media (max-width: 360px) {
+  html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) { --mac-shell-padding: 10px; }
+}
+@media (max-width: 340px) {
+  html:is([data-theme="platinum"], [data-theme="aqua"], [data-theme="mountain"]) { --mac-auth-padding: 3px; }
+}

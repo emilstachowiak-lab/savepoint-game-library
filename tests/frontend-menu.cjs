@@ -3,6 +3,9 @@
 // Real production disclosure and existing data/session handlers, exercised with
 // the offline DOM model. No production account, file or network is accessed.
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
 const {harness,flush} = require('./frontend-dom.cjs');
 const game={id:'menu-test',title:'Synthetic menu game',platform:'PC',edition:'Fizyczne',status:'Do ogrania',coverUrl:'',createdAt:1};
 const challenge={provider:'turnstile',siteKey:'synthetic-menu-site-key'};
@@ -45,6 +48,65 @@ async function main(){
   test.events.click({target:nodes.hero ?? nodes.search});assertClosed(test);
   assert.equal(test.requests.length,0);
   console.log('PASS: arrow/Home/End/Escape, native Tab, focus exit and outside click preserve intended focus');
+ }
+ {
+  const test=ready(),{nodes}=test;
+  const theme=test.query('[data-ui-theme]');
+  const motion=test.query('input[data-background-motion]');
+  const maze=test.query('select[data-classic-background]');
+  const pipes=test.query('select[data-classic3-background]');
+  const color=nodes.backgroundColor;
+  assert.equal(test.queryAll('[data-ui-theme]').length,1);
+  assert.equal(nodes.appMenuTheme.tagName,'DETAILS');
+  assert.equal(nodes.themeMenuSummary.tagName,'SUMMARY');
+  for(const control of [theme,motion,maze,pipes,color]){
+   assert(nodes.appMenuTheme.contains(control),'All appearance settings belong to the Theme category');
+   assert(!nodes.authScreen.contains(control),'No appearance setting may remain in login');
+  }
+  assert.equal(nodes.authScreen.querySelectorAll('[data-ui-theme],[data-background-motion],[data-classic-background],[data-classic3-background],input[type="color"]').length,0);
+  open(test);nodes.exportBtn.focus();assert(key(test,'ArrowDown'));
+  assert.equal(test.document.activeElement,nodes.themeMenuSummary);
+  assert(key(test,'ArrowDown'));assert.equal(test.document.activeElement,nodes.logoutBtn);
+  // Native details opening is supplied by the browser; the model expresses
+  // its open attribute so the production menu code can be checked independently.
+  nodes.appMenuTheme.setAttribute('open','');
+  for(const control of [theme,motion,maze,pipes,color]){
+   control.focus();
+   for(const value of ['ArrowDown','ArrowUp','Home','End']){
+    assert(!key(test,value),'Native field keys must not trigger menu navigation');
+    assert.equal(test.document.activeElement,control);
+   }
+   click(test,control);assert.equal(nodes.appMenu.hidden,false);
+   test.fire(control,'focusout',{relatedTarget:null});
+   assert.equal(nodes.appMenu.hidden,false,'Native popup focus transfers keep the menu open');
+  }
+  test.context.Event=class Event{constructor(type){this.type=type;}};
+  test.document.dispatchEvent=event=>{test.events[event.type]?.(event);return true;};
+  test.document.readyState='complete';
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'..','appearance.js'),'utf8'),test.context);
+  const cards=nodes.grid.innerHTML;
+  nodes.title.value='Unsaved menu draft';
+  for(const option of theme.querySelectorAll('option')){
+   theme.value=option.value;test.fire(theme,'change');
+   assert.equal(test.document.documentElement.dataset.theme,option.value);
+   assert.equal(nodes.appMenu.hidden,false,'Changing a theme must keep its category usable');
+   assert(nodes.appMenuTheme.hasAttribute('open'));
+   assert.equal(nodes.grid.innerHTML,cards);
+   assert.equal(nodes.title.value,'Unsaved menu draft');
+  }
+  theme.value='aero';test.fire(theme,'change');
+  motion.checked=false;test.fire(motion,'change');
+  color.value='#8b2fcb';test.fire(color,'input');
+  assert.equal(nodes.appMenu.hidden,false);
+  assert.equal(test.context.localStorage.getItem('savepoint-background-motion-v1'),'off');
+  assert.equal(test.context.localStorage.getItem('savepoint-background-color-v1'),'#8b2fcb');
+  const language=test.queryAll('[data-ui-language]')[0];
+  language.value='en';test.fire(language,'change');
+  assert(nodes.themeMenuSummary.textContent.includes('Theme'));
+  assert.equal(test.requests.length,0);
+  assert(key(test,'Escape'));assertClosed(test);
+  assert.equal(test.document.activeElement,nodes.appMenuToggle);
+  console.log('PASS: all theme settings live only in the authenticated category; native keys/popups and all 22 theme changes preserve menu, draft and collection');
  }
  {
   const test=ready();let picked=0;

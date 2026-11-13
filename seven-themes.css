@@ -1,0 +1,955 @@
+/* Seven optional skins, isolated from every existing theme. Shared component
+   rules cover collection, authentication, menus, dialogs and notifications;
+   the per-theme palettes and chrome below reproduce the approved previews. */
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) {
+  color-scheme: light;
+  --skin-font: "Segoe UI", Tahoma, Arial, sans-serif;
+  --skin-desktop: linear-gradient(135deg, #37658b, #17334f);
+  --skin-surface: #f5f6f8;
+  --skin-panel: #fff;
+  --skin-field: #fff;
+  --skin-ink: #202833;
+  --skin-muted: #515e6c;
+  --skin-title: #1d3e60;
+  --skin-line: #a9b4c0;
+  --skin-chrome: linear-gradient(#f4f6f8, #d3dbe4);
+  --skin-chrome-ink: #233244;
+  --skin-toolbar: #e5eaf0;
+  --skin-toolbar-ink: #233244;
+  --skin-button: linear-gradient(#fff, #e2e8f0);
+  --skin-button-ink: #233244;
+  --skin-button-border: #94a4b5;
+  --skin-primary: #1769ad;
+  --skin-primary-ink: #fff;
+  --skin-primary-border: #104d81;
+  --skin-inner: #eaf0f6;
+  --skin-selected: #d5e7f8;
+  --skin-hover: #e7f0f9;
+  --skin-radius: 7px;
+  --skin-control-radius: 4px;
+  --skin-card-radius: 5px;
+  --skin-window-shadow: 0 14px 34px #0005;
+  --skin-control-shadow: inset 0 1px #fff8, 0 1px 2px #0002;
+  --skin-card-shadow: 0 2px 4px #0002;
+  --skin-shell-padding: 22px;
+  --skin-auth-padding: 24px;
+  --bg: #17334f;
+  --panel: var(--skin-surface);
+  --panel2: var(--skin-panel);
+  --line: var(--skin-line);
+  --text: var(--skin-ink);
+  --muted: var(--skin-muted);
+  --lime: var(--skin-primary-border);
+  --orange: #8a5520;
+  --radius: var(--skin-card-radius);
+}
+
+/* Scoped component presentation; existing DOM and behavior stay intact. */
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) body {
+  background: var(--skin-desktop);
+  background-attachment: fixed;
+  font-family: var(--skin-font);
+}
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(#xmbBackground, .background-motion-control) { display: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(button, input, select, a):focus-visible { outline-color: var(--lime); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .app {
+  margin-top: 58px;
+  margin-bottom: 42px;
+  border: 1px solid var(--skin-line);
+  border-radius: var(--skin-radius);
+  background: var(--skin-surface);
+  box-shadow: var(--skin-window-shadow);
+}
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .skin-window-caption {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) 78px;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 3px 10px;
+  border-bottom: 1px solid var(--skin-line);
+  border-radius: var(--skin-radius) var(--skin-radius) 0 0;
+  background: var(--skin-chrome);
+  box-shadow: inset 0 1px #fff;
+  color: var(--skin-chrome-ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .app > .skin-window-caption { margin-inline: calc(-1 * var(--skin-shell-padding)); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .auth-card > .skin-window-caption { grid-column: 1 / -1; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .skin-caption-title { justify-self: center; max-width: 100%; text-align: center; overflow-wrap: anywhere; text-shadow: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .skin-caption-controls { display: flex; align-items: center; gap: 7px; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .skin-caption-controls > span {
+  display: block; width: 13px; height: 13px; border: 1px solid #9b4f42; border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 20%, #fff9 0 14%, transparent 52%), linear-gradient(#ed9a8e, #f04e40 62%, #ffb19a);
+  box-shadow: 0 1px 1px #fff, inset 0 -1px 2px #8e241d80;
+}
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .skin-caption-controls > span:nth-child(2) { border-color: #a08129; background: radial-gradient(ellipse at 50% 20%, #fff9 0 14%, transparent 52%), linear-gradient(#fff39c, #efbe37 62%, #ffe588); box-shadow: 0 1px 1px #fff, inset 0 -1px 2px #89731460; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .skin-caption-controls > span:nth-child(3) { border-color: #4a8a42; background: radial-gradient(ellipse at 50% 20%, #fffc 0 14%, transparent 52%), linear-gradient(#b4ee9e, #5bc446 62%, #a7e797); box-shadow: 0 1px 1px #fff, inset 0 -1px 2px #2a761e60; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .skin-caption-end { justify-self: end; display: flex; gap: 4px; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .topbar {
+  position: relative;
+  flex-wrap: wrap;
+  min-height: 64px;
+  margin-inline: calc(-1 * var(--skin-shell-padding));
+  padding: 12px var(--skin-shell-padding);
+  border-bottom-color: var(--line);
+  background: var(--skin-toolbar);
+  box-shadow: inset 0 1px #ffffff80, 0 1px #fff8;
+  color: var(--skin-toolbar-ink);
+}
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .brand { flex-wrap: wrap; min-width: 0; white-space: normal; color: var(--skin-title); font-size: 20px; font-weight: 500; text-shadow: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .brand em { color: var(--skin-muted); font-size: 11px; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .brand-mark { filter: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .top-right { max-width: 100%; gap: 8px; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .topbar .appearance-picker { color: var(--skin-toolbar-ink); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.theme-picker, .local-badge) { border-color: var(--line); border-radius: var(--skin-control-radius); background: var(--skin-inner); color: var(--text); box-shadow: var(--skin-control-shadow); text-shadow: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .hero { padding: 24px 0 22px; background: transparent; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .hero h1 { color: var(--skin-title); font-size: 34px; font-weight: 500; letter-spacing: -.9px; text-shadow: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .hero h1 .hero-heading-accent { color: inherit; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.hero .eyebrow, .hero p:not(.eyebrow)) { color: var(--muted); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.primary, .secondary, .danger, .app-menu-toggle, .icon-btn, .close, .platform-tab) {
+  border: 1px solid var(--skin-line);
+  border-radius: var(--skin-control-radius);
+  background: var(--skin-button);
+  color: var(--text);
+  box-shadow: var(--skin-control-shadow);
+  text-shadow: none;
+}
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.primary, .auth-card .primary) { border-color: var(--skin-primary-border); background: var(--skin-primary); color: var(--skin-primary-ink); box-shadow: var(--skin-control-shadow); font-weight: 500; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.primary, .secondary, .danger, .app-menu-toggle, .icon-btn, .close):hover:not(:disabled) { border-color: var(--lime); background: var(--skin-button); box-shadow: var(--skin-control-shadow); color: var(--text); filter: brightness(1.035); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.primary, .auth-card .primary):hover:not(:disabled) { background: var(--skin-primary); color: var(--skin-primary-ink); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.primary, .secondary, .danger, .app-menu-toggle, .icon-btn, .close):active:not(:disabled), html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .app-menu-toggle[aria-expanded="true"] { box-shadow: inset 0 1px 3px #24364955, 0 1px #fff; filter: brightness(.96); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .danger { color: #842d27; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .danger:hover:not(:disabled) { color: #842d27; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .close { border-radius: var(--skin-control-radius); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .stats { gap: 0; border: 1px solid var(--line); border-radius: var(--skin-control-radius); background: var(--skin-inner); box-shadow: var(--skin-control-shadow); margin-bottom: 18px; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .stat { display: flex; align-items: baseline; justify-content: center; gap: 10px; padding: 9px 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .stat + .stat { border-left: 1px solid var(--line); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .stat::after { display: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .stat-label { color: var(--muted); font-size: 11px; text-transform: none; letter-spacing: 0; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .stat-label .ui-icon { display: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .stat-value { order: -1; margin-top: 0; color: var(--skin-title); font-size: 24px; font-weight: 400; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.stat-value small, .filter-label, .count, .edition-meta, .edition-meta .ui-icon, .footer, .footer-title) { color: var(--muted); text-shadow: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .toolbar { border-color: var(--line); border-radius: var(--skin-control-radius); background: var(--skin-surface); box-shadow: 0 1px #fff; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.toolbar input, .toolbar select, .field input:not([type="checkbox"]), .field select, .auth-field input, .auth-language select, [data-ui-theme], .appearance-picker select) {
+  border: 1px solid var(--skin-line);
+  border-radius: var(--skin-control-radius);
+  background: var(--skin-field);
+  box-shadow: var(--skin-control-shadow);
+  color: var(--text);
+  accent-color: var(--lime);
+}
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.toolbar select, .field select, .auth-language select, .appearance-picker select) { background: var(--skin-button); box-shadow: var(--skin-control-shadow); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.toolbar select option, .field select option, .auth-language select option, .appearance-picker select option) { background: var(--skin-field); color: var(--text); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.toolbar input, .toolbar select, .field input:not([type="checkbox"]), .field select, .auth-field input):focus { border-color: var(--lime); box-shadow: var(--skin-control-shadow), 0 0 0 2px #6dafe633; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.toolbar input, .field input, .auth-field input)::placeholder { color: #6e746e; opacity: 1; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.search .ui-icon, .icon-btn .ui-icon, .empty-icon) { color: var(--skin-title); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .game-card { border-color: var(--line); border-radius: var(--radius); background: var(--panel2); box-shadow: 0 2px 4px #2d403d26; transition: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .game-card:hover, html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .game-card:focus-within { border-color: var(--lime); box-shadow: 0 2px 4px #2d403d26; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.cover, .cover-preview-frame) { border-color: var(--line); border-radius: var(--radius); background: var(--skin-inner); box-shadow: var(--skin-control-shadow); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.cover-image, #coverPreview) { filter: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .cover::after { box-shadow: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.cover-title, .cover-preview-title, .cover-preview-placeholder) { color: var(--skin-title); text-shadow: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .game-title { border-bottom-color: var(--line); background: var(--skin-surface); color: var(--skin-title); font-weight: 500; text-shadow: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.platform-chip, .status, .selected-platform-chip) { border-color: var(--line); border-radius: var(--radius); background: var(--skin-inner); color: var(--text); box-shadow: inset 0 1px #ffffff80; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .status.ograna { border-color: #b6cfba; background: #eef6ed; color: #3f6b45; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .status.w-trakcie { border-color: #d8c5a3; background: #f4ead5; color: #70521e; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .empty { border-color: var(--line); border-radius: var(--radius); background: var(--panel2); color: var(--text); box-shadow: var(--skin-control-shadow); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.empty h2, .text-btn, .cover-search) { color: var(--skin-title); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.text-btn, .cover-search):hover { color: var(--text); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .footer { border-color: var(--line); box-shadow: 0 -1px #fff8; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .app-menu { border-color: var(--line); border-radius: var(--skin-control-radius); background: var(--skin-field); color: var(--text); box-shadow: 0 6px 15px #152d4055; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .app-menu-title { border-color: var(--line); background: var(--skin-chrome); color: var(--skin-chrome-ink); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .app-menu-item { border-radius: var(--skin-control-radius); color: var(--text); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .app-menu-item:hover, html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .app-menu-item:focus-visible { border-color: var(--lime); background: var(--skin-selected); color: var(--text); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.app-menu-icon, .app-menu-copy small, .app-menu-logout .app-menu-icon, .app-menu-logout small) { color: inherit; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .app-menu-icon { border-color: var(--line); background: var(--skin-inner); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .app-menu-separator { background: var(--line); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .auth-screen { background: transparent; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.auth-card, .modal) { border: 1px solid var(--skin-line); border-radius: var(--skin-radius); background: var(--skin-surface); color: var(--text); box-shadow: var(--skin-window-shadow); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .auth-brand { border-color: var(--line); background: var(--skin-toolbar); color: var(--text); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .auth-brand::after,
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .auth-brand-wave { display: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .auth-brand-logo { filter: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.auth-brand-title, .auth-brand h2) { color: var(--skin-title); font-weight: 500; text-shadow: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.auth-brand-eyebrow, .auth-brand-description) { color: var(--skin-muted); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .auth-body { padding: var(--skin-auth-padding); background: var(--skin-surface); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .auth-heading { flex-wrap: wrap; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .auth-card h1 { color: var(--skin-title); font-size: 24px; font-weight: 500; text-shadow: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.auth-intro, .auth-help, .auth-field label, .field-help, .platform-help, .cover-preview-status) { color: var(--muted); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .auth-password-toggle { border-radius: var(--skin-control-radius); background: transparent; color: var(--muted); box-shadow: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .auth-password-toggle:hover { background: var(--skin-hover); color: var(--text); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .auth-message { color: #842d27; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .captcha-status { color: #3f6b45; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .modal-backdrop { background: #19344a66; backdrop-filter: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .modal-head { border-color: var(--line); background: var(--skin-chrome); color: var(--skin-chrome-ink); box-shadow: inset 0 1px #fff; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .modal h2 { color: var(--skin-chrome-ink); font-weight: 500; text-shadow: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.modal-heading > .ui-icon, .modal-sub) { color: var(--skin-chrome-ink); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .game-modal .form-grid { background: var(--skin-surface); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.field > label, .platform-picker > legend, .platform-group > legend, .game-modal .platform-picker > legend) { color: var(--text); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.field-optional, .platform-selection-count, .selected-platforms-label, .selected-platforms-empty, .form-required-note, .delete-platforms, .delete-note) { color: var(--muted); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.platform-group, .platform-console-box) { border-color: var(--line); border-radius: var(--skin-control-radius); background: var(--skin-field); box-shadow: var(--skin-control-shadow); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .platform-tabs { border-color: var(--line); background: var(--skin-inner); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .platform-tab { border-color: transparent; border-bottom-color: var(--line); border-radius: var(--skin-control-radius) var(--skin-control-radius) 0 0; background: transparent; box-shadow: none; color: var(--muted); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .platform-tab[aria-selected="true"] { border-color: var(--line); border-bottom-color: var(--skin-field); background: var(--skin-field); color: var(--skin-title); box-shadow: inset 0 1px #fff; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .platform-option { border-radius: var(--skin-control-radius); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .platform-option input { accent-color: var(--lime); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .game-modal .platform-option:has(input:checked) { border-color: var(--line); background: var(--skin-selected); box-shadow: inset 0 1px #fff; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .game-modal .platform-option:hover { background: var(--skin-hover); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .game-modal .platform-help { border-color: var(--line); background: var(--skin-inner); color: var(--muted); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.selected-platform-chip .ui-icon, .platform-picker-label .ui-icon) { color: var(--skin-title); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .form-actions { border-color: var(--line); background: var(--skin-inner); box-shadow: inset 0 1px #fff; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .delete-body > .ui-icon { color: var(--orange); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .toast { border-color: var(--line); border-radius: var(--skin-control-radius); background: var(--panel2); color: var(--text); box-shadow: var(--skin-control-shadow); transition: none; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .session-warning { border-color: #ae985f; border-radius: var(--skin-control-radius); background: #fff3ce; color: #5a4820; box-shadow: var(--skin-control-shadow); }
+@media (max-width: 940px) {
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) { --skin-shell-padding: 16px; }
+}
+@media (max-width: 700px) {
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) { --skin-shell-padding: 13px; --skin-auth-padding: 22px; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .app { margin-top: 38px; margin-bottom: 32px; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .skin-window-caption { grid-template-columns: 58px minmax(0, 1fr) 32px; padding-inline: 8px; font-size: 11px; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .hero h1 { font-size: 29px; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .stat { flex-direction: column; align-items: center; gap: 3px; padding: 9px 6px; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .stat-value small { font-size: 11px; }
+}
+@media (max-width: 430px) {
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) { --skin-auth-padding: 16px; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .toolbar { grid-template-columns: minmax(0, 1fr); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .filter-language { grid-column: auto; width: 100%; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .stat-label { font-size: 11px; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .auth-card h1 { font-size: 22px; }
+}
+@media (max-width: 375px) {
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) { --skin-auth-padding: 6px; }
+}
+@media (max-width: 360px) {
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) { --skin-shell-padding: 10px; }
+}
+@media (max-width: 340px) {
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) { --skin-auth-padding: 3px; }
+}
+/* Native controls stay bounded when the toolbar wraps or the language changes. */
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.appearance-picker, .auth-language, .filter-field) { min-width: 0; max-width: 100%; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is([data-ui-theme], [data-ui-language]) { min-width: 0; max-width: 100%; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.primary, .secondary, .danger, .app-menu-toggle, .icon-btn, .close, .platform-tab) { color: var(--skin-button-ink); border-color: var(--skin-button-border); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.primary, .auth-card .primary) { color: var(--skin-primary-ink); border-color: var(--skin-primary-border); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .game-card { border-radius: var(--skin-card-radius); background: var(--skin-panel); box-shadow: var(--skin-card-shadow); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .auth-card { grid-template-rows: auto 1fr; }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .skin-caption-controls { color: var(--skin-chrome-ink); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .skin-caption-controls > span { background: var(--skin-button); border-color: var(--skin-button-border); box-shadow: var(--skin-control-shadow); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .skin-caption-controls > span:nth-child(2), html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .skin-caption-controls > span:nth-child(3) { background: var(--skin-button); border-color: var(--skin-button-border); box-shadow: var(--skin-control-shadow); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.auth-field input, .field input, .toolbar input, .toolbar select, .field select, .auth-language select, .appearance-picker select) { color: var(--skin-ink); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.toolbar select option, .field select option, .auth-language select option, .appearance-picker select option) { background: var(--skin-field); color: var(--skin-ink); }
+html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.auth-field input, .field input, .toolbar input)::placeholder { color: var(--skin-muted); opacity: 1; }
+@media (max-width: 700px) {
+  html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) .topbar { gap: 10px; }
+  html:is([data-theme="liquidglass"], [data-theme="oldlinux"], [data-theme="ulinux"], [data-theme="flinux"], [data-theme="bee"], [data-theme="dos"], [data-theme="longhorn"]) :is(.top-right, .appearance-tools, .auth-appearance-controls) { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+}
+
+
+/* Liquid Glass preserves the approved blue-and-gold wallpaper and rounded
+   refractive window rim. Reading and editing surfaces remain opaque. */
+html[data-theme="liquidglass"] {
+  --skin-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  --skin-desktop: radial-gradient(ellipse at 77% 5%, #fff2b9 0%, #f5c985 14%, transparent 36%), radial-gradient(ellipse at 6% 17%, #69d5ff 0%, #1989df 25%, transparent 51%), radial-gradient(ellipse at 86% 79%, #dceaff 0%, #488be4 24%, transparent 51%), linear-gradient(142deg, #095eb5 2%, #469ce1 36%, #e6c6ab 68%, #c59360 100%);
+  --skin-surface: #fbfbfd;
+  --skin-panel: #ffffff;
+  --skin-field: #ffffff;
+  --skin-ink: #20242d;
+  --skin-muted: #596678;
+  --skin-title: #24344c;
+  --skin-line: #dce3ed;
+  --skin-chrome: linear-gradient(#f6fbffef, #e9f2fbd9);
+  --skin-chrome-ink: #364252;
+  --skin-toolbar: linear-gradient(#f7fbffef, #f3f7fcf5);
+  --skin-toolbar-ink: #2f3a4a;
+  --skin-button: #f6f8fc;
+  --skin-button-ink: #354258;
+  --skin-button-border: #c9d3e2;
+  --skin-primary: linear-gradient(#217cef, #1467d7);
+  --skin-primary-ink: #ffffff;
+  --skin-primary-border: #1765cb;
+  --skin-inner: #f0f3f8;
+  --skin-selected: #dceafd;
+  --skin-hover: #eaf1fb;
+  --skin-radius: 25px;
+  --skin-control-radius: 999px;
+  --skin-card-radius: 17px;
+  --skin-window-shadow: 0 30px 80px #0c2f5b42, 0 5px 18px #132e501f, inset 0 1px #fffffff0;
+  --skin-control-shadow: 0 1px 2px #1a2e4e12, inset 0 1px #ffffffe6;
+  --skin-card-shadow: 0 4px 14px #1a2e4e0c;
+}
+
+html[data-theme="liquidglass"] :is(.app, .auth-card) {
+  border-color: #ffffffe0;
+  backdrop-filter: blur(28px) saturate(1.35);
+  -webkit-backdrop-filter: blur(28px) saturate(1.35);
+}
+html[data-theme="liquidglass"] .skin-window-caption {
+  min-height: 35px;
+  padding-inline: 17px;
+  border-bottom: 0;
+  background: linear-gradient(#ffffffcf, #ecf5ffb3);
+  color: #4c5868;
+  letter-spacing: .01em;
+}
+html[data-theme="liquidglass"] .skin-caption-controls { gap: 7px; }
+html[data-theme="liquidglass"] .skin-caption-controls > span {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #00000026;
+  border-radius: 50%;
+  background: #ff6058;
+  box-shadow: inset 0 1px #ffffff59;
+}
+html[data-theme="liquidglass"] .skin-caption-controls > span:nth-child(2) { background: #ffbd2e; }
+html[data-theme="liquidglass"] .skin-caption-controls > span:nth-child(3) { background: #29c940; }
+html[data-theme="liquidglass"] .skin-caption-end { opacity: .3; }
+html[data-theme="liquidglass"] .topbar {
+  padding-block: 12px 16px;
+  border-bottom-color: #bccbdfa6;
+  box-shadow: inset 0 -1px #ffffffb3;
+}
+html[data-theme="liquidglass"] .brand {
+  color: #26354b;
+  font-weight: 700;
+  letter-spacing: -.8px;
+}
+html[data-theme="liquidglass"] .brand em { color: #596b83; }
+html[data-theme="liquidglass"] .appearance-tools {
+  padding: 5px 10px;
+  border: 1px solid #d8e2ef;
+  border-radius: 999px;
+  background: #ffffffdf;
+  box-shadow: 0 2px 10px #28426a0f, inset 0 0 0 1px #ffffffcc;
+}
+html[data-theme="liquidglass"] :is(.hero h1, .auth-card h1) {
+  font-weight: 700;
+  letter-spacing: -.9px;
+  text-shadow: none;
+}
+html[data-theme="liquidglass"] .hero h1 { color: #24344c; }
+html[data-theme="liquidglass"] .primary {
+  min-height: 38px;
+  padding-inline: 17px;
+  font-weight: 600;
+  box-shadow: 0 3px 9px #1267df2b, inset 0 1px #ffffff40;
+}
+html[data-theme="liquidglass"] .stats {
+  border-radius: 17px;
+  background: #ffffff;
+  box-shadow: 0 2px 9px #263c5e08;
+}
+html[data-theme="liquidglass"] .stat { padding-block: 14px; }
+html[data-theme="liquidglass"] .stat-value {
+  font-weight: 650;
+  letter-spacing: -.7px;
+}
+html[data-theme="liquidglass"] .toolbar {
+  border-radius: 22px;
+  background: #f0f3f8;
+  box-shadow: inset 0 1px 1px #354b6c08;
+}
+html[data-theme="liquidglass"] :is(.toolbar input, .toolbar select, [data-ui-theme], .auth-language select) {
+  min-height: 35px;
+  box-shadow: 0 1px 3px #2a3f600a;
+}
+html[data-theme="liquidglass"] .game-title {
+  background: #ffffff;
+  color: #26354b;
+  font-weight: 650;
+  text-shadow: none;
+}
+html[data-theme="liquidglass"] :is(.platform-chip, .selected-platform-chip) { border-radius: 5px; }
+html[data-theme="liquidglass"] .status { border-radius: 999px; }
+html[data-theme="liquidglass"] :is(.footer, .form-actions) {
+  background: #f5f7fb;
+  box-shadow: none;
+}
+html[data-theme="liquidglass"] .auth-brand {
+  background: radial-gradient(ellipse at 0 0, #d9f1ff, transparent 80%), linear-gradient(140deg, #edf5ff, #fcf5ec);
+}
+html[data-theme="liquidglass"] .auth-brand h2 { color: #24344c; }
+/* Opaque dialog, form and dropdown surfaces avoid blurred text behind fields. */
+html[data-theme="liquidglass"] :is(.modal, .app-menu) {
+  background: #ffffff;
+  border-color: #dce3ed;
+}
+html[data-theme="liquidglass"] :is(.auth-field input, .field input:not([type="checkbox"]), .field select, .platform-console-box, .platform-group, .app-menu-icon) {
+  border-radius: 11px;
+}
+html[data-theme="liquidglass"] :is(.platform-tab, .close) { border-radius: 8px; }
+html[data-theme="liquidglass"] .modal-backdrop {
+  background: #1c2f4c3d;
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+html[data-theme="liquidglass"] :is(button, input, select, a):focus-visible {
+  outline-color: #1669d9;
+  outline-width: 3px;
+}
+
+/* F Linux retains the approved Adwaita-inspired compact header, blue folded
+   wallpaper and separate white statistic cards. */
+html[data-theme="flinux"] {
+  --skin-font: "Adwaita Sans", Cantarell, "Noto Sans", "DejaVu Sans", sans-serif;
+  --skin-desktop: linear-gradient(145deg, transparent 0 33%, #8fc9ffb8 33.2%, #327ad599 46%, transparent 46.2%), linear-gradient(40deg, transparent 0 48%, #0b3c84ad 48.2%, #1e64c147 71%, transparent 71.2%), linear-gradient(137deg, #98c8f8 0%, #5f9de9 30%, #1b58a5 60%, #163e7a 100%);
+  --skin-surface: #fafafa;
+  --skin-panel: #ffffff;
+  --skin-field: #ffffff;
+  --skin-ink: #2e3034;
+  --skin-muted: #626873;
+  --skin-title: #26282d;
+  --skin-line: #d9dbe1;
+  --skin-chrome: #ebebed;
+  --skin-chrome-ink: #4e5159;
+  --skin-toolbar: #ebebed;
+  --skin-toolbar-ink: #33363d;
+  --skin-button: #e8e9ec;
+  --skin-button-ink: #35383e;
+  --skin-button-border: #c7cad2;
+  --skin-primary: #216bc6;
+  --skin-primary-ink: #ffffff;
+  --skin-primary-border: #1b5eb5;
+  --skin-inner: #f0f0f2;
+  --skin-selected: #dbe8fb;
+  --skin-hover: #e8edf5;
+  --skin-radius: 13px;
+  --skin-control-radius: 8px;
+  --skin-card-radius: 11px;
+  --skin-window-shadow: 0 20px 48px #071c3f4d, 0 2px 7px #00000033;
+  --skin-control-shadow: 0 1px 2px #0000000c;
+  --skin-card-shadow: 0 1px 3px #0000000e;
+}
+html[data-theme="flinux"] :is(.app, .auth-card) { border-color: #555f70; }
+html[data-theme="flinux"] .skin-window-caption {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 36px;
+  padding-inline: 46px;
+  border-bottom: 0;
+  background: #ebebed;
+  color: #4a4e57;
+}
+html[data-theme="flinux"] .skin-caption-title { font-weight: 650; }
+html[data-theme="flinux"] .skin-caption-end { display: none; }
+html[data-theme="flinux"] .skin-caption-controls {
+  position: absolute;
+  right: 11px;
+  top: 7px;
+  gap: 0;
+}
+html[data-theme="flinux"] .skin-caption-controls > span { display: none; }
+html[data-theme="flinux"] .skin-caption-controls > span:last-child {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: #d7d9de;
+  box-shadow: none;
+}
+html[data-theme="flinux"] .skin-caption-controls > span:last-child::after {
+  content: "×";
+  color: #4e525a;
+  font: 17px/1 sans-serif;
+}
+html[data-theme="flinux"] .topbar {
+  padding-block: 8px 16px;
+  border-bottom-color: #cfd1d7;
+  box-shadow: 0 1px 3px #0000000a;
+}
+html[data-theme="flinux"] .brand {
+  font-weight: 750;
+  letter-spacing: -.55px;
+}
+html[data-theme="flinux"] .brand em { color: #5d626c; }
+html[data-theme="flinux"] :is(.hero h1, .auth-card h1) {
+  font-weight: 750;
+  text-shadow: none;
+  letter-spacing: -.85px;
+}
+html[data-theme="flinux"] .primary {
+  min-height: 38px;
+  font-weight: 700;
+  box-shadow: inset 0 1px #ffffff1f, 0 1px 2px #00000014;
+}
+html[data-theme="flinux"] .stats {
+  gap: 11px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+html[data-theme="flinux"] .stat {
+  border: 1px solid #dedfe4;
+  border-radius: 10px;
+  padding: 15px 16px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px #00000009;
+}
+html[data-theme="flinux"] .stat + .stat { border-left: 1px solid #dedfe4; }
+html[data-theme="flinux"] .stat-value { font-weight: 750; letter-spacing: -.6px; }
+html[data-theme="flinux"] .toolbar {
+  padding-inline: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+html[data-theme="flinux"] :is(.toolbar input, .toolbar select, [data-ui-theme], .auth-language select) {
+  min-height: 35px;
+  background: #ffffff;
+  box-shadow: inset 0 1px 2px #00000006;
+}
+html[data-theme="flinux"] .game-title {
+  color: #333943;
+  background: #ffffff;
+  font-weight: 750;
+  text-shadow: none;
+}
+html[data-theme="flinux"] :is(.platform-chip, .status, .selected-platform-chip) { border-radius: 5px; }
+html[data-theme="flinux"] .footer { background: #f0f0f2; box-shadow: none; }
+html[data-theme="flinux"] .auth-brand { background: linear-gradient(145deg, #dce8f6, #f2f3f8); }
+html[data-theme="flinux"] .auth-brand h2 { color: #333943; }
+html[data-theme="flinux"] .modal-head { background: #ebebed; box-shadow: none; }
+html[data-theme="flinux"] .modal-backdrop { background: #20242c4d; }
+html[data-theme="flinux"] :is(button, input, select, a):focus-visible {
+  outline-color: #216bc6;
+  outline-width: 3px;
+}
+
+/* Preserve the shared responsive shell while keeping the modern chrome usable
+   around narrow native selectors and the 300px CAPTCHA container. */
+@media (max-width: 700px) {
+  html[data-theme="liquidglass"] .appearance-tools { border-radius: 17px; }
+  html[data-theme="flinux"] .stat { padding: 13px 9px; }
+}
+@media (max-width: 430px) {
+  html[data-theme="liquidglass"] { --skin-radius: 18px; }
+  html[data-theme="liquidglass"] .appearance-tools { padding-inline: 7px; }
+  html[data-theme="liquidglass"] .toolbar { border-radius: 16px; }
+  html[data-theme="flinux"] .stats { gap: 7px; }
+  html[data-theme="flinux"] .stat { padding-inline: 5px; }
+}
+@media (pointer: coarse) {
+  html:is([data-theme="liquidglass"], [data-theme="flinux"]) :is(.primary, .toolbar input, .toolbar select, .auth-field input, .field input:not([type="checkbox"]), .field select, [data-ui-theme], .auth-language select) {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
+
+/* Old Linux preserves the Human-era warm desktop, compact beige surfaces and
+   raised amber actions. These rules cannot match any existing theme. */
+html[data-theme="oldlinux"] {
+  --skin-font: "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
+  --skin-desktop: radial-gradient(ellipse at 90% 12%, #d8ac6e 0, #d8ac6e00 44%), radial-gradient(ellipse at 12% 100%, #4a2418 0, #4a241800 62%), linear-gradient(145deg, #482c1f 0%, #96633d 33%, #bd8c58 55%, #744329 79%, #3e251c 100%);
+  --skin-surface: #eee9df;
+  --skin-panel: #f8f5ee;
+  --skin-field: #fffefa;
+  --skin-ink: #302820;
+  --skin-muted: #67594b;
+  --skin-title: #35271c;
+  --skin-line: #b7a58f;
+  --skin-chrome: linear-gradient(#e1c8a7, #c4a27e 52%, #b58b62);
+  --skin-chrome-ink: #302217;
+  --skin-toolbar: linear-gradient(#f2ece0, #e5daca);
+  --skin-toolbar-ink: #3f3226;
+  --skin-button: linear-gradient(#fffdf8, #e4d8c5);
+  --skin-button-ink: #352a20;
+  --skin-button-border: #a38b6e;
+  --skin-primary: linear-gradient(#e8b16d, #c7873f);
+  --skin-primary-ink: #35200c;
+  --skin-primary-border: #8c5929;
+  --skin-inner: #e6ded0;
+  --skin-selected: #eee2cb;
+  --skin-hover: #e8d5b5;
+  --skin-radius: 6px;
+  --skin-control-radius: 3px;
+  --skin-card-radius: 3px;
+  --skin-window-shadow: 0 12px 32px #25160b66, 0 2px 5px #25160b55, inset 0 0 0 1px #f3e9d8;
+  --skin-control-shadow: inset 0 1px #ffffffb3, 0 1px 1px #5b40211f;
+  --skin-card-shadow: 0 1px 2px #51412c1c;
+}
+html[data-theme="oldlinux"] :is(.app, .auth-card, .modal) { border-color: #735a41; }
+html[data-theme="oldlinux"] .skin-window-caption {
+  display: flex;
+  gap: 10px;
+  min-height: 29px;
+  padding: 3px 5px 3px 10px;
+  border-bottom-color: #9d7c57;
+  box-shadow: inset 0 1px #fff3dc;
+  text-shadow: 0 1px #f4dfc2;
+}
+html[data-theme="oldlinux"] .skin-caption-title { order: 0; flex: 1; min-width: 0; text-align: left; font-weight: 600; }
+html[data-theme="oldlinux"] .skin-caption-controls { order: 1; display: flex; gap: 3px; flex: 0 0 auto; }
+html[data-theme="oldlinux"] .skin-caption-controls > span {
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 19px;
+  border: 1px solid #886744;
+  border-radius: 3px;
+  background: linear-gradient(#eddbc1, #c9a67d);
+  box-shadow: inset 0 1px #fff2dc, 0 1px #f1dac0;
+  color: #4d3824;
+}
+html[data-theme="oldlinux"] .skin-caption-controls > span::before {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 600 13px/1 Arial, sans-serif;
+}
+html[data-theme="oldlinux"] .skin-caption-controls > span:nth-child(1)::before { content: "−"; padding-top: 4px; }
+html[data-theme="oldlinux"] .skin-caption-controls > span:nth-child(2)::before { content: "□"; }
+html[data-theme="oldlinux"] .skin-caption-controls > span:nth-child(3) { border-color: #8a562e; background: linear-gradient(#dca77b, #b57948); color: #3f2718; }
+html[data-theme="oldlinux"] .skin-caption-controls > span:nth-child(3)::before { content: "×"; font-size: 17px; }
+html[data-theme="oldlinux"] .skin-caption-end { display: none; }
+html[data-theme="oldlinux"] .topbar { border-top: 1px solid #fff9ed; border-bottom-color: #b7a58f; box-shadow: inset 0 -1px #f8f2e7; }
+html[data-theme="oldlinux"] .brand { font-size: 20px; }
+html[data-theme="oldlinux"] .hero h1 { font-size: 30px; letter-spacing: -.8px; }
+html[data-theme="oldlinux"] .hero .eyebrow { color: #78532f; }
+html[data-theme="oldlinux"] .stats { background: #e6ded0; box-shadow: inset 0 1px 3px #735b3b1a, 0 1px #fffaf0; }
+html[data-theme="oldlinux"] .stat-value { color: #78532f; }
+html[data-theme="oldlinux"] .auth-brand { background: linear-gradient(145deg, #e5d3b6, #f1e6d6); color: #35271c; }
+html[data-theme="oldlinux"] :is(.auth-brand-title, .auth-brand h2) { color: #5f4125; }
+html[data-theme="oldlinux"] :is(.auth-brand-eyebrow, .auth-brand-description) { color: #67513b; }
+html[data-theme="oldlinux"] .status.ograna { background: #dce6cd; border-color: #a9bd92; color: #354725; }
+html[data-theme="oldlinux"] .status.w-trakcie { background: #f3e0b7; border-color: #cbb17b; color: #664515; }
+
+/* U Linux follows Ambiance: a dark charcoal title strip, left circular controls,
+   an aubergine desktop and orange actions above warm, opaque content. */
+html[data-theme="ulinux"] {
+  --skin-font: Ubuntu, "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
+  --skin-desktop: radial-gradient(ellipse at 4% 85%, #f48635 0, #df562700 53%), radial-gradient(ellipse at 85% 3%, #963d6b 0, #66294400 60%), linear-gradient(142deg, #331b3a 0%, #5d254a 38%, #9b3444 67%, #d45b32 100%);
+  --skin-surface: #f2f1ed;
+  --skin-panel: #fffefa;
+  --skin-field: #fffefa;
+  --skin-ink: #36342f;
+  --skin-muted: #6b655d;
+  --skin-title: #3b3732;
+  --skin-line: #c7c3ba;
+  --skin-chrome: linear-gradient(#55524b, #3c3b37);
+  --skin-chrome-ink: #f2f0e9;
+  --skin-toolbar: linear-gradient(#f4f2ec, #e5e2da);
+  --skin-toolbar-ink: #3c3933;
+  --skin-button: linear-gradient(#fffefa, #e5e2d9);
+  --skin-button-ink: #3e3931;
+  --skin-button-border: #aaa59a;
+  --skin-primary: linear-gradient(#c34c25, #b43f1b);
+  --skin-primary-ink: #fff;
+  --skin-primary-border: #a83d17;
+  --skin-inner: #e8e5dc;
+  --skin-selected: #f3e6d5;
+  --skin-hover: #efe4d8;
+  --skin-radius: 6px;
+  --skin-control-radius: 4px;
+  --skin-card-radius: 3px;
+  --skin-window-shadow: 0 16px 40px #1c102973, 0 2px 7px #140b225c;
+  --skin-control-shadow: inset 0 1px #ffffffaa, 0 1px 1px #362d1f1a;
+  --skin-card-shadow: 0 1px 3px #433b2b1c;
+}
+html[data-theme="ulinux"] :is(.app, .auth-card, .modal) { border-color: #3d3735; }
+html[data-theme="ulinux"] .skin-window-caption {
+  display: flex;
+  gap: 10px;
+  min-height: 31px;
+  padding: 4px 10px 4px 7px;
+  border-bottom-color: #2a2926;
+  box-shadow: inset 0 1px #79746b;
+  text-shadow: 0 1px #22211e;
+}
+html[data-theme="ulinux"] .skin-caption-controls { display: flex; gap: 5px; flex: 0 0 auto; }
+html[data-theme="ulinux"] .skin-caption-controls > span {
+  position: relative;
+  display: block;
+  width: 17px;
+  height: 17px;
+  border: 1px solid #302f2b;
+  border-radius: 50%;
+  background: linear-gradient(#8d8a81, #68665f);
+  box-shadow: inset 0 1px #b5b1a6, 0 1px #5c5952;
+  color: #24231f;
+}
+html[data-theme="ulinux"] .skin-caption-controls > span::before {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 600 12px/1 Arial, sans-serif;
+}
+html[data-theme="ulinux"] .skin-caption-controls > span:nth-child(1) { border-color: #3d2f24; background: linear-gradient(#f1956c, #dc6037); box-shadow: inset 0 1px #ffc5a8, 0 1px #5c5952; color: #422920; }
+html[data-theme="ulinux"] .skin-caption-controls > span:nth-child(1)::before { content: "×"; font-size: 15px; }
+html[data-theme="ulinux"] .skin-caption-controls > span:nth-child(2)::before { content: "−"; padding-top: 3px; }
+html[data-theme="ulinux"] .skin-caption-controls > span:nth-child(3)::before { content: "□"; font-size: 11px; }
+html[data-theme="ulinux"] .skin-caption-title { flex: 1; min-width: 0; text-align: left; font-weight: 600; }
+html[data-theme="ulinux"] .skin-caption-end { display: none; }
+html[data-theme="ulinux"] .topbar { border-top: 1px solid #fffdf7; border-bottom-color: #b8b2a8; box-shadow: 0 1px #fffefa; }
+html[data-theme="ulinux"] .brand { font-size: 22px; font-weight: 600; }
+html[data-theme="ulinux"] .hero .eyebrow { color: #a23d20; }
+html[data-theme="ulinux"] .hero h1 { font-size: 32px; }
+html[data-theme="ulinux"] .stats { gap: 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+html[data-theme="ulinux"] .stat { border: 1px solid #cac4b8; border-radius: 3px; background: linear-gradient(#fffdf7, #ece8df); box-shadow: inset 0 1px #fffefa, 0 1px 2px #55473412; }
+html[data-theme="ulinux"] .stat-value { color: #9e3a1c; }
+html[data-theme="ulinux"] .auth-brand { background: linear-gradient(145deg, #4c2a43, #6c3b53 54%, #85432e); color: #fff4e8; }
+html[data-theme="ulinux"] :is(.auth-brand-title, .auth-brand h2) { color: #fff4e8; }
+html[data-theme="ulinux"] :is(.auth-brand-eyebrow, .auth-brand-description) { color: #f3d9c4; }
+html[data-theme="ulinux"] .status.ograna { background: #e1ead7; border-color: #b5c89e; color: #3c532a; }
+html[data-theme="ulinux"] .status.w-trakcie { background: #f3e6d5; border-color: #d8c2a2; color: #775029; }
+
+/* Keep compact chrome and distinct summary tiles readable on narrow screens. */
+@media (max-width: 700px) {
+  html[data-theme="oldlinux"] .hero h1 { font-size: 27px; }
+  html[data-theme="ulinux"] .hero h1 { font-size: 29px; }
+  html[data-theme="ulinux"] .stats { gap: 6px; }
+  html[data-theme="ulinux"] .stat { padding-inline: 5px; }
+}
+@media (max-width: 430px) {
+  html[data-theme="oldlinux"] .brand { font-size: 19px; }
+  html[data-theme="ulinux"] .brand { font-size: 20px; }
+  html[data-theme="ulinux"] .stats { gap: 4px; }
+  html[data-theme="ulinux"] .stat-value { font-size: 22px; }
+}
+
+/* Bee reproduces Presentation Manager bevels and its navy title strip.
+   Every rule requires the new theme key, leaving existing skins untouched. */
+html[data-theme="bee"] {
+  --skin-font: "WarpSans", "Arial Narrow", Arial, sans-serif;
+  --skin-desktop: repeating-linear-gradient(135deg, transparent 0 2px, #23a1aa22 2px 3px, transparent 3px 6px), repeating-linear-gradient(45deg, #063d68 0 2px, #176d8b 2px 3px, #07486d 3px 5px);
+  --skin-surface: #c6c6c6;
+  --skin-panel: #d3d3d3;
+  --skin-field: #ffffff;
+  --skin-ink: #101010;
+  --skin-muted: #434343;
+  --skin-title: #101010;
+  --skin-line: #858585;
+  --skin-chrome: #000080;
+  --skin-chrome-ink: #ffffff;
+  --skin-toolbar: #c6c6c6;
+  --skin-toolbar-ink: #101010;
+  --skin-button: #c6c6c6;
+  --skin-button-ink: #101010;
+  --skin-button-border: #555555;
+  --skin-primary: #c6c6c6;
+  --skin-primary-ink: #000000;
+  --skin-primary-border: #222222;
+  --skin-inner: #e0e0e0;
+  --skin-selected: #dadbea;
+  --skin-hover: #e4e4e4;
+  --skin-radius: 0px;
+  --skin-control-radius: 0px;
+  --skin-card-radius: 0px;
+  --skin-window-shadow: inset 1px 1px #ffffff, inset -1px -1px #696969, 5px 5px 0 #002c3dbb;
+  --skin-control-shadow: inset 1px 1px #ffffff, inset -1px -1px #777777;
+  --skin-card-shadow: inset 1px 1px #ffffff, inset -1px -1px #777777;
+}
+html[data-theme="bee"] :is(.app, .auth-card, .modal) { border: 3px solid #c6c6c6; outline: 1px solid #172e3f; }
+html[data-theme="bee"] .skin-window-caption {
+  display: flex;
+  gap: 7px;
+  min-height: 27px;
+  margin-top: 2px;
+  padding: 3px 4px;
+  border: 1px solid #08084e;
+  border-radius: 0;
+  font-family: var(--skin-font);
+  font-weight: 700;
+}
+html[data-theme="bee"] .skin-caption-title { flex: 1; order: 1; text-align: left; text-shadow: none; }
+html[data-theme="bee"] .skin-caption-controls { order: 2; margin-left: auto; gap: 2px; }
+html[data-theme="bee"] .skin-caption-controls > span { width: 18px; height: 18px; border: 1px solid #292929; border-radius: 0; background: #c6c6c6; box-shadow: inset 1px 1px #fff, inset -1px -1px #707070; position: relative; }
+html[data-theme="bee"] .skin-caption-controls > span:first-child { display: none; }
+html[data-theme="bee"] .skin-caption-controls > span:nth-child(2)::after { content: ""; position: absolute; inset: 6px 4px 4px; background: #333; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+html[data-theme="bee"] .skin-caption-controls > span:nth-child(3)::after { content: ""; position: absolute; inset: 4px; background: #333; clip-path: polygon(0 100%, 100% 100%, 50% 0); }
+html[data-theme="bee"] .skin-caption-end { order: 0; }
+html[data-theme="bee"] .skin-caption-end > span:first-child { display: block; width: 17px; height: 17px; border: 1px solid #222; border-radius: 0; background: #c6c6c6; box-shadow: inset 1px 1px #fff, inset -1px -1px #707070; }
+html[data-theme="bee"] .skin-caption-end > span:last-child { display: none; }
+html[data-theme="bee"] .brand { font-weight: 700; letter-spacing: -.5px; }
+html[data-theme="bee"] .hero h1 { font-size: 31px; font-weight: 700; letter-spacing: -.8px; }
+html[data-theme="bee"] :is(.toolbar input, .toolbar select, .field input:not([type="checkbox"]), .field select, .auth-field input, .appearance-picker select, .auth-language select) { border-color: #666; box-shadow: inset 1px 1px #555, 1px 1px #fff; }
+html[data-theme="bee"] .stats { gap: 8px; border: 0; background: transparent; box-shadow: none; }
+html[data-theme="bee"] .stat { padding: 12px; border: 1px solid #777; background: #cecece; box-shadow: inset 1px 1px #fff, 1px 1px #fff; }
+html[data-theme="bee"] .stat + .stat { border-left: 1px solid #777; }
+html[data-theme="bee"] .stat-value { font-size: 29px; }
+html[data-theme="bee"] .toolbar { border: 1px solid #777; box-shadow: inset 1px 1px #fff, 1px 1px #fff; }
+html[data-theme="bee"] .game-card { padding: 3px; border-color: #666; }
+html[data-theme="bee"] .game-title { font-size: 15px; letter-spacing: 0; }
+html[data-theme="bee"] .cover { border: 1px solid #777; }
+html[data-theme="bee"] :is(.primary, .auth-card .primary):not(:focus-visible) { outline: 1px solid #404040; outline-offset: 2px; }
+html[data-theme="bee"] .footer { padding: 8px; border: 1px solid #858585; box-shadow: inset 1px 1px #777, 1px 1px #fff; }
+html[data-theme="bee"] :is(button, input, select, a):focus-visible { outline: 2px dotted #000080; outline-offset: 3px; }
+
+/* DOS uses a fixed-pitch character palette. Compact rows retain cover images,
+   all game metadata and the actual edit/delete actions instead of placeholders. */
+html[data-theme="dos"] {
+  color-scheme: dark;
+  --skin-font: "Cascadia Mono", "DejaVu Sans Mono", "Liberation Mono", Consolas, monospace;
+  --skin-desktop: #080a0a;
+  --skin-surface: #050606;
+  --skin-panel: #050606;
+  --skin-field: #111511;
+  --skin-ink: #d1d5ce;
+  --skin-muted: #a4ada7;
+  --skin-title: #f5c962;
+  --skin-line: #828f85;
+  --skin-chrome: #c8cec7;
+  --skin-chrome-ink: #050606;
+  --skin-toolbar: #050606;
+  --skin-toolbar-ink: #d1d5ce;
+  --skin-button: #050606;
+  --skin-button-ink: #e4e8df;
+  --skin-button-border: #a9b6aa;
+  --skin-primary: #e9bd57;
+  --skin-primary-ink: #101009;
+  --skin-primary-border: #f5d684;
+  --skin-inner: #111511;
+  --skin-selected: #303a26;
+  --skin-hover: #252c22;
+  --skin-radius: 0px;
+  --skin-control-radius: 0px;
+  --skin-card-radius: 0px;
+  --skin-window-shadow: none;
+  --skin-control-shadow: none;
+  --skin-card-shadow: none;
+}
+html[data-theme="dos"] :is(.app, .auth-card, .modal) { border: 4px double #9da99d; }
+html[data-theme="dos"] .skin-window-caption { display: block; min-height: 27px; padding: 4px 10px; border-bottom: 4px double #080a0a; text-align: center; text-transform: uppercase; letter-spacing: .8px; }
+html[data-theme="dos"] :is(.skin-caption-controls, .skin-caption-end) { display: none; }
+html[data-theme="dos"] .skin-caption-title { display: block; color: #050606; text-shadow: none; font-family: var(--skin-font); }
+html[data-theme="dos"] .topbar { padding-block: 16px; border-bottom: 1px solid #828f85; box-shadow: none; }
+html[data-theme="dos"] .brand { color: #e9bd57; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; }
+html[data-theme="dos"] :is(.brand em, .brand-mark) { color: #a4ada7; }
+html[data-theme="dos"] .hero h1 { color: #f5c962; font-size: 28px; line-height: 1.25; text-transform: uppercase; font-weight: 700; letter-spacing: .5px; text-shadow: none; }
+html[data-theme="dos"] :is(.auth-card h1, .auth-brand h2) { color: #f5c962; font-weight: 700; text-shadow: none; }
+html[data-theme="dos"] .auth-brand { background: #111511; }
+html[data-theme="dos"] :is(.auth-brand-title, .auth-brand-eyebrow) { color: #e9bd57; }
+html[data-theme="dos"] :is(.auth-brand-description, .auth-intro, .auth-field label, .field-help, .platform-help, .cover-preview-status) { color: #b9c3b6; }
+html[data-theme="dos"] :is(.primary, .secondary, .danger, .app-menu-toggle, .icon-btn, .close, .platform-tab) { text-shadow: none; box-shadow: none; font-weight: 700; }
+html[data-theme="dos"] :is(.primary, .secondary, .danger, .app-menu-toggle) { text-transform: uppercase; font-size: 12px; }
+html[data-theme="dos"] :is(.primary, .auth-card .primary) { border: 3px double #101009; outline: 1px solid #e9bd57; outline-offset: 0; color: #101009; background: #e9bd57; }
+html[data-theme="dos"] :is(.primary, .auth-card .primary):hover:not(:disabled) { color: #101009; background: #f5cd77; }
+html[data-theme="dos"] :is(.danger, .auth-message) { color: #ff9e8c; }
+html[data-theme="dos"] .danger:hover:not(:disabled) { color: #ff9e8c; }
+html[data-theme="dos"] :is(.toolbar input, .toolbar select, .field input:not([type="checkbox"]), .field select, .auth-field input, .appearance-picker select, .auth-language select) { background: #111511; color: #e6eddf; border-color: #929d91; color-scheme: dark; text-shadow: none; box-shadow: none; }
+html[data-theme="dos"] :is(.toolbar select option, .field select option, .appearance-picker select option, .auth-language select option) { background: #111511; color: #e6eddf; }
+html[data-theme="dos"] :is(.toolbar input, .field input, .auth-field input)::placeholder { color: #adb8a9; }
+html[data-theme="dos"] .stats { border-color: #828f85; background: #050606; box-shadow: none; }
+html[data-theme="dos"] .stat { background: #050606; }
+html[data-theme="dos"] .stat-label { color: #b2bcb0; text-transform: uppercase; }
+html[data-theme="dos"] .stat-value { color: #e9bd57; font-size: 25px; }
+html[data-theme="dos"] .toolbar { margin-top: 20px; padding: 14px 11px; border: 4px double #828f85; box-shadow: none; }
+html[data-theme="dos"] :is(.filter-label, .appearance-picker, .count) { color: #b9c3b6; }
+html[data-theme="dos"] .game-grid { display: block; border-top: 4px double #828f85; }
+html[data-theme="dos"] .game-card { display: grid; grid-template-columns: 72px minmax(0, 1fr); column-gap: 15px; padding: 15px 4px; border: 0; border-bottom: 1px dashed #566253; background: #050606; box-shadow: none; }
+html[data-theme="dos"] .game-card:hover,
+html[data-theme="dos"] .game-card:focus-within { border-color: #a9b6aa; background: #10140f; box-shadow: none; }
+html[data-theme="dos"] .game-title { grid-column: 2; grid-row: 1; min-height: 0; padding: 0 0 7px; border: 0; background: transparent; color: #eef0e8; font-size: 14px; line-height: 1.5; font-weight: 700; letter-spacing: 0; text-shadow: none; }
+html[data-theme="dos"] .cover { grid-column: 1; grid-row: 1 / span 2; height: 90px; align-self: start; padding: 3px; border: 1px solid #566253; background: #111511; }
+html[data-theme="dos"] .cover-title { font-size: 11px; color: #c7d0bf; text-shadow: none; letter-spacing: 0; }
+html[data-theme="dos"] .card-body { grid-column: 2; grid-row: 2; display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1fr) minmax(0, 1.1fr); align-items: center; gap: 8px 14px; min-height: 0; padding: 0; }
+html[data-theme="dos"] .card-bottom { margin: 0; padding: 0; }
+html[data-theme="dos"] :is(.edition-meta, .edition-meta .ui-icon, .game-meta) { color: #b4beb0; }
+html[data-theme="dos"] .platform-chip { border: 0; padding: 1px 0; border-radius: 0; background: transparent; color: #bfc7bd; box-shadow: none; }
+html[data-theme="dos"] .platform-chip::before { content: "["; }
+html[data-theme="dos"] .platform-chip::after { content: "]"; }
+html[data-theme="dos"] .status { border-color: #566253; background: #111511; color: #bfc7bd; box-shadow: none; }
+html[data-theme="dos"] .status.ograna { border-color: #827347; background: #111511; color: #f5c962; }
+html[data-theme="dos"] .status.w-trakcie { border-color: #687d55; background: #111511; color: #bad69d; }
+html[data-theme="dos"] :is(.icon-btn .ui-icon, .empty-icon, .search .ui-icon, .text-btn, .cover-search, .selected-platform-chip .ui-icon, .platform-picker-label .ui-icon) { color: #f5c962; }
+html[data-theme="dos"] .game-modal .platform-option:has(input:checked) { background: #303a26; box-shadow: none; }
+html[data-theme="dos"] .platform-tab[aria-selected="true"] { color: #f5c962; background: #111511; box-shadow: none; }
+html[data-theme="dos"] :is(.modal-head, .app-menu-title) { background: #c8cec7; color: #050606; box-shadow: none; }
+html[data-theme="dos"] .modal h2 { color: #050606; text-shadow: none; }
+html[data-theme="dos"] :is(.modal-sub, .modal-heading > .ui-icon) { color: #253022; }
+html[data-theme="dos"] :is(.modal-backdrop, .delete-modal-backdrop) { background: #000b; }
+html[data-theme="dos"] :is(.footer, .toast, .session-warning, .form-actions, .app-menu, .empty) { box-shadow: none; }
+html[data-theme="dos"] .session-warning { border-color: #bda05b; background: #231e0f; color: #f5cd77; }
+html[data-theme="dos"] .captcha-status { color: #c9dfb6; }
+html[data-theme="dos"] :is(button, input, select, a):focus-visible { outline-color: #f5c962; }
+
+/* Longhorn uses the Slate prerelease frame: dark opaque edges, blue glasslike
+   highlights and a pale workspace, while every product control remains real. */
+html[data-theme="longhorn"] {
+  --skin-font: "Segoe UI", Tahoma, Arial, sans-serif;
+  --skin-desktop: radial-gradient(ellipse at 80% 0%, #64c9ff88 0, transparent 43%), linear-gradient(151deg, transparent 33%, #34a9ff22 34%, #43b6ff66 35%, transparent 38%), radial-gradient(ellipse at 35% 88%, #1a7ac8 0, #0a2b61 43%, #03172d 78%);
+  --skin-surface: #edf1f5;
+  --skin-panel: #ffffff;
+  --skin-field: #ffffff;
+  --skin-ink: #253446;
+  --skin-muted: #596b7e;
+  --skin-title: #163d68;
+  --skin-line: #bdc8d5;
+  --skin-chrome: linear-gradient(#3a4656, #202b3b 58%, #172434);
+  --skin-chrome-ink: #f1f8ff;
+  --skin-toolbar: linear-gradient(104deg, #f4f9fd, #d2dfed 71%, #bfd2e5);
+  --skin-toolbar-ink: #1b3854;
+  --skin-button: linear-gradient(#ffffff, #e0e9f2);
+  --skin-button-ink: #1e3c5d;
+  --skin-button-border: #8ca5bf;
+  --skin-primary: linear-gradient(#429ce8, #226caf 52%, #1c5b97);
+  --skin-primary-ink: #ffffff;
+  --skin-primary-border: #17538c;
+  --skin-inner: #e7eef6;
+  --skin-selected: #d8e7f3;
+  --skin-hover: #e1edf7;
+  --skin-radius: 7px;
+  --skin-control-radius: 3px;
+  --skin-card-radius: 3px;
+  --skin-window-shadow: 0 22px 52px #00102088, 0 0 0 1px #46a7ee;
+  --skin-control-shadow: inset 0 1px #ffffffb3, 0 1px 1px #2d4c6a22;
+  --skin-card-shadow: 0 2px 4px #24436118;
+}
+html[data-theme="longhorn"] :is(.app, .auth-card, .modal) { border: 5px solid #273547; border-top-width: 2px; }
+html[data-theme="longhorn"] .skin-window-caption { display: flex; min-height: 34px; gap: 8px; padding: 3px 4px 4px 10px; border-bottom: 1px solid #8dbfe7; border-radius: 3px 3px 0 0; text-shadow: 0 1px #000; }
+html[data-theme="longhorn"] .skin-caption-title { flex: 1; order: 0; text-align: left; font-weight: 700; text-shadow: 0 1px #000; }
+html[data-theme="longhorn"] .skin-caption-controls { order: 1; margin-left: auto; gap: 3px; }
+html[data-theme="longhorn"] .skin-caption-controls > span { position: relative; width: 26px; height: 23px; border: 1px solid #90b4d6; border-radius: 3px; background: linear-gradient(#526e8c, #334a64 50%, #273c55 51%); box-shadow: inset 0 1px #ffffff4d; }
+html[data-theme="longhorn"] .skin-caption-controls > span::before,
+html[data-theme="longhorn"] .skin-caption-controls > span::after { content: ""; position: absolute; background: #eef5ff; box-shadow: 0 1px #111; }
+html[data-theme="longhorn"] .skin-caption-controls > span:nth-child(1)::before { left: 7px; right: 7px; bottom: 6px; height: 2px; }
+html[data-theme="longhorn"] .skin-caption-controls > span:nth-child(2)::before { inset: 5px 6px; border: 1px solid #eef5ff; border-top-width: 3px; background: transparent; }
+html[data-theme="longhorn"] .skin-caption-controls > span:nth-child(3) { width: 34px; background: linear-gradient(#97716d, #76524f 50%, #603e3a 51%); border-color: #d0aaa0; }
+html[data-theme="longhorn"] .skin-caption-controls > span:nth-child(3)::before,
+html[data-theme="longhorn"] .skin-caption-controls > span:nth-child(3)::after { left: 10px; top: 10px; width: 12px; height: 2px; transform: rotate(45deg); }
+html[data-theme="longhorn"] .skin-caption-controls > span:nth-child(3)::after { transform: rotate(-45deg); }
+html[data-theme="longhorn"] .skin-caption-end { display: none; }
+html[data-theme="longhorn"] .brand { color: #1f476e; font-size: 26px; font-weight: 400; letter-spacing: -1px; text-shadow: 0 1px #fff; }
+html[data-theme="longhorn"] .topbar { min-height: 86px; padding-block: 17px; border-bottom-color: #9bb3cb; box-shadow: inset 0 1px #fff; }
+html[data-theme="longhorn"] .hero h1 { font-size: 36px; font-weight: 400; letter-spacing: -1px; text-shadow: 0 1px #fff; }
+html[data-theme="longhorn"] .stats { gap: 10px; border: 0; background: transparent; box-shadow: none; }
+html[data-theme="longhorn"] .stat { padding: 13px 15px; background: linear-gradient(#ffffff, #e5edf5); border: 1px solid #b2c3d4; box-shadow: inset 0 1px #fff, 0 1px #fff; }
+html[data-theme="longhorn"] .stat + .stat { border-left: 1px solid #b2c3d4; }
+html[data-theme="longhorn"] .stat-value { font-size: 30px; color: #315d83; }
+html[data-theme="longhorn"] .toolbar { padding: 15px; border: 1px solid #b2c3d4; background: linear-gradient(#dce7f1, #e8eef5); box-shadow: inset 0 1px #faffff; }
+html[data-theme="longhorn"] .game-card { padding: 4px; border-color: #aebfd0; background: #fff; }
+html[data-theme="longhorn"] .cover { border: 1px solid #839cb1; border-radius: 1px; }
+html[data-theme="longhorn"] .auth-brand { background: linear-gradient(150deg, #d8e7f5, #a4c3dc); }
+html[data-theme="longhorn"] .modal-head { box-shadow: inset 0 1px #849fb76e; }
+
+/* Each layout keeps its own responsive adjustments and all selectors remain
+   gated to one of these three new skins at every breakpoint. */
+@media (max-width: 700px) {
+  html[data-theme="bee"] .hero h1 { font-size: 28px; }
+  html[data-theme="bee"] .stat { padding: 10px 7px; }
+  html[data-theme="longhorn"] .hero h1 { font-size: 30px; }
+  html[data-theme="longhorn"] .stat { padding: 11px 7px; }
+  html[data-theme="longhorn"] .brand { font-size: 23px; }
+  html[data-theme="dos"] .card-body { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+  html[data-theme="dos"] .game-card { column-gap: 12px; }
+  html[data-theme="dos"] .hero h1 { font-size: 25px; }
+}
+@media (max-width: 430px) {
+  html[data-theme="dos"] .game-card { grid-template-columns: 52px minmax(0, 1fr); gap: 7px 10px; padding-block: 13px; }
+  html[data-theme="dos"] .cover { height: 70px; }
+  html[data-theme="dos"] .brand { font-size: 18px; letter-spacing: .5px; }
+  html[data-theme="dos"] .hero h1 { font-size: 23px; }
+  html[data-theme="dos"] .stat-label { font-size: 11px; letter-spacing: 0; }
+  html[data-theme="dos"] .toolbar { padding: 11px 8px; }
+  html[data-theme="bee"] .hero h1 { font-size: 26px; }
+  html[data-theme="longhorn"] .hero h1 { font-size: 28px; }
+  html[data-theme="longhorn"] .toolbar { padding: 11px; }
+}

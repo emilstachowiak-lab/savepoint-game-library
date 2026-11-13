@@ -290,8 +290,12 @@ function initializeXmbBackground() {
     if (failed) { fallback(); return; }
     try {
       const visible = document.hidden !== true && !pageSuspended;
-      renderer?.setPlaying(visible && reducedMotion?.matches !== true);
-      if (visible) renderer?.refresh();
+      const theme = document.documentElement?.getAttribute?.('data-theme');
+      const active = !theme || theme === 'aero';
+      const preference = document.documentElement?.getAttribute?.('data-background-motion');
+      const motion = preference === 'on' || (preference !== 'off' && reducedMotion?.matches !== true);
+      renderer?.setPlaying(active && motion && visible);
+      if (visible && active) renderer?.refresh();
     } catch { disableRenderer(); }
   }
   function onColorChange() {
@@ -311,6 +315,7 @@ function initializeXmbBackground() {
     disposed = true;
     backgroundPicker.removeEventListener?.('input',onColorChange);
     document.removeEventListener?.('visibilitychange',refresh);
+    document.removeEventListener?.('savepoint:themechange',refresh);
     if (typeof removeEventListener === 'function') {
       removeEventListener('resize',refresh); removeEventListener('pagehide',onPageHide); removeEventListener('pageshow',onPageShow);
     }
@@ -321,6 +326,7 @@ function initializeXmbBackground() {
   }
   backgroundPicker.addEventListener('input',onColorChange);
   document.addEventListener('visibilitychange',refresh);
+  document.addEventListener('savepoint:themechange',refresh);
   if (typeof addEventListener === 'function') {
     addEventListener('resize',refresh); addEventListener('pagehide',onPageHide); addEventListener('pageshow',onPageShow);
   }
@@ -1670,6 +1676,12 @@ function setAppMenuOpen(open) {
   menu.hidden = false;
   toggle.setAttribute('aria-expanded', 'true');
 }
+// Arrow navigation visits menu actions and category summaries. Native fields
+// inside a category retain their own arrow, Home and End behavior.
+function appMenuNavigationItems(menu) {
+  return Array.from(menu.querySelectorAll('button.app-menu-item, summary'))
+    .filter(item => !item.disabled && !item.closest('[hidden]'));
+}
 function handleAppMenuKeydown(event) {
   const container = $('appMenuContainer'), menu = $('appMenu'), toggle = $('appMenuToggle');
   if (!container || !menu || !toggle) return false;
@@ -1682,12 +1694,13 @@ function handleAppMenuKeydown(event) {
   if (target === toggle && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
     event.preventDefault();
     setAppMenuOpen(true);
-    const items = Array.from(menu.querySelectorAll('button')).filter(item => !item.disabled);
+    const items = appMenuNavigationItems(menu);
     if (!menu.hidden && items.length) items[event.key === 'ArrowDown' ? 0 : items.length - 1].focus();
     return true;
   }
   if (!menu.hidden && menu.contains(target) && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-    const items = Array.from(menu.querySelectorAll('button')).filter(item => !item.disabled);
+    if (target?.closest?.('input, select, textarea')) return false;
+    const items = appMenuNavigationItems(menu);
     if (!items.length) return false;
     event.preventDefault();
     const current = items.indexOf(target);
@@ -1707,9 +1720,12 @@ function initializeAppMenu() {
   // Capture closes the disclosure before the unchanged import/export/logout
   // handlers run. In particular the file picker keeps the original user gesture.
   menu.addEventListener('click', event => {
-    if (event.target?.closest?.('button')) closeAppMenu(true);
+    if (event.target?.closest?.('button.app-menu-item')) closeAppMenu(true);
   }, true);
   container.addEventListener('focusout', event => {
+    // Native color/select popups can transfer focus outside the DOM temporarily.
+    // An actual outside click or Tab to another element still closes the menu.
+    if (!event.relatedTarget && event.target?.matches?.('input, select, textarea')) return;
     if (!container.contains(event.relatedTarget)) closeAppMenu();
   });
   document.addEventListener('click', event => {

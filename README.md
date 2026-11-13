@@ -1,6 +1,6 @@
 # Savepoint
 
-Savepoint is a single-account game collection manager backed by MySQL or MariaDB. Add games, record their platforms, editions, and play status, and attach cover images. You can filter the collection and import or export it as JSON. The browser interface runs without a frontend build step.
+Savepoint is a single-account game collection manager backed by MySQL or MariaDB. Add games, record their platforms, editions, and play status, and attach cover images. You can filter the collection and import or export it as JSON. The interface supports Polish and English, twenty-two themes, and optional animated backgrounds. The browser interface runs without a frontend build step.
 
 ## Requirements
 
@@ -23,6 +23,9 @@ Use the hostname's document root as `public/`. If your hosting panel calls it `h
 ├── public/                       # DocumentRoot
 │   ├── .htaccess
 │   ├── index.html, app.js, favicon.*
+│   ├── appearance.js, pipes.js, maze.js
+│   ├── *.css                    # eight theme/background/menu stylesheets
+│   ├── assets/luna-reef.webp
 │   └── api/                      # games.php, index.php, .htaccess, .user.ini
 └── private/
     └── savepoint/
@@ -72,14 +75,14 @@ If you manage Apache directly, enable `mod_alias`, make sure Apache listens on p
 
 ## 2. Copy the deployment files
 
-Run these commands from the repository directory on the server, with an account that can write to the deployment directories. If you use SFTP or a file manager, create the directories shown above, copy the same files with hidden files visible, and set their permissions as shown. Copy the contents of `api/config.example.php` to the private destination using the new filename `config.local.php`.
+Run these commands from the repository directory on the server, with an account that can write to the deployment directories. If you use SFTP or a file manager, create the directories shown above, copy the same files with hidden files visible, and set their permissions as shown. Copy the contents of `api/config.example.php` to the private destination using the new filename `config.local.php`. When upgrading an existing installation, back up its source, private configuration, database and cover store first. Keep the existing private configuration and stored covers in place.
 
 ```bash
 site_root=/var/www/savepoint
 public_root="$site_root/public"
 private_root="$site_root/private/savepoint"
 
-install -d -m 755 "$public_root/api"
+install -d -m 755 "$public_root/api" "$public_root/assets"
 if [ ! -d "$site_root/private" ]; then
   install -d -m 700 "$site_root/private"
 fi
@@ -87,6 +90,10 @@ install -d -m 700 "$private_root" \
   "$private_root/session-check-limits" "$private_root/covers" "$private_root/covers/images"
 
 install -m 644 .htaccess index.html app.js favicon.ico favicon.png favicon.svg "$public_root/"
+install -m 644 appearance.js pipes.js maze.js "$public_root/"
+install -m 644 luna.css retro.css mac.css seven-themes.css console-themes.css \
+  classic-background.css classic3-background.css theme-menu.css "$public_root/"
+install -m 644 assets/luna-reef.webp "$public_root/assets/"
 install -m 644 api/.htaccess api/.user.ini api/index.php api/games.php "$public_root/api/"
 install -m 600 server/covers/CoverBackup.php "$private_root/covers/CoverBackup.php"
 
@@ -96,6 +103,8 @@ fi
 ```
 
 Set the owner of the `700` private directories and `600` private files to the PHP-FPM pool user. If you deploy as a different user, set the owner in the hosting panel or ask your administrator. PHP-FPM needs write access to `session-check-limits/`, `covers/images/`, and its session save path if it stores sessions in files. Apache needs read access to the public files and traverse access to the public directory and its parents. Keep the repository, configuration, tests, scripts, and backups outside the document root. Keep `private/` outside the site's URL space, including aliases and symbolic links.
+
+Deploy every listed public asset, including the Luna image, even when you initially use Aero. Keep the stylesheet and script order from `index.html`: the appearance controller restores the saved theme before the page paints, while the background renderers and application initialize after parsing. For an upgrade, upload the assets before replacing `index.html`, and check that its versioned URLs load the new files rather than stale cached copies.
 
 On a self-managed server, run `apachectl configtest` now that the document root exists. Reload Apache once the syntax check passes. If a proxy serves files in front of Apache, make sure it also enforces the private file restrictions. Step 5 checks what the site returns over HTTPS.
 
@@ -169,7 +178,8 @@ The homepage should return `200` with a `Content-Security-Policy` header. The AP
 
 1. Open the HTTPS address from `app_origin` in a private browser window. The sign-in screen should load. Wait for the Turnstile check and complete it if prompted, then sign in with `app_username` and the password you used to generate the hash.
 2. Add a test game, refresh to check that it was saved, and delete the test game. Switch the interface to English and back to Polish to verify both languages.
-3. Sign out and refresh. The browser should return to the sign-in screen.
+3. Open **Menu → Theme** in English or **Menu → Motyw** in Polish. Check that all twenty-two choices appear and the expanded menu is fully visible on desktop and a narrow screen. Test Aero's color and motion settings, Luna, and both background choices for Classic and Classic 3. Refresh to check that the browser remembers the selection. Confirm there are no missing theme CSS, script or Luna image requests in the browser's network panel.
+4. Sign out and refresh. The browser should return to the sign-in screen without appearance controls; the saved theme still applies.
 
 | Symptom | What to check |
 | --- | --- |
@@ -178,6 +188,21 @@ The homepage should return `200` with a `Content-Security-Policy` header. The AP
 | The API returns `500` or `503` | Check the PHP-FPM and Apache error logs. Verify PHP's access to the private configuration, the required values, `pdo_mysql` in PHP-FPM, the database connection, and both tables. If sessions fail, check the PHP session save path and `session-check-limits/` permissions. |
 | The widget fails to load or sign-in reports a verification error | Check that both keys belong to the widget, the hostname is exact, the browser and PHP can reach Cloudflare, and certificate validation succeeds. |
 | The API returns `429` | Wait for the time specified in the `Retry-After` header, then try again. |
+| A theme is unstyled, its menu is clipped, or an optional background is missing | Confirm all eight stylesheets, all four JavaScript files and `assets/luna-reef.webp` are deployed. Keep their order and versioned references from `index.html`, then reload without a stale browser cache. Canvas failures show the original Classic background instead of the optional maze or pipes. |
+
+## Appearance and language
+
+After signing in, open **Menu → Theme** to change appearance. In Polish the category is **Motyw**. The sign-in screen has a language selector but no appearance controls. The browser remembers the selected theme and applies it to both the sign-in screen and the collection. Aero is the default for a new browser or an invalid saved choice. Appearance preferences belong to the browser; they are independent of the account, interface language and saved game data.
+
+The available themes are **Aero, Luna, Classic, Classic 2, Classic 3, Platinum, Aqua, Mountain Lion, Liquid Glass, Old Linux, U Linux, F Linux, Bee, DOS, Longhorn, P1, P2, Dream, GC, Like to Play, X and X360**.
+
+- **Aero** provides the original ribbon background, a background color picker and a motion switch.
+- **Luna** provides an aquarium background and a motion switch. Its local reef image loads when Luna is selected; blue water remains visible while it loads or if it is unavailable.
+- **Classic** offers the original **Classic** desktop or **3D Maze**. **Classic 3** separately offers **Classic** or **3D Pipes**. Each optional canvas renderer starts only when requested, and a failure falls back to that theme's original desktop. The two background choices are remembered independently.
+- **Background motion** is available for Aero, Luna and an active maze or pipes background. The system's reduced-motion preference applies until the visitor saves an explicit choice. Background work pauses when the page is hidden or suspended.
+- Some console themes provide library, search and add-game shortcuts. These reuse the existing collection actions.
+
+Choose **English** or **Polski** with the language selector. This translates the interface and selects the language of optional sign-in email notifications for that login. Stored titles, platforms and other collection values are preserved when changing language or theme. Themes and backgrounds use the bundled assets and local rendering; they need no additional API credentials or database migration.
 
 ## Cover and collection backups and SMTP
 
@@ -198,6 +223,8 @@ for test_file in tests/backend-{security,session,cover-backup,mail}.php; do
   php "$test_file" || exit 1
 done
 ```
+
+The frontend suites include theme selection, appearance persistence, the authenticated menu, and the maze/pipes renderers. The lightweight DOM tests do not render CSS or native browser popups, so complete the visual checks in step 5 after deployment as well.
 
 The performance test compares the current frontend with an earlier version of `app.js`. Supply the path to the file you want to use as the baseline.
 
@@ -222,4 +249,4 @@ git remote add origin https://github.com/YOUR-ACCOUNT/YOUR-REPOSITORY.git
 git push -u origin main
 ```
 
-Third-party license information appears alongside the Lucide icons in `index.html` and in `server/mail/phpmailer/LICENSE`. A license for the application code is still to be selected.
+Third-party license information appears alongside the Lucide icons in `index.html` and in `server/mail/phpmailer/LICENSE`. No application license is included in this source distribution.

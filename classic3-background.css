@@ -1,0 +1,41 @@
+/* Classic 3 keeps its existing window skin. Only the selected desktop and
+   its background controls are affected by this optional renderer. */
+#pipesBackground {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  contain: paint;
+  pointer-events: none;
+  background: #000;
+}
+
+#pipesBackground canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+html[data-theme="classic3"][data-classic3-background="pipes"] body {
+  background: #000;
+}
+
+/* Match the specificity of the existing retro motion-control rule without
+   changing that stylesheet or any of the other themes. */
+html[data-theme="classic3"][data-classic3-background="pipes"] :is(#authScreen, #appShell) .background-motion-control {
+  display: inline-flex;
+}
+
+html[data-theme="classic3"] .classic3-background-control select {
+  border: 1px solid #808080;
+  border-radius: 0;
+  background: #fff;
+  color: #161616;
+  box-shadow: inset 1px 1px #000, 1px 1px #fff;
+}
+
+.pipes-background-status {
+  max-width: 260px;
+  color: #764626;
+  font-size: 11px;
+}

@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#0874bc">
     <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=20261030-2">
     <link rel="icon" type="image/png" href="/favicon.png?v=20261030-2" sizes="64x64">
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20261030-2" sizes="any">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20261108-readable-1" sizes="any">
     <!-- Put data-en on text-only elements. Keep icons and controls outside the translated text. -->
     <title data-en="Savepoint — game collection">Savepoint — kolekcja gier</title>
     <!-- Start the connection early. The script loads Turnstile only when
@@ -321,8 +321,8 @@
         color: #856f62;
       }
 
-      /* The color control changes the background preference. The script updates
-         the adjacent badge with the current connection or storage state. */
+      /* Shared styling for the color control in the Theme menu and the header
+         badge that reports the current connection or storage state. */
       .theme-picker, .local-badge {
         display: flex;
         align-items: center;
@@ -2355,12 +2355,83 @@
           opacity: .9;
         }
       }
+      /* Appearance controls use the same native fields as the existing language
+         chooser. Their labels are translated by the existing data-en bindings. */
+      .appearance-tools, .auth-appearance-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 7px 10px;
+        min-width: 0;
+      }
+      .auth-appearance-controls { margin-bottom: 13px; }
+      .appearance-picker, .background-motion-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 29px;
+        font-size: 11px;
+      }
+      .appearance-picker select {
+        min-width: 76px;
+        min-height: 29px;
+        border: 1px solid #94b2c7;
+        border-radius: 4px;
+        padding: 3px 5px;
+        background: #f6fbff;
+      }
+      .background-motion-control input { margin: 0; accent-color: #177cb6; }
+      .top-right { flex-wrap: wrap; min-width: 0; }
+      @media (max-width: 1000px) {
+        .topbar { flex-wrap: wrap; }
+        .top-right { flex: 1 1 auto; }
+      }
+      @media (pointer: coarse) {
+        .appearance-picker, .background-motion-control { min-height: 44px; }
+        .appearance-picker select { min-height: 44px; font-size: 16px; }
+      }
     </style>
+    <link rel="stylesheet" href="luna.css?v=20261111-luna-1">
+    <link rel="stylesheet" href="retro.css?v=20261111-classic-1">
+    <link rel="stylesheet" href="classic3-background.css?v=20261111-pipes-1">
+    <link rel="stylesheet" href="classic-background.css?v=20261111-maze-1">
+    <link rel="stylesheet" href="mac.css?v=20261111-mac-2">
+    <link rel="stylesheet" href="seven-themes.css?v=20261112-seven-1">
+    <link rel="stylesheet" href="console-themes.css?v=20261112-console-1">
+    <link rel="stylesheet" href="theme-menu.css?v=20261112-liquid-menu-2">
+    <!-- Restore the saved appearance before rendering the login or collection. -->
+    <script src="appearance.js?v=20261112-console-1"></script>
+    <script src="pipes.js?v=20261111-pipes-1" defer></script>
+    <script src="maze.js?v=20261111-maze-1" defer></script>
   </head>
   <body>
     <!-- Canvas rendering mounts here when available. This decorative layer
          stays outside both the authentication and collection views. -->
     <div id="xmbBackground" aria-hidden="true"></div>
+    <!-- Console artwork remains decorative and is hidden in every older theme. -->
+    <div class="console-atmosphere" aria-hidden="true" hidden>
+      <span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span>
+    </div>
+    <!-- Decorative artwork stays outside all application and authentication
+         panels. The optional image loads only after Luna is selected. -->
+    <div id="aquariumBackground" aria-hidden="true" data-playing="false" hidden>
+      <img class="luna-reef" data-src="assets/luna-reef.webp?v=20261111-luna-1" alt="" decoding="async">
+      <div class="luna-bubbles"></div>
+      <div class="luna-fish luna-blue"><span></span></div>
+      <div class="luna-fish luna-clown"><span></span></div>
+      <div class="luna-fish luna-yellow"><span></span></div>
+    </div>
+    <!-- The optional Classic 3 desktop stays behind every opaque application
+         panel. Its renderer is created only when the user selects 3D Pipes. -->
+    <div id="pipesBackground" aria-hidden="true" hidden>
+      <canvas id="pipesCanvas" width="1" height="1"></canvas>
+    </div>
+    <!-- The optional Classic maze is decorative and never intercepts input.
+         Its scene is created only after this background is selected. -->
+    <div id="mazeBackground" aria-hidden="true" hidden>
+      <canvas id="mazeCanvas" width="1" height="1"></canvas>
+    </div>
     <!-- Lucide 0.468.0, https://lucide.dev/license
 ISC License
 
@@ -2514,10 +2585,28 @@ SOFTWARE.
          The same view also presents session checks and connection retries. -->
     <div class="auth-screen" id="authScreen">
       <section class="auth-card" aria-labelledby="authTitle">
+        <!-- Decorative window chrome is enabled only for the three Mac themes. -->
+        <div class="mac-window-caption" aria-hidden="true" hidden>
+          <span class="mac-caption-controls"><span></span><span></span><span></span></span>
+          <span class="mac-caption-title">Savepoint</span>
+          <span class="mac-caption-end"><span></span><span></span></span>
+        </div>
+        <!-- Additional skins use separate decoration, hidden in existing themes. -->
+        <div class="skin-window-caption" aria-hidden="true" hidden>
+          <span class="skin-caption-controls"><span></span><span></span><span></span></span>
+          <span class="skin-caption-title">Savepoint</span>
+          <span class="skin-caption-end"><span></span><span></span></span>
+        </div>
+        <!-- Console captions are decorative; the sign-in form remains shared. -->
+        <div class="console-window-caption" aria-hidden="true" hidden>
+          <span class="console-caption-emblem"><span></span><span></span><span></span><span></span></span>
+          <span class="console-caption-title">Savepoint</span>
+          <span class="console-caption-name" data-console-theme-name></span>
+        </div>
         <div class="auth-brand">
           <span class="auth-brand-wave" aria-hidden="true"></span>
           <span class="auth-brand-wave" aria-hidden="true"></span>
-          <img class="auth-brand-logo" src="/favicon.svg?v=20261030-2" width="52" height="52" alt="">
+          <img class="auth-brand-logo" src="/favicon.svg?v=20261108-readable-1" width="52" height="52" alt="">
           <div class="auth-brand-title">savepoint</div>
           <p class="auth-brand-eyebrow" data-en="YOUR LIBRARY">TWOJA BIBLIOTEKA</p>
           <h2><span data-en="Games you">Gry, które</span><br><span data-en="own.">masz.</span></h2>
@@ -2580,13 +2669,26 @@ SOFTWARE.
     <!-- Keep the private collection shell hidden until authentication succeeds.
          Stable IDs let the script update controls and rendered content in place. -->
     <div class="app" id="appShell" hidden>
+      <!-- Decorative window chrome is enabled only for the three Mac themes. -->
+      <div class="mac-window-caption" aria-hidden="true" hidden>
+        <span class="mac-caption-controls"><span></span><span></span><span></span></span>
+        <span class="mac-caption-title">Savepoint</span>
+        <span class="mac-caption-end"><span></span><span></span></span>
+      </div>
+      <!-- Decorative captions have no actions and do not enter keyboard order. -->
+      <div class="skin-window-caption" aria-hidden="true" hidden>
+        <span class="skin-caption-controls"><span></span><span></span><span></span></span>
+        <span class="skin-caption-title">Savepoint</span>
+        <span class="skin-caption-end"><span></span><span></span></span>
+      </div>
+      <div class="console-window-caption" aria-hidden="true" hidden>
+        <span class="console-caption-emblem"><span></span><span></span><span></span><span></span></span>
+        <span class="console-caption-title">Savepoint</span>
+        <span class="console-caption-name" data-console-theme-name></span>
+      </div>
       <header class="topbar">
-        <div class="brand"><img class="brand-mark" src="/favicon.svg?v=20261030-2" width="34" height="34" alt="">savepoint <em data-en="/ your collection">/ twoja kolekcja</em></div>
+        <div class="brand"><img class="brand-mark" src="/favicon.svg?v=20261108-readable-1" width="34" height="34" alt="">savepoint <em data-en="/ your collection">/ twoja kolekcja</em></div>
         <div class="top-right">
-          <label class="theme-picker" for="backgroundColor">
-            <span data-en="Background color">Kolor tła</span>
-            <input id="backgroundColor" type="color" value="#0874bc" aria-label="Wybierz kolor tła" data-en-aria-label="Choose a background color">
-          </label>
           <span class="local-badge" id="connectionStatus"><i class="dot"></i> zapis w bazie danych</span>
           <!-- The menu is a disclosure with native buttons. The script updates the
                toggle's expanded state and handles keyboard navigation. -->
@@ -2622,6 +2724,67 @@ SOFTWARE.
                     <small data-en="Download a JSON file">Pobierz plik JSON</small>
                   </span>
                 </button>
+                <!-- Theme settings stay inside the authenticated menu. Native
+                     details keeps the category usable by keyboard without JS. -->
+                <details class="app-menu-theme" id="appMenuTheme">
+                  <summary class="app-menu-item theme-menu-summary" id="themeMenuSummary">
+                    <span class="app-menu-icon"><svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-eye"></use></svg></span>
+                    <span class="app-menu-copy"><span data-en="Theme">Motyw</span><small data-en="Appearance and background">Wygląd i tło</small></span>
+                    <svg class="ui-icon theme-menu-chevron" aria-hidden="true" focusable="false"><use href="#ui-icon-chevron-down"></use></svg>
+                  </summary>
+                  <div class="theme-menu-settings">
+                    <div class="appearance-tools">
+                      <label class="appearance-picker">
+                        <span data-en="Theme">Motyw</span>
+                        <select data-ui-theme aria-label="Motyw aplikacji" data-en-aria-label="Application theme">
+                          <option value="aero">Aero</option>
+                          <option value="luna">Luna</option>
+                          <option value="classic">Classic</option>
+                          <option value="classic2">Classic 2</option>
+                          <option value="classic3">Classic 3</option>
+                          <option value="platinum">Platinum</option>
+                          <option value="aqua">Aqua</option>
+                          <option value="mountain">Mountain Lion</option>
+                          <option value="liquidglass">Liquid Glass</option>
+                          <option value="oldlinux">Old Linux</option>
+                          <option value="ulinux">U Linux</option>
+                          <option value="flinux">F Linux</option>
+                          <option value="bee">Bee</option>
+                          <option value="dos">DOS</option>
+                          <option value="longhorn">Longhorn</option>
+                          <option value="p1">P1</option>
+                          <option value="p2">P2</option>
+                          <option value="dream">Dream</option>
+                          <option value="gc">GC</option>
+                          <option value="play">Like to Play</option>
+                          <option value="x">X</option>
+                          <option value="x360">X360</option>
+                        </select>
+                      </label>
+                      <label class="appearance-picker classic-background-control" hidden>
+                        <span data-en="Background">Tło</span>
+                        <select data-classic-background aria-label="Tło motywu Classic" data-en-aria-label="Classic background">
+                          <option value="classic">Classic</option>
+                          <option value="maze" data-en="3D Maze">Labirynt 3D</option>
+                        </select>
+                      </label>
+                      <span class="maze-background-status" data-maze-status role="status" hidden data-en="3D Maze could not start. The Classic background is displayed.">Nie udało się uruchomić labiryntu 3D. Wyświetlono tło Classic.</span>
+                      <label class="appearance-picker classic3-background-control" hidden>
+                        <span data-en="Background">Tło</span>
+                        <select data-classic3-background aria-label="Tło motywu Classic 3" data-en-aria-label="Classic 3 background">
+                          <option value="classic">Classic</option>
+                          <option value="pipes" data-en="3D Pipes">Rury 3D</option>
+                        </select>
+                      </label>
+                      <label class="background-motion-control"><input type="checkbox" data-background-motion checked><span data-en="Background motion">Ruch tła</span></label>
+                      <span class="pipes-background-status" data-pipes-status role="status" hidden data-en="3D Pipes could not start. The Classic background is displayed.">Nie udało się uruchomić rur 3D. Wyświetlono tło Classic.</span>
+                    </div>
+                    <label class="theme-picker" id="backgroundColorControl" for="backgroundColor">
+                      <span data-en="Background color">Kolor tła</span>
+                      <input id="backgroundColor" type="color" value="#0874bc" aria-label="Wybierz kolor tła" data-en-aria-label="Choose a background color">
+                    </label>
+                  </div>
+                </details>
                 <div class="app-menu-separator"></div>
                 <button type="button" class="app-menu-item app-menu-logout" id="logoutBtn">
                   <span class="app-menu-icon">
@@ -2637,6 +2800,18 @@ SOFTWARE.
           </div>
         </div>
       </header>
+      <!-- Optional console navigation calls the existing collection actions. -->
+      <nav class="console-navigation" aria-label="Narzędzia kolekcji" data-en-aria-label="Collection tools" hidden>
+        <button class="console-nav-item" type="button" data-console-action="library" id="consoleLibrary">
+          <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-library-big"></use></svg><span data-en="Library">Biblioteka</span>
+        </button>
+        <button class="console-nav-item" type="button" data-console-action="search" id="consoleSearch">
+          <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-search"></use></svg><span data-en="Search">Szukaj</span>
+        </button>
+        <button class="console-nav-item" type="button" data-console-action="add" id="consoleAdd">
+          <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#ui-icon-plus"></use></svg><span data-en="Add a game">Dodaj grę</span>
+        </button>
+      </nav>
       <main>
         <section class="hero">
           <div>
@@ -3052,6 +3227,6 @@ SOFTWARE.
     </aside>
     <!-- The deferred script connects the static controls after parsing and
          retrieves session state before populating the collection. -->
-    <script src="app.js?v=20261108-language-2" defer></script>
+    <script src="app.js?v=20261112-theme-menu-1" defer></script>
   </body>
 </html>

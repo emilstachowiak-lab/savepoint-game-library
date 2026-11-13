@@ -7,6 +7,8 @@ namespace Savepoint\Covers;
 // the saved bytes and serves them as images.
 final class CoverBackup
 {
+    // Byte limits cap each image at 5 MiB and the store at 512 MiB.
+    // RETRY_AFTER is the six-hour retry cooldown, expressed in seconds.
     public const MAX_BYTES = 5242880;
     public const MAX_TOTAL_BYTES = 536870912;
     private const RETRY_AFTER = 21600;

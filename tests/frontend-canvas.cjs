@@ -26,7 +26,7 @@ function canvasFixture(options={}) {
  }
  function makeContext(target) {
   const ctx={canvas:target,frame:null};
-  for(const name of ['setTransform','fillRect','beginPath','moveTo','lineTo','closePath','fill','stroke','save','restore','clearRect'])
+  for(const name of ['setTransform','fillRect','beginPath','moveTo','lineTo','arc','closePath','fill','stroke','save','restore','clearRect'])
    ctx[name]=(...args)=>record(target,name,args);
   for(const name of ['fillStyle','strokeStyle','globalCompositeOperation','globalAlpha','lineWidth','filter','shadowBlur','shadowColor']) {
    let value;

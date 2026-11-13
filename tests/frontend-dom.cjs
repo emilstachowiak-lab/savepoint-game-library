@@ -2,6 +2,7 @@
 
 // A deterministic, offline DOM model for executing the real frontend. It
 // implements DOM primitives only; application behavior always comes from app.js.
+// Browser QA covers visual layout, clipping and native popup behavior.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -11,6 +12,8 @@ const root = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const decode = value => value.replace(/&(amp|lt|gt|quot|#39);/g, entity => ({'&amp;':'&','&lt;':'<','&gt;':'>','&quot;':'"','&#39;':"'" }[entity]));
+// Parse controlled application markup, rather than implementing a browser's
+// complete HTML parser or error-recovery rules.
 function parseMarkup(markup) {
   const tree = {tag:'#root',attrs:{},children:[]}, stack = [tree];
   const voidTags = new Set(['img','input','br','hr','meta','link','source','area','base','embed','wbr']);
@@ -44,6 +47,8 @@ function harness(options = {}) {
  const removeListener=(registry,name,handler)=>registry.get(name)?.delete(handler);
  const background=canvasFixture({width:1280,height:720,record:false,...options.backgroundCanvas});
  let document;
+ // Support the selector subset exercised by the application tests. This
+ // lightweight matcher does not interpret styles or compute element visibility.
  function simpleMatch(element,selector,scope) {
   if(!element || element.nodeType!==1)return false;
   if(selector.includes(':scope')){if(element!==scope)return false;selector=selector.replace(':scope','');}

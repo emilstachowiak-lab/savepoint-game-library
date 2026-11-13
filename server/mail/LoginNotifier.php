@@ -9,6 +9,8 @@ use PHPMailer\PHPMailer\SMTP;
 // Optional private module loaded by the API after a successful login. It sends
 // a single notification without adding SMTP data to the HTTP response.
 
+// Accept an unweighted English tag only in the first comma-separated value.
+// Missing, weighted or other values use the Polish fallback.
 function notificationLanguage(string $acceptLanguage): string
 {
     $preferred = strtolower(trim(explode(',', $acceptLanguage, 2)[0]));
