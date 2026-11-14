@@ -78,9 +78,44 @@ function harness(options = {}) {
   remove(){this.parentElement?.removeChild(this);}
  }
  class Element {
-  constructor(tag,attrs={}){this.nodeType=1;this.tagName=tag.toUpperCase();this.attrs={...attrs};this.childNodes=[];this.parentElement=null;this.listeners={};this.style={setProperty(name,value){this[name]=String(value);},removeProperty(name){delete this[name];}};this._value=undefined;this.checked=Object.hasOwn(attrs,'checked');this.disabled=Object.hasOwn(attrs,'disabled');this.validationMessage='';this.complete=false;this.naturalWidth=0;
-   this.dataset=new Proxy({}, {get:(_,name)=>this.attrs['data-'+String(name).replace(/[A-Z]/g,c=>'-'+c.toLowerCase())],set:(_,name,value)=>{this.attrs['data-'+String(name).replace(/[A-Z]/g,c=>'-'+c.toLowerCase())]=String(value);return true;}});
-   this.classList={contains:name=>this.className.split(/\s+/).includes(name),add:(...names)=>{this.className=[...new Set([...this.className.split(/\s+/).filter(Boolean),...names])].join(' ');},remove:(...names)=>{this.className=this.className.split(/\s+/).filter(name=>!names.includes(name)).join(' ');},toggle:(name,force)=>{const on=force===undefined?!this.classList.contains(name):force;on?this.classList.add(name):this.classList.remove(name);return on;}};
+  constructor(tag,attrs={}) {
+   this.nodeType=1;
+   this.tagName=tag.toUpperCase();
+   this.attrs={...attrs};
+   this.childNodes=[];
+   this.parentElement=null;
+   this.listeners={};
+   this.style={
+    setProperty(name,value) { this[name]=String(value); },
+    removeProperty(name) { delete this[name]; }
+   };
+   this._value=undefined;
+   this.checked=Object.hasOwn(attrs,'checked');
+   this.disabled=Object.hasOwn(attrs,'disabled');
+   this.validationMessage='';
+   this.complete=false;
+   this.naturalWidth=0;
+   this.dataset=new Proxy({}, {
+    get:(_,name)=>this.attrs['data-'+String(name).replace(/[A-Z]/g,c=>'-'+c.toLowerCase())],
+    set:(_,name,value)=>{
+     this.attrs['data-'+String(name).replace(/[A-Z]/g,c=>'-'+c.toLowerCase())]=String(value);
+     return true;
+    }
+   });
+   this.classList={
+    contains:name=>this.className.split(/\s+/).includes(name),
+    add:(...names)=>{
+     this.className=[...new Set([...this.className.split(/\s+/).filter(Boolean),...names])].join(' ');
+    },
+    remove:(...names)=>{
+     this.className=this.className.split(/\s+/).filter(name=>!names.includes(name)).join(' ');
+    },
+    toggle:(name,force)=>{
+     const on=force===undefined?!this.classList.contains(name):force;
+     on?this.classList.add(name):this.classList.remove(name);
+     return on;
+    }
+   };
   }
   get children(){return this.childNodes.filter(node=>node.nodeType===1);}
   get firstElementChild(){return this.children[0]??null;}
@@ -124,7 +159,23 @@ function harness(options = {}) {
  }
  function serialize(node){if(node.nodeType===3)return escape(node.textContent);const tag=node.tagName.toLowerCase(),attributes=Object.entries(node.attrs).map(([name,value])=>' '+name+'="'+escape(value)+'"').join('');return '<'+tag+attributes+'>'+(['img','input','br','hr','meta','link'].includes(tag)?'':node.innerHTML+'</'+tag+'>');}
  function build(node){if(typeof node==='string')return new TextNode(node);const element=new Element(node.tag,node.attrs);element.append(...node.children.map(build));return element;}
- document={tree:build(parseMarkup(options.markup ?? html)),activeElement:null,hidden:false,getElementById(id){return this.tree.querySelector('#'+id);},querySelector(selector){return this.tree.querySelector(selector);},querySelectorAll(selector){return this.tree.querySelectorAll(selector);},createElement:tag=>tag.toLowerCase()==='canvas'?background.canvas():new Element(tag),createTextNode:value=>new TextNode(value),createDocumentFragment(){const element=new Element('fragment');element.nodeType=11;return element;},addEventListener(name,handler){addListener(listeners,events,name,handler);},removeEventListener(name,handler){removeListener(listeners,name,handler);}};
+ document={
+  tree:build(parseMarkup(options.markup ?? html)),
+  activeElement:null,
+  hidden:false,
+  getElementById(id) { return this.tree.querySelector('#'+id); },
+  querySelector(selector) { return this.tree.querySelector(selector); },
+  querySelectorAll(selector) { return this.tree.querySelectorAll(selector); },
+  createElement:tag=>tag.toLowerCase()==='canvas'?background.canvas():new Element(tag),
+  createTextNode:value=>new TextNode(value),
+  createDocumentFragment() {
+   const element=new Element('fragment');
+   element.nodeType=11;
+   return element;
+  },
+  addEventListener(name,handler) { addListener(listeners,events,name,handler); },
+  removeEventListener(name,handler) { removeListener(listeners,name,handler); }
+ };
  document.documentElement=document.querySelector('html');
  if(options.prepareDocument)options.prepareDocument(document);
  const nodes=Object.fromEntries(document.querySelectorAll('[id]').map(node=>[node.id,node]));
@@ -157,7 +208,40 @@ function harness(options = {}) {
  const authAt=Math.floor(now()/1000)-60;
  const metadata=()=>{const serverNow=Math.floor(now()/1000);return {authenticatedAt:authAt,lastActivityAt:serverNow,idleExpiresAt:serverNow+1800,absoluteExpiresAt:authAt+28800,serverNow};};
  class ClockDate extends Date {static now(){return now();}}
- const context=vm.createContext({Date:options.clock?ClockDate:Date,performance:options.clock?{now:()=>options.clock.mono}:undefined,document,Image:FakeImage,window:browserWindow,localStorage:storage,sessionStorage:storage,innerWidth:1280,innerHeight:720,devicePixelRatio:1,location:{protocol:'https:'},matchMedia:()=>media,addEventListener(name,handler){addListener(windowListeners,windowEvents,name,handler);},removeEventListener(name,handler){removeListener(windowListeners,name,handler);},requestAnimationFrame(){return 1;},cancelAnimationFrame(){},setTimeout:(handler,delay)=>{const timer={handler,delay,createdAt:now(),cleared:false};timers.push(timer);return timer;},clearTimeout(timer){if(timer)timer.cleared=true;},crypto:{randomUUID:()=>'synthetic-new-id'},TextEncoder,URL,confirm(){throw new Error('Deletion must use the Aero dialog');},alert(){},fetch:(url,options)=>{const request={url,options,...deferred()};requests.push(request);return request.promise;}});
+ const context=vm.createContext({
+  Date:options.clock?ClockDate:Date,
+  performance:options.clock?{now:()=>options.clock.mono}:undefined,
+  document,
+  Image:FakeImage,
+  window:browserWindow,
+  localStorage:storage,
+  sessionStorage:storage,
+  innerWidth:1280,
+  innerHeight:720,
+  devicePixelRatio:1,
+  location:{protocol:'https:'},
+  matchMedia:()=>media,
+  addEventListener(name,handler) { addListener(windowListeners,windowEvents,name,handler); },
+  removeEventListener(name,handler) { removeListener(windowListeners,name,handler); },
+  requestAnimationFrame() { return 1; },
+  cancelAnimationFrame() {},
+  setTimeout:(handler,delay)=>{
+   const timer={handler,delay,createdAt:now(),cleared:false};
+   timers.push(timer);
+   return timer;
+  },
+  clearTimeout(timer) { if(timer)timer.cleared=true; },
+  crypto:{randomUUID:()=>'synthetic-new-id'},
+  TextEncoder,
+  URL,
+  confirm() { throw new Error('Deletion must use the Aero dialog'); },
+  alert() {},
+  fetch:(url,options)=>{
+   const request={url,options,...deferred()};
+   requests.push(request);
+   return request.promise;
+  }
+ });
  const startup=source.lastIndexOf('\ninitialize();');assert(startup>0,'Expected explicit app bootstrap');vm.runInContext(source.slice(0,startup),context,{filename:'app.js'});
  return {context,nodes,document,requests,timers,events,windowEvents,images,imageAssignments,reportedValidity,fire,metadata,
   seed(games){context.syntheticGames=games;context.syntheticSession=metadata();vm.runInContext('games=syntheticGames;authenticated=false;applySessionMetadata(syntheticSession,sessionClock());authenticated=true;',context);nodes.appShell.hidden=false;nodes.authScreen.hidden=true;},

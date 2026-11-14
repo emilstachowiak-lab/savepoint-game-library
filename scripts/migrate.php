@@ -8,7 +8,7 @@ if (PHP_SAPI !== 'cli') {
 }
 
 if ($argc !== 2) {
-    fwrite(STDERR, "Użycie: php scripts/migrate.php /ścieżka/do/config.local.php\n");
+    fwrite(STDERR, "Usage: php scripts/migrate.php /path/to/config.local.php\n");
     exit(1);
 }
 
@@ -77,9 +77,9 @@ try {
         $db->exec('ALTER TABLE games ' . implode(', ', $changes));
     }
 
-    fwrite(STDOUT, "Schemat bazy danych jest aktualny.\n");
+    fwrite(STDOUT, "The database schema is up to date.\n");
 } catch (Throwable $error) {
     // Avoid exposing credentials, connection strings or database identifiers.
-    fwrite(STDERR, "Migracja nie powiodła się. Sprawdź konfigurację, uprawnienia użytkownika bazy i wersję PHP.\n");
+    fwrite(STDERR, "Migration failed. Check the configuration, database user permissions and PHP version.\n");
     exit(1);
 }

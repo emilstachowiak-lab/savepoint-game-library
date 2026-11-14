@@ -221,6 +221,18 @@ html[data-theme="liquidglass"] #appMenu {
   border-radius: 2px;
 }
 
+/* Aero's reset uses the existing theme button palette and stays readable on
+   narrow screens. The background controller owns its visibility and state. */
+#appMenu #backgroundColorReset {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 9px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
 @supports (height: 100dvh) {
   #appMenu {
     max-height: var(--app-menu-available-height, min(620px, calc(100dvh - 250px)));
@@ -249,5 +261,9 @@ html[data-theme="liquidglass"] #appMenu {
 
   #appMenu #backgroundColor {
     height: 44px;
+  }
+
+  #appMenu #backgroundColorReset {
+    min-height: 44px;
   }
 }

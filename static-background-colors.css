@@ -1,0 +1,71 @@
+/* Change only the selected static desktop color in the supported themes.
+   Window palettes, animated artwork and every other theme remain independent. */
+html[data-theme="dos"][data-dos-background="classic"] body {
+  background-color: var(--dos-classic-color, #080a0a);
+}
+
+html[data-theme="classic"][data-classic-background="classic"] body {
+  background-color: var(--classic-desktop-color, #008080);
+}
+
+html[data-theme="classic3"][data-classic3-background="classic"] body {
+  background-color: var(--classic3-desktop-color, #3a6ea5);
+}
+
+/* Platinum keeps both original patterned layers above its chosen base color. */
+html[data-theme="platinum"] body {
+  background-color: var(--platinum-desktop-color, #858da8);
+}
+
+/* Only a custom Bee color replaces the woven palette. At its default, no rule
+   here applies: seven-themes.css supplies the exact original desktop again. */
+html[data-theme="bee"][data-bee-desktop-custom-color="true"] body {
+  background-color: var(--bee-desktop-color);
+  background-image: repeating-linear-gradient(135deg, transparent 0 2px, var(--bee-desktop-sheen) 2px 3px, transparent 3px 6px), repeating-linear-gradient(45deg, var(--bee-desktop-shadow) 0 2px, var(--bee-desktop-highlight) 2px 3px, var(--bee-desktop-color) 3px 5px);
+}
+
+/* These native controls live only in the authenticated Theme menu. */
+#appMenu #staticBackgroundColorControls {
+  display: grid;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+}
+
+#appMenu .static-background-color-label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  color: var(--text);
+  font-size: 12px;
+}
+
+#appMenu .static-background-color-label > span { overflow-wrap: anywhere; }
+
+#appMenu #staticBackgroundColor {
+  width: 44px;
+  height: 34px;
+  min-width: 0;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--panel);
+}
+
+#appMenu #staticBackgroundColorReset {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 9px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+@media (pointer: coarse) {
+  #appMenu #staticBackgroundColor { height: 44px; }
+  #appMenu #staticBackgroundColorReset { min-height: 44px; }
+}

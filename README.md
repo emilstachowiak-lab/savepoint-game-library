@@ -23,9 +23,10 @@ Use the hostname's document root as `public/`. If your hosting panel calls it `h
 ├── public/                       # DocumentRoot
 │   ├── .htaccess
 │   ├── index.html, app.js, favicon.*
-│   ├── appearance.js, pipes.js, maze.js
-│   ├── *.css                    # eight theme/background/menu stylesheets
-│   ├── assets/luna-reef.webp
+│   ├── appearance.js, static-background-colors.js
+│   ├── pipes.js, maze.js, matrix.js, p2-clock.js
+│   ├── *.css                    # ten theme/background/menu stylesheets
+│   ├── assets/                  # luna-reef.webp, mountain-aurora.svg
 │   └── api/                      # games.php, index.php, .htaccess, .user.ini
 └── private/
     └── savepoint/
@@ -89,22 +90,27 @@ fi
 install -d -m 700 "$private_root" \
   "$private_root/session-check-limits" "$private_root/covers" "$private_root/covers/images"
 
-install -m 644 .htaccess index.html app.js favicon.ico favicon.png favicon.svg "$public_root/"
-install -m 644 appearance.js pipes.js maze.js "$public_root/"
+install -m 644 .htaccess app.js favicon.ico favicon.png favicon.svg "$public_root/"
+install -m 644 appearance.js static-background-colors.js \
+  pipes.js maze.js matrix.js p2-clock.js "$public_root/"
 install -m 644 luna.css retro.css mac.css seven-themes.css console-themes.css \
-  classic-background.css classic3-background.css theme-menu.css "$public_root/"
-install -m 644 assets/luna-reef.webp "$public_root/assets/"
+  classic-background.css classic3-background.css matrix-background.css \
+  theme-menu.css static-background-colors.css "$public_root/"
+install -m 644 assets/luna-reef.webp assets/mountain-aurora.svg "$public_root/assets/"
 install -m 644 api/.htaccess api/.user.ini api/index.php api/games.php "$public_root/api/"
 install -m 600 server/covers/CoverBackup.php "$private_root/covers/CoverBackup.php"
 
 if [ ! -e "$private_root/config.local.php" ]; then
   install -m 600 api/config.example.php "$private_root/config.local.php"
 fi
+
+# Replace the entry page last, after every resource it references is installed.
+install -m 644 index.html "$public_root/"
 ```
 
 Set the owner of the `700` private directories and `600` private files to the PHP-FPM pool user. If you deploy as a different user, set the owner in the hosting panel or ask your administrator. PHP-FPM needs write access to `session-check-limits/`, `covers/images/`, and its session save path if it stores sessions in files. Apache needs read access to the public files and traverse access to the public directory and its parents. Keep the repository, configuration, tests, scripts, and backups outside the document root. Keep `private/` outside the site's URL space, including aliases and symbolic links.
 
-Deploy every listed public asset, including the Luna image, even when you initially use Aero. Keep the stylesheet and script order from `index.html`: the appearance controller restores the saved theme before the page paints, while the background renderers and application initialize after parsing. For an upgrade, upload the assets before replacing `index.html`, and check that its versioned URLs load the new files rather than stale cached copies.
+Deploy all 28 listed public files, including both artwork assets, even when you initially use Aero. Keep the stylesheet and script order from `index.html`: the appearance and desktop-color controllers restore browser preferences before the page paints, while the background renderers and application initialize after parsing. For an upgrade, upload the assets before replacing `index.html`, and check that its versioned URLs load the new files rather than stale cached copies.
 
 On a self-managed server, run `apachectl configtest` now that the document root exists. Reload Apache once the syntax check passes. If a proxy serves files in front of Apache, make sure it also enforces the private file restrictions. Step 5 checks what the site returns over HTTPS.
 
@@ -178,7 +184,7 @@ The homepage should return `200` with a `Content-Security-Policy` header. The AP
 
 1. Open the HTTPS address from `app_origin` in a private browser window. The sign-in screen should load. Wait for the Turnstile check and complete it if prompted, then sign in with `app_username` and the password you used to generate the hash.
 2. Add a test game, refresh to check that it was saved, and delete the test game. Switch the interface to English and back to Polish to verify both languages.
-3. Open **Menu → Theme** in English or **Menu → Motyw** in Polish. Check that all twenty-two choices appear and the expanded menu is fully visible on desktop and a narrow screen. Test Aero's color and motion settings, Luna, and both background choices for Classic and Classic 3. Refresh to check that the browser remembers the selection. Confirm there are no missing theme CSS, script or Luna image requests in the browser's network panel.
+3. Open **Menu → Theme** in English or **Menu → Motyw** in Polish. Check that all twenty-two choices appear and the expanded menu is fully visible on desktop and a narrow screen. Test Aero's color, default-color reset and motion settings; Luna's aquarium; Mountain Lion's aurora; both background choices for Classic, Classic 3 and DOS; and P2's clock against the viewing device's local time. Check color changes and **Restore default color** separately for the Classic backgrounds in Classic, Classic 3 and DOS, and for Platinum and Bee. Refresh to check that the browser remembers each preference independently. Confirm there are no missing theme CSS, script or artwork requests in the browser's network panel.
 4. Sign out and refresh. The browser should return to the sign-in screen without appearance controls; the saved theme still applies.
 
 | Symptom | What to check |
@@ -188,7 +194,9 @@ The homepage should return `200` with a `Content-Security-Policy` header. The AP
 | The API returns `500` or `503` | Check the PHP-FPM and Apache error logs. Verify PHP's access to the private configuration, the required values, `pdo_mysql` in PHP-FPM, the database connection, and both tables. If sessions fail, check the PHP session save path and `session-check-limits/` permissions. |
 | The widget fails to load or sign-in reports a verification error | Check that both keys belong to the widget, the hostname is exact, the browser and PHP can reach Cloudflare, and certificate validation succeeds. |
 | The API returns `429` | Wait for the time specified in the `Retry-After` header, then try again. |
-| A theme is unstyled, its menu is clipped, or an optional background is missing | Confirm all eight stylesheets, all four JavaScript files and `assets/luna-reef.webp` are deployed. Keep their order and versioned references from `index.html`, then reload without a stale browser cache. Canvas failures show the original Classic background instead of the optional maze or pipes. |
+| A theme is unstyled, its menu is clipped, or an optional background is missing | Confirm all ten stylesheets, all seven JavaScript files, `assets/luna-reef.webp` and `assets/mountain-aurora.svg` are deployed. Keep their order and versioned references from `index.html`, then reload without a stale browser cache. Canvas failures fall back to the original Classic desktop for maze, pipes and Matrix, or a plain violet desktop for P2. |
+| A desktop color control is missing or reset seems to use the wrong color | Use the Classic background in Classic, Classic 3 or DOS. Animated alternatives do not expose their hidden desktop's color. Platinum and Bee always offer their desktop color. Each theme has its own saved value and original default; Aero has a separate picker and reset. Check that `static-background-colors.js` and `static-background-colors.css` loaded. |
+| The P2 clock shows a different time or moves without smooth animation | Check the viewing device's clock and time zone. P2 uses local device time, not server time. With Background motion off it still updates once per second while visible. |
 
 ## Appearance and language
 
@@ -196,10 +204,13 @@ After signing in, open **Menu → Theme** to change appearance. In Polish the ca
 
 The available themes are **Aero, Luna, Classic, Classic 2, Classic 3, Platinum, Aqua, Mountain Lion, Liquid Glass, Old Linux, U Linux, F Linux, Bee, DOS, Longhorn, P1, P2, Dream, GC, Like to Play, X and X360**.
 
-- **Aero** provides the original ribbon background, a background color picker and a motion switch.
+- **Aero** provides the original ribbon background, a background color picker, **Restore default color**, and a motion switch. Reset restores Aero's original blue.
 - **Luna** provides an aquarium background and a motion switch. Its local reef image loads when Luna is selected; blue water remains visible while it loads or if it is unavailable.
-- **Classic** offers the original **Classic** desktop or **3D Maze**. **Classic 3** separately offers **Classic** or **3D Pipes**. Each optional canvas renderer starts only when requested, and a failure falls back to that theme's original desktop. The two background choices are remembered independently.
-- **Background motion** is available for Aero, Luna and an active maze or pipes background. The system's reduced-motion preference applies until the visitor saves an explicit choice. Background work pauses when the page is hidden or suspended.
+- **Classic** offers the original **Classic** desktop or **3D Maze**. **Classic 3** separately offers **Classic** or **3D Pipes**. **DOS** offers **Classic** or **Matrix**, a locally rendered falling-text animation. Each optional canvas renderer starts only when requested, and a failure falls back to that theme's original desktop. The three background choices are remembered independently.
+- **Desktop colors** can be changed for the **Classic** backgrounds in Classic, Classic 3 and DOS, and for Platinum and Bee. Each theme has an independent saved color and **Restore default color** button. Reset restores that theme's own original color, preserving Platinum's pattern and Bee's woven background. Changing these colors does not recolor the animated maze, pipes or Matrix alternatives.
+- **Mountain Lion** uses the bundled aurora artwork as its desktop background.
+- **P2** displays a clock background based on the viewing device's current local time. Changes to the device clock or time zone are reflected while the background is active. It requires no time service or server-side configuration. If canvas rendering is unavailable, a plain violet desktop remains visible.
+- **Background motion** is available for Aero, Luna and an active maze, pipes, Matrix or P2 background. Turning it off pauses decorative animation; P2's functional clock continues to update once per second. The system's reduced-motion preference applies until the visitor saves an explicit choice. Background work pauses when the page is hidden or suspended, and inactive renderers do not animate other themes.
 - Some console themes provide library, search and add-game shortcuts. These reuse the existing collection actions.
 
 Choose **English** or **Polski** with the language selector. This translates the interface and selects the language of optional sign-in email notifications for that login. Stored titles, platforms and other collection values are preserved when changing language or theme. Themes and backgrounds use the bundled assets and local rendering; they need no additional API credentials or database migration.
@@ -224,7 +235,7 @@ for test_file in tests/backend-{security,session,cover-backup,mail}.php; do
 done
 ```
 
-The frontend suites include theme selection, appearance persistence, the authenticated menu, and the maze/pipes renderers. The lightweight DOM tests do not render CSS or native browser popups, so complete the visual checks in step 5 after deployment as well.
+The frontend suites include theme selection, appearance persistence, the authenticated menu, the maze/pipes/Matrix renderers, Aero's default-color reset, and the five independent desktop-color settings. The lightweight DOM tests do not render CSS or native browser popups, so complete the visual checks in step 5 after deployment as well, including P2's clock and Mountain Lion's artwork.
 
 The performance test compares the current frontend with an earlier version of `app.js`. Supply the path to the file you want to use as the baseline.
 

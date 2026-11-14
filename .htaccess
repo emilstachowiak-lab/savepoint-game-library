@@ -30,8 +30,8 @@ DirectoryIndex index.html
     Require all denied
 </FilesMatch>
 
-# Revalidate the document so it points to current asset versions. Cache the
-# versioned JavaScript and icons for a week.
+# Revalidate the document so it points to current asset versions. Cache
+# app.js and favicon files for a week.
 <IfModule mod_headers.c>
     <FilesMatch "^(index\.html)$">
         Header set Cache-Control "no-cache"

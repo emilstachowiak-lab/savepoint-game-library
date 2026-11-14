@@ -12,8 +12,9 @@ const THEME_KEY = 'savepoint-theme-v1';
 const MOTION_KEY = 'savepoint-background-motion-v1';
 const MAZE_BACKGROUND_KEY = 'savepoint-classic-background-v1';
 const BACKGROUND_KEY = 'savepoint-classic3-background-v1';
+const DOS_BACKGROUND_KEY = 'savepoint-dos-background-v1';
 
-function appearanceHarness(entries = [], reduced = false, storageBlocked = false, pipesMode = 'ready', mazeMode = 'ready') {
+function appearanceHarness(entries = [], reduced = false, storageBlocked = false, pipesMode = 'ready', mazeMode = 'ready', p2Mode = 'ready', matrixMode = 'ready') {
   const test = harness({ localStorageEntries: entries });
   const media = { matches: reduced, addEventListener() {} };
   test.context.matchMedia = () => media;
@@ -52,6 +53,47 @@ function appearanceHarness(entries = [], reduced = false, storageBlocked = false
       };
     }
   };
+  const p2Clock = { created: 0, destroyed: 0, resized: 0, active: false, motion: false, playing: false };
+  if (p2Mode !== 'missing') test.context.window.SavepointP2Clock = {
+    create(canvas, onFailure) {
+      assert.equal(canvas, test.nodes.p2ClockCanvas);
+      p2Clock.created += 1;
+      p2Clock.fail = onFailure;
+      if (p2Mode === 'throw') throw new Error('Synthetic P2 factory failure');
+      if (p2Mode === 'none') return null;
+      if (p2Mode === 'initial-failure') { onFailure(); return null; }
+      if (p2Mode === 'initial-failure-with-renderer') onFailure();
+      return {
+        resize() { p2Clock.resized += 1; },
+        setState({ active, playing }) {
+          p2Clock.active = Boolean(active);
+          p2Clock.motion = Boolean(playing);
+          p2Clock.playing = p2Clock.active && p2Clock.motion;
+        },
+        destroy() {
+          p2Clock.destroyed += 1;
+          p2Clock.active = p2Clock.playing = false;
+        }
+      };
+    }
+  };
+  const matrix = { created: 0, destroyed: 0, resized: 0, playing: false };
+  if (matrixMode !== 'missing') test.context.window.SavepointMatrix = {
+    create(canvas, onFailure) {
+      assert.equal(canvas, test.nodes.matrixCanvas);
+      matrix.created += 1;
+      matrix.fail = onFailure;
+      if (matrixMode === 'throw') throw new Error('Synthetic Matrix factory failure');
+      if (matrixMode === 'none') return null;
+      if (matrixMode === 'initial-failure') { onFailure(); return null; }
+      if (matrixMode === 'initial-failure-with-renderer') onFailure();
+      return {
+        resize() { matrix.resized += 1; },
+        setPlaying(value) { matrix.playing = Boolean(value); },
+        destroy() { matrix.destroyed += 1; matrix.playing = false; }
+      };
+    }
+  };
   if (storageBlocked) {
     test.context.localStorage = {
       getItem() { throw new Error('Synthetic blocked storage'); },
@@ -62,19 +104,31 @@ function appearanceHarness(entries = [], reduced = false, storageBlocked = false
   vm.runInContext(source, test.context, { filename: 'appearance.js' });
   const earlyTheme = test.document.documentElement.dataset.theme;
   const earlyMazeBackground = test.document.documentElement.dataset.classicBackground;
+  const earlyDosBackground = test.document.documentElement.dataset.dosBackground;
   test.events.DOMContentLoaded();
   return {
-    ...test, earlyTheme, earlyMazeBackground,
+    ...test, earlyTheme, earlyMazeBackground, earlyDosBackground,
     root: test.document.documentElement,
     themes: test.queryAll('[data-ui-theme]'),
     motions: test.queryAll('input[data-background-motion]'),
     aquarium: test.query('#aquariumBackground'),
     backgrounds: test.queryAll('select[data-classic3-background]'),
     mazeBackgrounds: test.queryAll('select[data-classic-background]'),
+    dosBackgrounds: test.queryAll('select[data-dos-background]'),
     mazeStage: test.query('#mazeBackground'),
     maze,
     pipesStage: test.query('#pipesBackground'),
     pipes,
+    p2ClockStage: test.query('#p2ClockBackground'),
+    p2Clock,
+    matrixStage: test.query('#matrixBackground'),
+    matrix,
+    chooseDos(value) {
+      const control = this.dosBackgrounds[0];
+      control.value = value;
+      this.fire(control, 'change');
+      assert(this.dosBackgrounds.every(select => select.value === this.root.dataset.dosBackground));
+    },
     chooseBackground(value) {
       const control = this.backgrounds[0];
       control.value = value;
@@ -575,6 +629,210 @@ function appearanceHarness(entries = [], reduced = false, storageBlocked = false
   console.log('PASS: initial and runtime maze failures fall back automatically, preserve preference and leave pipes functional');
 })().catch(error => { console.error(error); process.exitCode = 1; });
 
+// DOS preserves its original desktop until Matrix is explicitly selected. The
+// saved desktop choice is independent of every other theme's background.
+{
+  const test = appearanceHarness([[THEME_KEY, 'dos']]);
+  assert.equal(test.earlyDosBackground, 'classic');
+  assert.equal(test.root.dataset.dosBackground, 'classic');
+  assert(test.dosBackgrounds.length > 0);
+  assert(test.dosBackgrounds.every(control => control.value === 'classic'));
+  assert(test.dosBackgrounds.every(control => !control.closest('.dos-background-control').hidden));
+  assert.equal(test.matrixStage.hidden, true);
+  assert.equal(test.matrix.created, 0);
+  assert(test.motions.every(control => control.closest('.background-motion-control').hidden));
+  test.chooseDos('matrix');
+  assert.equal(test.context.localStorage.getItem(DOS_BACKGROUND_KEY), 'matrix');
+  assert.equal(test.root.dataset.dosBackground, 'matrix');
+  assert.equal(test.matrix.created, 1);
+  assert.equal(test.matrixStage.hidden, false);
+  assert.equal(test.matrix.playing, true);
+  assert(test.motions.every(control => !control.closest('.background-motion-control').hidden));
+  assert(test.queryAll('[data-matrix-status]').every(status => status.hidden));
+  test.chooseDos('classic');
+  assert.equal(test.matrixStage.hidden, true);
+  assert.equal(test.matrix.playing, false);
+  assert.equal(test.context.localStorage.getItem(DOS_BACKGROUND_KEY), 'classic');
+  assert(test.motions.every(control => control.closest('.background-motion-control').hidden));
+  test.chooseDos('matrix');
+  assert.equal(test.matrix.created, 1, 'Returning to Matrix must reuse its paused renderer');
+  assert.equal(test.requests.length, 0);
+  console.log('PASS: DOS keeps its original desktop by default and lazily switches to a reusable Matrix scene');
+}
+
+{
+  const entries = [[DOS_BACKGROUND_KEY, 'matrix'], [MAZE_BACKGROUND_KEY, 'maze'], [BACKGROUND_KEY, 'pipes']];
+  const test = appearanceHarness(entries);
+  assert.equal(test.earlyDosBackground, 'matrix');
+  assert.equal(test.matrix.created, 0, 'A saved Matrix preference must not allocate a scene in another theme');
+  assert.equal(test.matrixStage.hidden, true);
+  for (const option of test.themes[0].querySelectorAll('option')) {
+    if (option.value === 'dos') continue;
+    test.choose(option.value);
+    assert.equal(test.matrix.created, 0);
+    assert.equal(test.matrixStage.hidden, true);
+    assert(test.dosBackgrounds.every(control => control.closest('.dos-background-control').hidden));
+  }
+  test.choose('dos');
+  assert.equal(test.matrix.created, 1);
+  assert.equal(test.matrix.playing, true);
+  assert.equal(test.maze.playing, false);
+  assert.equal(test.pipes.playing, false);
+  assert.equal(test.p2Clock.active, false);
+  test.choose('classic');
+  assert.equal(test.maze.playing, true);
+  assert.equal(test.matrix.playing, false);
+  assert.equal(test.matrixStage.hidden, true);
+  test.chooseMaze('classic');
+  test.choose('classic3');
+  assert.equal(test.pipes.playing, true);
+  test.chooseBackground('classic');
+  test.choose('dos');
+  assert.equal(test.matrix.playing, true);
+  assert.equal(test.matrix.created, 1);
+  assert.equal(test.root.dataset.dosBackground, 'matrix');
+  assert.equal(test.context.localStorage.getItem(DOS_BACKGROUND_KEY), 'matrix');
+  assert.equal(test.context.localStorage.getItem(MAZE_BACKGROUND_KEY), 'classic');
+  assert.equal(test.context.localStorage.getItem(BACKGROUND_KEY), 'classic');
+  assert.equal(test.requests.length, 0);
+  console.log('PASS: Matrix restoration is isolated from all other themes and independent Classic/Pipes preferences');
+}
+
+{
+  const entries = [[THEME_KEY, 'dos'], [DOS_BACKGROUND_KEY, 'matrix']];
+  const test = appearanceHarness(entries, true);
+  assert.equal(test.matrixStage.hidden, false, 'Reduced motion still displays the selected static Matrix scene');
+  assert.equal(test.matrix.playing, false);
+  test.motions[0].checked = true;
+  test.fire(test.motions[0], 'change');
+  assert.equal(test.matrix.playing, true);
+  const resized = test.matrix.resized;
+  test.windowEvents.resize();
+  assert(test.matrix.resized > resized);
+  test.document.hidden = true;
+  test.events.visibilitychange();
+  assert.equal(test.matrix.playing, false);
+  test.document.hidden = false;
+  test.events.visibilitychange();
+  assert.equal(test.matrix.playing, true);
+  test.windowEvents.pagehide({ persisted: true });
+  assert.equal(test.matrix.playing, false);
+  assert.equal(test.matrix.destroyed, 0);
+  test.windowEvents.pageshow({ persisted: true });
+  assert.equal(test.matrix.playing, true);
+  assert.equal(test.matrix.created, 1);
+  test.motions[0].checked = false;
+  test.fire(test.motions[0], 'change');
+  assert.equal(test.matrix.playing, false);
+  assert.equal(test.context.localStorage.getItem(MOTION_KEY), 'off');
+  const restored = appearanceHarness([...entries, [MOTION_KEY, 'off']]);
+  assert.equal(restored.matrixStage.hidden, false);
+  assert.equal(restored.matrix.playing, false);
+  test.windowEvents.pagehide({ persisted: false });
+  assert.equal(test.matrix.destroyed, 1);
+  test.windowEvents.pageshow({ persisted: true });
+  test.windowEvents.pagehide({ persisted: false });
+  assert.equal(test.matrix.destroyed, 1);
+  assert.equal(test.matrix.playing, false);
+  const invalid = appearanceHarness([[THEME_KEY, 'dos'], [DOS_BACKGROUND_KEY, '<invalid>']]);
+  assert.equal(invalid.earlyDosBackground, 'classic');
+  assert.equal(invalid.matrix.created, 0);
+  const blocked = appearanceHarness([], false, true);
+  blocked.choose('dos');
+  blocked.chooseDos('matrix');
+  assert.equal(blocked.matrixStage.hidden, false);
+  assert.equal(blocked.matrix.playing, true);
+  console.log('PASS: Matrix respects reduced motion, saved pause, visibility, BFCache, resizing, cleanup and blocked storage');
+}
+
+{
+  const test = appearanceHarness([[THEME_KEY, 'dos'], ['savepoint-background-color-v1', '#8b2fcb']]);
+  test.seed([{ id: 'matrix-demo', title: 'Synthetic Matrix game', platform: 'PC', status: 'Do ogrania', edition: 'Fizyczne', coverUrl: '', createdAt: 1 }]);
+  test.context.render();
+  test.nodes.title.value = 'Unsaved Matrix draft';
+  const cards = test.nodes.grid.innerHTML;
+  const selectors = test.dosBackgrounds.map(control => ({ control, label: control.getAttribute('aria-label') }));
+  const statuses = test.queryAll('[data-matrix-status]').map(control => ({ control, text: control.textContent }));
+  assert(statuses.length > 0);
+  const language = test.queryAll('select[data-ui-language]')[0];
+  test.chooseDos('matrix');
+  language.value = 'en';
+  test.fire(language, 'change');
+  for (const { control } of selectors) {
+    assert.equal(control.querySelector('option[value="matrix"]').textContent, 'Matrix');
+    assert(control.getAttribute('data-en-aria-label'));
+    assert.equal(control.getAttribute('aria-label'), control.getAttribute('data-en-aria-label'));
+  }
+  for (const { control } of statuses) {
+    assert(control.getAttribute('data-en'));
+    assert.equal(control.textContent, control.getAttribute('data-en'));
+  }
+  const englishCards = test.nodes.grid.innerHTML;
+  assert.notEqual(englishCards, cards);
+  for (const name of ['aero', 'luna', 'classic', 'classic3', 'p2', 'dos']) {
+    test.choose(name);
+    assert.equal(test.nodes.appShell.hidden, false);
+    assert.equal(test.nodes.title.value, 'Unsaved Matrix draft');
+    assert.equal(test.nodes.grid.innerHTML, englishCards);
+    assert.equal(test.root.getAttribute('lang'), 'en');
+    assert.equal(test.nodes.backgroundColor.value, '#8b2fcb');
+    assert.equal(test.context.localStorage.getItem(DOS_BACKGROUND_KEY), 'matrix');
+    assert.equal(test.requests.length, 0);
+  }
+  language.value = 'pl';
+  test.fire(language, 'change');
+  for (const { control, label } of selectors) assert.equal(control.getAttribute('aria-label'), label);
+  for (const { control, text } of statuses) assert.equal(control.textContent, text);
+  assert.equal(test.nodes.grid.innerHTML, cards);
+  assert.equal(test.matrix.playing, true);
+  assert.equal(test.root.dataset.dosBackground, 'matrix');
+  console.log('PASS: DOS background labels and status translate PL/EN without changing authentication, collection, drafts or other settings');
+}
+
+(async () => {
+  const entries = [[THEME_KEY, 'dos'], [DOS_BACKGROUND_KEY, 'matrix']];
+  for (const mode of ['missing', 'none', 'throw', 'initial-failure', 'initial-failure-with-renderer']) {
+    const failed = appearanceHarness(entries, false, false, 'ready', 'ready', 'ready', mode);
+    await Promise.resolve();
+    assert.equal(failed.root.dataset.theme, 'dos');
+    assert.equal(failed.root.dataset.dosBackground, 'classic');
+    assert.equal(failed.context.localStorage.getItem(DOS_BACKGROUND_KEY), 'matrix');
+    assert.equal(failed.matrixStage.hidden, true);
+    assert.equal(failed.matrix.playing, false);
+    assert.equal(failed.matrix.destroyed, mode === 'initial-failure-with-renderer' ? 1 : 0);
+    assert(failed.dosBackgrounds.every(control => control.value === 'classic' && control.querySelector('option[value="matrix"]').disabled));
+    assert(failed.queryAll('[data-matrix-status]').every(status => !status.hidden));
+    assert(failed.motions.every(control => control.closest('.background-motion-control').hidden));
+    failed.choose('aero');
+    assert(failed.queryAll('[data-matrix-status]').every(status => status.hidden));
+    failed.choose('dos');
+    assert.equal(failed.matrix.created, mode === 'missing' ? 0 : 1, 'Failed Matrix factories must not be retried on each refresh');
+    failed.chooseDos('classic');
+    assert(failed.queryAll('[data-matrix-status]').every(status => status.hidden));
+    assert.equal(failed.context.localStorage.getItem(DOS_BACKGROUND_KEY), 'classic');
+    assert.equal(failed.requests.length, 0);
+  }
+  const failedLater = appearanceHarness(entries);
+  failedLater.matrix.fail();
+  await Promise.resolve();
+  assert.equal(failedLater.matrix.destroyed, 1);
+  assert.equal(failedLater.matrix.playing, false);
+  assert.equal(failedLater.root.dataset.dosBackground, 'classic');
+  assert.equal(failedLater.matrixStage.hidden, true);
+  assert.equal(failedLater.context.localStorage.getItem(DOS_BACKGROUND_KEY), 'matrix');
+  assert(failedLater.queryAll('[data-matrix-status]').every(status => !status.hidden));
+  failedLater.choose('classic');
+  failedLater.chooseMaze('maze');
+  assert.equal(failedLater.maze.playing, true);
+  failedLater.choose('classic3');
+  failedLater.chooseBackground('pipes');
+  assert.equal(failedLater.pipes.playing, true);
+  failedLater.choose('p2');
+  assert.equal(failedLater.p2Clock.active, true);
+  assert.equal(failedLater.requests.length, 0);
+  console.log('PASS: Matrix failures preserve the saved choice, expose the translated fallback and leave existing backgrounds functional');
+})().catch(error => { console.error(error); process.exitCode = 1; });
+
 // New skins must change presentation without restarting authentication, losing
 // unsaved edits, loading inactive artwork or changing existing theme settings.
 {
@@ -724,3 +982,135 @@ function appearanceHarness(entries = [], reduced = false, storageBlocked = false
   }
   console.log('PASS: all seven renamed console skins preserve data/PL/EN/old backgrounds, isolate decoration and reuse existing actions');
 }
+
+// The P2 clock is the theme's only desktop. Its active state is independent of
+// smooth motion so a paused clock can still follow the viewing device's time.
+{
+  const test = appearanceHarness([
+    [MAZE_BACKGROUND_KEY, 'maze'], [BACKGROUND_KEY, 'pipes'],
+    ['savepoint-background-color-v1', '#8b2fcb']
+  ]);
+  assert(test.p2ClockStage);
+  assert.equal(test.p2ClockStage.hidden, true);
+  assert.equal(test.p2Clock.created, 0, 'The clock must allocate no scene for another theme');
+  for (const name of ['p1', 'dream', 'gc', 'play', 'x', 'x360', 'mountain']) {
+    test.choose(name);
+    assert.equal(test.p2Clock.created, 0);
+    assert.equal(test.p2ClockStage.hidden, true);
+  }
+  test.seed([{ id: 'p2-clock-demo', title: 'Synthetic game', platform: 'PS2', status: 'Do ogrania', edition: 'Fizyczne', coverUrl: '', createdAt: 1 }]);
+  test.context.render();
+  test.nodes.title.value = 'Unsaved P2 draft';
+  const cards = test.nodes.grid.innerHTML;
+  test.choose('p2');
+  assert.equal(test.p2Clock.created, 1);
+  assert.equal(test.p2ClockStage.hidden, false);
+  assert.equal(test.p2Clock.active, true);
+  assert.equal(test.p2Clock.playing, true);
+  assert(test.motions.every(control => !control.closest('.background-motion-control').hidden));
+  assert(test.mazeBackgrounds.every(control => control.closest('.classic-background-control').hidden));
+  assert(test.backgrounds.every(control => control.closest('.classic3-background-control').hidden));
+  assert.equal(test.query('#backgroundColorControl').hidden, true);
+  assert.equal(test.maze.created, 0);
+  assert.equal(test.pipes.created, 0);
+  const resized = test.p2Clock.resized;
+  test.windowEvents.resize();
+  assert(test.p2Clock.resized > resized);
+
+  test.motions[0].checked = false;
+  test.fire(test.motions[0], 'change');
+  assert.equal(test.p2Clock.active, true, 'Pausing animation must keep the functional clock active');
+  assert.equal(test.p2Clock.motion, false);
+  assert.equal(test.p2Clock.playing, false);
+  assert.equal(test.context.localStorage.getItem(MOTION_KEY), 'off');
+  test.choose('aero');
+  assert.equal(test.p2ClockStage.hidden, true);
+  assert.equal(test.p2Clock.active, false, 'A clock belonging to an inactive theme must schedule no work');
+  test.choose('p2');
+  assert.equal(test.p2Clock.created, 1, 'Returning to P2 reuses its existing scene');
+  assert.equal(test.p2Clock.active, true);
+  assert.equal(test.p2Clock.playing, false);
+  test.motions[0].checked = true;
+  test.fire(test.motions[0], 'change');
+  assert.equal(test.p2Clock.playing, true);
+
+  test.document.hidden = true;
+  test.events.visibilitychange();
+  assert.equal(test.p2Clock.active, false);
+  assert.equal(test.p2Clock.playing, false);
+  test.document.hidden = false;
+  test.events.visibilitychange();
+  assert.equal(test.p2Clock.active, true);
+  assert.equal(test.p2Clock.playing, true);
+  test.windowEvents.pagehide({ persisted: true });
+  assert.equal(test.p2Clock.active, false);
+  assert.equal(test.p2Clock.destroyed, 0);
+  test.windowEvents.pageshow({ persisted: true });
+  assert.equal(test.p2Clock.active, true);
+  assert.equal(test.p2Clock.created, 1);
+  assert.equal(test.nodes.title.value, 'Unsaved P2 draft');
+  assert.equal(test.nodes.grid.innerHTML, cards);
+  assert.equal(test.nodes.appShell.hidden, false);
+  assert.equal(test.context.localStorage.getItem(MAZE_BACKGROUND_KEY), 'maze');
+  assert.equal(test.context.localStorage.getItem(BACKGROUND_KEY), 'pipes');
+  assert.equal(test.nodes.backgroundColor.value, '#8b2fcb');
+  assert.equal(test.requests.length, 0);
+  test.windowEvents.pagehide({ persisted: false });
+  assert.equal(test.p2Clock.destroyed, 1);
+  assert.equal(test.p2Clock.active, false);
+  test.windowEvents.pageshow({ persisted: false });
+  assert.equal(test.p2Clock.created, 1, 'Final disposal cannot recreate a clock');
+  assert.equal(test.p2Clock.destroyed, 1);
+  console.log('PASS: P2 clock is lazy, replaces its desktop, preserves data and separates pause from hidden/theme/BFCache suspension');
+}
+
+{
+  const reduced = appearanceHarness([[THEME_KEY, 'p2']], true);
+  assert.equal(reduced.earlyTheme, 'p2');
+  assert.equal(reduced.p2ClockStage.hidden, false);
+  assert.equal(reduced.p2Clock.active, true);
+  assert.equal(reduced.p2Clock.playing, false);
+  assert(reduced.motions.every(control => !control.checked));
+  reduced.motions[0].checked = true;
+  reduced.fire(reduced.motions[0], 'change');
+  assert.equal(reduced.p2Clock.playing, true, 'An explicit motion choice overrides the system default');
+  const savedPause = appearanceHarness([[THEME_KEY, 'p2'], [MOTION_KEY, 'off']]);
+  assert.equal(savedPause.p2Clock.active, true);
+  assert.equal(savedPause.p2Clock.playing, false);
+  const blocked = appearanceHarness([], false, true);
+  blocked.choose('p2');
+  assert.equal(blocked.p2Clock.active, true);
+  assert.equal(blocked.p2ClockStage.hidden, false);
+  assert.equal(blocked.requests.length, 0);
+  console.log('PASS: P2 restore, reduced motion, saved pause and blocked storage retain a functional clock');
+}
+
+(async () => {
+  for (const mode of ['missing', 'none', 'throw', 'initial-failure', 'initial-failure-with-renderer']) {
+    const test = appearanceHarness([[THEME_KEY, 'p2']], false, false, 'ready', 'ready', mode);
+    await Promise.resolve();
+    assert.equal(test.root.dataset.theme, 'p2');
+    assert.equal(test.p2ClockStage.hidden, true, 'An unavailable clock leaves the static P2 fallback visible');
+    assert.equal(test.p2Clock.active, false);
+    assert(test.motions.every(control => control.closest('.background-motion-control').hidden));
+    assert.equal(test.context.localStorage.getItem(THEME_KEY), 'p2');
+    assert.equal(test.p2Clock.destroyed, mode === 'initial-failure-with-renderer' ? 1 : 0);
+    test.choose('aero');
+    test.choose('p2');
+    assert.equal(test.p2Clock.created, mode === 'missing' ? 0 : 1, 'Failed factories must not be retried on every refresh');
+    assert.equal(test.requests.length, 0);
+  }
+  const failedLater = appearanceHarness([[THEME_KEY, 'p2']]);
+  failedLater.p2Clock.fail();
+  await Promise.resolve();
+  assert.equal(failedLater.p2ClockStage.hidden, true);
+  assert.equal(failedLater.p2Clock.destroyed, 1);
+  assert.equal(failedLater.p2Clock.active, false);
+  assert.equal(failedLater.root.dataset.theme, 'p2');
+  assert(failedLater.motions.every(control => control.closest('.background-motion-control').hidden));
+  failedLater.choose('classic3');
+  failedLater.chooseBackground('pipes');
+  assert.equal(failedLater.pipes.playing, true, 'A failed P2 clock must leave existing animated desktops usable');
+  assert.equal(failedLater.requests.length, 0);
+  console.log('PASS: P2 initial/runtime failures keep the theme and static fallback without affecting other renderers');
+})().catch(error => { console.error(error); process.exitCode = 1; });

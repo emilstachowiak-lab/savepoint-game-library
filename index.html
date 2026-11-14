@@ -2344,7 +2344,7 @@
         }
       }
 
-      /* Match the canvas controller's reduced-motion handling by removing the
+      /* Match the background controllers' reduced-motion handling by removing the
          remaining CSS transitions from cards and status messages. */
       @media (prefers-reduced-motion: reduce) {
         .game-card, .toast {
@@ -2395,17 +2395,22 @@
     <link rel="stylesheet" href="retro.css?v=20261111-classic-1">
     <link rel="stylesheet" href="classic3-background.css?v=20261111-pipes-1">
     <link rel="stylesheet" href="classic-background.css?v=20261111-maze-1">
-    <link rel="stylesheet" href="mac.css?v=20261111-mac-2">
+    <link rel="stylesheet" href="mac.css?v=20261113-aurora-1">
     <link rel="stylesheet" href="seven-themes.css?v=20261112-seven-1">
-    <link rel="stylesheet" href="console-themes.css?v=20261112-console-1">
-    <link rel="stylesheet" href="theme-menu.css?v=20261112-liquid-menu-2">
+    <link rel="stylesheet" href="console-themes.css?v=20261114-p2-clock-1">
+    <link rel="stylesheet" href="matrix-background.css?v=20261114-dos-matrix-1">
+    <link rel="stylesheet" href="theme-menu.css?v=20261114-aero-reset-1">
+    <link rel="stylesheet" href="static-background-colors.css?v=20261114-platinum-bee-colors-1">
     <!-- Restore the saved appearance before rendering the login or collection. -->
-    <script src="appearance.js?v=20261112-console-1"></script>
+    <script src="appearance.js?v=20261114-readability-1"></script>
+    <script src="static-background-colors.js?v=20261114-platinum-bee-colors-1"></script>
+    <script src="matrix.js?v=20261114-readability-1" defer></script>
+    <script src="p2-clock.js?v=20261114-readability-1" defer></script>
     <script src="pipes.js?v=20261111-pipes-1" defer></script>
     <script src="maze.js?v=20261111-maze-1" defer></script>
   </head>
   <body>
-    <!-- Canvas rendering mounts here when available. This decorative layer
+    <!-- Locally rasterized Aero layers mount here. This decorative layer
          stays outside both the authentication and collection views. -->
     <div id="xmbBackground" aria-hidden="true"></div>
     <!-- Console artwork remains decorative and is hidden in every older theme. -->
@@ -2431,6 +2436,16 @@
          Its scene is created only after this background is selected. -->
     <div id="mazeBackground" aria-hidden="true" hidden>
       <canvas id="mazeCanvas" width="1" height="1"></canvas>
+    </div>
+    <!-- P2 always uses the device-time clock. No previous background is kept
+         as a selectable option; the canvas never intercepts application input. -->
+    <div id="p2ClockBackground" aria-hidden="true" hidden>
+      <canvas id="p2ClockCanvas" width="1" height="1"></canvas>
+    </div>
+    <!-- DOS creates its optional Matrix scene only when selected. Classic
+         retains the original desktop; neither background intercepts input. -->
+    <div id="matrixBackground" aria-hidden="true" hidden>
+      <canvas id="matrixCanvas" width="1" height="1"></canvas>
     </div>
     <!-- Lucide 0.468.0, https://lucide.dev/license
 ISC License
@@ -2776,6 +2791,14 @@ SOFTWARE.
                           <option value="pipes" data-en="3D Pipes">Rury 3D</option>
                         </select>
                       </label>
+                      <label class="appearance-picker dos-background-control" hidden>
+                        <span data-en="Background">Tło</span>
+                        <select data-dos-background aria-label="Tło motywu DOS" data-en-aria-label="DOS background">
+                          <option value="classic">Classic</option>
+                          <option value="matrix">Matrix</option>
+                        </select>
+                      </label>
+                      <span class="matrix-background-status" data-matrix-status role="status" hidden data-en="Matrix could not start. The Classic background is displayed.">Nie udało się uruchomić tła Matrix. Wyświetlono tło Classic.</span>
                       <label class="background-motion-control"><input type="checkbox" data-background-motion checked><span data-en="Background motion">Ruch tła</span></label>
                       <span class="pipes-background-status" data-pipes-status role="status" hidden data-en="3D Pipes could not start. The Classic background is displayed.">Nie udało się uruchomić rur 3D. Wyświetlono tło Classic.</span>
                     </div>
@@ -2783,6 +2806,16 @@ SOFTWARE.
                       <span data-en="Background color">Kolor tła</span>
                       <input id="backgroundColor" type="color" value="#0874bc" aria-label="Wybierz kolor tła" data-en-aria-label="Choose a background color">
                     </label>
+                    <button id="backgroundColorReset" class="secondary" type="button" hidden data-en="Restore default color">Przywróć domyślny kolor</button>
+                    <!-- Each supported desktop owns its color and reset value.
+                         Animated backgrounds keep their existing artwork. -->
+                    <div id="staticBackgroundColorControls" hidden>
+                      <label class="static-background-color-label" for="staticBackgroundColor">
+                        <span data-en="Background color">Kolor tła</span>
+                        <input id="staticBackgroundColor" type="color" value="#008080" aria-label="Wybierz kolor tła motywu" data-en-aria-label="Choose the theme background color">
+                      </label>
+                      <button id="staticBackgroundColorReset" class="secondary" type="button" data-en="Restore default color">Przywróć domyślny kolor</button>
+                    </div>
                   </div>
                 </details>
                 <div class="app-menu-separator"></div>
@@ -3227,6 +3260,6 @@ SOFTWARE.
     </aside>
     <!-- The deferred script connects the static controls after parsing and
          retrieves session state before populating the collection. -->
-    <script src="app.js?v=20261112-theme-menu-1" defer></script>
+    <script src="app.js?v=20261114-readability-1" defer></script>
   </body>
 </html>

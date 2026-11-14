@@ -200,7 +200,7 @@ final class CoverBackup
                     CURLOPT_SSL_VERIFYHOST => 2,
                     CURLOPT_MAXFILESIZE => self::MAX_BYTES,
                     CURLOPT_USERAGENT => 'Savepoint-CoverBackup/1.0',
-                    // No application cookies, credentials, Referer or compression negotiation.
+                    // Request uncompressed image bytes without application cookies, credentials or Referer.
                     CURLOPT_HTTPHEADER => [
                         'Accept: image/jpeg, image/png, image/webp, image/gif, image/avif',
                         'Accept-Encoding: identity',

@@ -1,0 +1,28 @@
+/* Matrix is an optional DOS desktop. Its canvas and controls never change
+   the Classic desktop or the presentation of any other theme. */
+#matrixBackground {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  contain: paint;
+  pointer-events: none;
+  background: #000;
+}
+
+#matrixBackground canvas { display: block; width: 100%; height: 100%; }
+
+html:not([data-theme="dos"][data-dos-background="matrix"]) #matrixBackground {
+  display: none;
+}
+
+/* The shared motion preference appears only for DOS's animated background. */
+html[data-theme="dos"][data-dos-background="matrix"] #appShell .background-motion-control {
+  display: inline-flex;
+}
+
+html[data-theme="dos"] .matrix-background-status {
+  max-width: 260px;
+  color: var(--muted);
+  font-size: 11px;
+}

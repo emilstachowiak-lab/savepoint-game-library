@@ -64,6 +64,8 @@ function createEconomyXmb(stage, getColor, onError) {
       hue = (sector * 60 + 360) % 360;
     }
     const saturation = delta ? delta / (1 - Math.abs(2 * light - 1)) : 0;
+    // Normalize against the original Aero blue so a custom hue tints the
+    // existing artwork while the default palette keeps its original balance.
     const strength = clamp(saturation / .918, 0, 1.1);
     const luminance = clamp(light / .3843, 0, 1.5);
     return (shift, sat, lightness, alpha = 1) => {
@@ -265,8 +267,14 @@ function createEconomyXmb(stage, getColor, onError) {
 function initializeXmbBackground() {
   const background = $('xmbBackground'), backgroundPicker = $('backgroundColor');
   if (!background || !backgroundPicker) return null;
+  const resetButton = $('backgroundColorReset');
+  const defaultColor = '#0874bc';
   const validColor = value => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
-  const selectedColor = () => validColor(backgroundPicker.value) ? backgroundPicker.value : '#0874bc';
+  const selectedColor = () => validColor(backgroundPicker.value) ? backgroundPicker.value : defaultColor;
+  const activeAero = () => {
+    const theme = document.documentElement?.getAttribute?.('data-theme');
+    return !theme || theme === 'aero';
+  };
   try {
     const savedColor = localStorage.getItem(BG_KEY);
     if (validColor(savedColor)) backgroundPicker.value = savedColor;
@@ -283,15 +291,19 @@ function initializeXmbBackground() {
     failed = true;
     try { renderer?.destroy(); } catch {}
     renderer = null;
-    fallback();
+    refresh();
   }
   function refresh() {
     if (disposed) return;
+    const active = activeAero();
+    // Keep controls accurate even when only the gradient fallback is available.
+    if (resetButton) {
+      resetButton.hidden = !active;
+      resetButton.disabled = !active || selectedColor().toLowerCase() === defaultColor;
+    }
     if (failed) { fallback(); return; }
     try {
       const visible = document.hidden !== true && !pageSuspended;
-      const theme = document.documentElement?.getAttribute?.('data-theme');
-      const active = !theme || theme === 'aero';
       const preference = document.documentElement?.getAttribute?.('data-background-motion');
       const motion = preference === 'on' || (preference !== 'off' && reducedMotion?.matches !== true);
       renderer?.setPlaying(active && motion && visible);
@@ -301,6 +313,18 @@ function initializeXmbBackground() {
   function onColorChange() {
     if (disposed) return;
     try { localStorage.setItem(BG_KEY,selectedColor()); } catch {}
+    refresh();
+  }
+  function onColorReset() {
+    // Recheck the current theme so hidden or stale events cannot reset Aero
+    // while a different desktop is selected. Remove only this preference.
+    if (disposed || !resetButton || resetButton.hidden || resetButton.disabled || !activeAero()) return;
+    backgroundPicker.value = defaultColor;
+    try { localStorage.removeItem(BG_KEY); } catch {}
+    // Reset becomes disabled below; preserve focus within the appearance menu.
+    if (document.activeElement === resetButton) {
+      try { backgroundPicker.focus({ preventScroll: true }); } catch {}
+    }
     refresh();
   }
   function onPageHide(event) {
@@ -314,6 +338,7 @@ function initializeXmbBackground() {
     if (disposed) return;
     disposed = true;
     backgroundPicker.removeEventListener?.('input',onColorChange);
+    resetButton?.removeEventListener?.('click',onColorReset);
     document.removeEventListener?.('visibilitychange',refresh);
     document.removeEventListener?.('savepoint:themechange',refresh);
     if (typeof removeEventListener === 'function') {
@@ -325,6 +350,7 @@ function initializeXmbBackground() {
     renderer = null;
   }
   backgroundPicker.addEventListener('input',onColorChange);
+  resetButton?.addEventListener('click',onColorReset);
   document.addEventListener('visibilitychange',refresh);
   document.addEventListener('savepoint:themechange',refresh);
   if (typeof addEventListener === 'function') {

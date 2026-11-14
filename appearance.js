@@ -6,6 +6,7 @@
   const MOTION_KEY = 'savepoint-background-motion-v1';
   const CLASSIC_BACKGROUND_KEY = 'savepoint-classic-background-v1';
   const CLASSIC3_BACKGROUND_KEY = 'savepoint-classic3-background-v1';
+  const DOS_BACKGROUND_KEY = 'savepoint-dos-background-v1';
   const root = document.documentElement;
   const macThemes = ['platinum', 'aqua', 'mountain'];
   const additionalThemes = ['liquidglass', 'oldlinux', 'ulinux', 'flinux', 'bee', 'dos', 'longhorn'];
@@ -26,6 +27,7 @@
   let theme = normalizeTheme(readPreference(THEME_KEY));
   let classicBackground = readPreference(CLASSIC_BACKGROUND_KEY) === 'maze' ? 'maze' : 'classic';
   let classic3Background = readPreference(CLASSIC3_BACKGROUND_KEY) === 'pipes' ? 'pipes' : 'classic';
+  let dosBackground = readPreference(DOS_BACKGROUND_KEY) === 'matrix' ? 'matrix' : 'classic';
   const savedMotion = readPreference(MOTION_KEY);
   // Follow the system motion setting until the user saves an explicit choice.
   let motionPreference = ['on', 'off'].includes(savedMotion) ? savedMotion : null;
@@ -38,6 +40,7 @@
   root.dataset.backgroundMotion = motionEnabled() ? 'on' : 'off';
   root.dataset.classicBackground = classicBackground;
   root.dataset.classic3Background = classic3Background;
+  root.dataset.dosBackground = dosBackground;
 
   function initializeAppearance() {
     const themeControls = document.querySelectorAll('[data-ui-theme]');
@@ -50,6 +53,8 @@
     const mazeStatuses = document.querySelectorAll('[data-maze-status]');
     const backgroundControls = document.querySelectorAll('select[data-classic3-background]');
     const backgroundStatuses = document.querySelectorAll('[data-pipes-status]');
+    const dosControls = document.querySelectorAll('select[data-dos-background]');
+    const matrixStatuses = document.querySelectorAll('[data-matrix-status]');
     const aquarium = document.getElementById('aquariumBackground');
     const reef = aquarium?.querySelector('.luna-reef');
     const colorControl = document.getElementById('backgroundColorControl');
@@ -57,6 +62,10 @@
     const mazeCanvas = document.getElementById('mazeCanvas');
     const pipesStage = document.getElementById('pipesBackground');
     const pipesCanvas = document.getElementById('pipesCanvas');
+    const p2Stage = document.getElementById('p2ClockBackground');
+    const p2Canvas = document.getElementById('p2ClockCanvas');
+    const matrixStage = document.getElementById('matrixBackground');
+    const matrixCanvas = document.getElementById('matrixCanvas');
     let pageSuspended = false;
     let disposed = false;
     let mazeRenderer = null;
@@ -65,6 +74,32 @@
     let pipesRenderer = null;
     let pipesFailed = false;
     let pipesObserver = null;
+    let p2Renderer = null;
+    let p2Failed = false;
+    let p2Observer = null;
+    let matrixRenderer = null;
+    let matrixFailed = false;
+    let matrixObserver = null;
+
+    function onMatrixFailure() {
+      matrixFailed = true;
+      // Display the unchanged Classic desktop without losing the saved choice.
+      Promise.resolve().then(refresh);
+    }
+
+    function resizeMatrix() {
+      if (!disposed && matrixStage && !matrixStage.hidden) matrixRenderer?.resize();
+    }
+
+    function onP2Failure() {
+      p2Failed = true;
+      // Keep the plain violet desktop if canvas rendering is unavailable.
+      Promise.resolve().then(refresh);
+    }
+
+    function resizeP2() {
+      if (!disposed && p2Stage && !p2Stage.hidden) p2Renderer?.resize();
+    }
 
     function onMazeFailure() {
       mazeFailed = true;
@@ -93,10 +128,45 @@
     function refresh() {
       if (disposed) return;
       const playing = motionEnabled();
+      const wantsMatrix = theme === 'dos' && dosBackground === 'matrix' && !matrixFailed;
+      if (matrixStage) matrixStage.hidden = !wantsMatrix;
+      if (wantsMatrix && !matrixRenderer) {
+        try {
+          matrixRenderer = window.SavepointMatrix?.create(matrixCanvas, onMatrixFailure) ?? null;
+        } catch {
+          matrixFailed = true;
+        }
+        if (!matrixRenderer) matrixFailed = true;
+      }
+      if (matrixFailed && matrixRenderer) {
+        matrixRenderer.destroy();
+        matrixRenderer = null;
+      }
+      const activeMatrix = wantsMatrix && !matrixFailed;
+      const displayedDosBackground = matrixFailed ? 'classic' : dosBackground;
+      const wantsP2 = theme === 'p2' && !p2Failed;
+      if (p2Stage) p2Stage.hidden = !wantsP2;
+      if (wantsP2 && !p2Renderer) {
+        try {
+          p2Renderer = window.SavepointP2Clock?.create(p2Canvas, onP2Failure) ?? null;
+        } catch {
+          p2Failed = true;
+        }
+        if (!p2Renderer) p2Failed = true;
+      }
+      if (p2Failed && p2Renderer) {
+        p2Renderer.destroy();
+        p2Renderer = null;
+      }
+      const activeP2 = wantsP2 && !p2Failed;
       const wantsMaze = theme === 'classic' && classicBackground === 'maze' && !mazeFailed;
       if (mazeStage) mazeStage.hidden = !wantsMaze;
       if (wantsMaze && !mazeRenderer) {
-        try { mazeRenderer = window.SavepointMaze?.create(mazeCanvas, onMazeFailure) ?? null; } catch { mazeFailed = true; }
+        try {
+          mazeRenderer = window.SavepointMaze?.create(mazeCanvas, onMazeFailure) ?? null;
+        } catch {
+          mazeFailed = true;
+        }
         if (!mazeRenderer) mazeFailed = true;
       }
       if (mazeFailed && mazeRenderer) {
@@ -108,7 +178,11 @@
       const wantsPipes = theme === 'classic3' && classic3Background === 'pipes' && !pipesFailed;
       if (pipesStage) pipesStage.hidden = !wantsPipes;
       if (wantsPipes && !pipesRenderer) {
-        try { pipesRenderer = window.SavepointPipes?.create(pipesCanvas, onPipesFailure) ?? null; } catch { pipesFailed = true; }
+        try {
+          pipesRenderer = window.SavepointPipes?.create(pipesCanvas, onPipesFailure) ?? null;
+        } catch {
+          pipesFailed = true;
+        }
         if (!pipesRenderer) pipesFailed = true;
       }
       if (pipesFailed && pipesRenderer) {
@@ -121,6 +195,7 @@
       root.dataset.backgroundMotion = playing ? 'on' : 'off';
       root.dataset.classicBackground = mazeBackground;
       root.dataset.classic3Background = background;
+      root.dataset.dosBackground = displayedDosBackground;
       for (const control of themeControls) control.value = theme;
       // Decorative Mac captions never participate in the existing theme layouts.
       for (const caption of macCaptions) caption.hidden = !macThemes.includes(theme);
@@ -144,11 +219,21 @@
         if (label) label.hidden = theme !== 'classic3';
       }
       for (const status of backgroundStatuses) status.hidden = !(theme === 'classic3' && classic3Background === 'pipes' && pipesFailed);
+      for (const control of dosControls) {
+        control.value = displayedDosBackground;
+        control.querySelector('option[value="matrix"]').disabled = matrixFailed;
+        const label = control.closest('.dos-background-control');
+        if (label) label.hidden = theme !== 'dos';
+      }
+      for (const status of matrixStatuses) status.hidden = !(theme === 'dos' && dosBackground === 'matrix' && matrixFailed);
       for (const control of motionControls) {
         control.checked = playing;
         const label = control.closest('.background-motion-control');
-        if (label) label.hidden = theme !== 'aero' && theme !== 'luna' && !activePipes && !activeMaze;
+        if (label) label.hidden = theme !== 'aero' && theme !== 'luna'
+          && !activePipes && !activeMaze && !activeP2 && !activeMatrix;
       }
+      // This controller owns only Aero's original picker. The shared static
+      // desktop color/reset controls are owned by static-background-colors.js.
       if (colorControl) colorControl.hidden = theme !== 'aero';
       if (aquarium) {
         aquarium.hidden = theme !== 'luna';
@@ -164,6 +249,17 @@
       if (pipesStage) pipesStage.hidden = !activePipes;
       resizePipes();
       pipesRenderer?.setPlaying(activePipes && playing && document.hidden !== true && !pageSuspended);
+      if (p2Stage) p2Stage.hidden = !activeP2;
+      // Pausing smooth motion keeps the functional clock current at one hertz.
+      // Hidden pages and other themes stop its work entirely.
+      resizeP2();
+      p2Renderer?.setState({
+        active: activeP2 && document.hidden !== true && !pageSuspended,
+        playing
+      });
+      if (matrixStage) matrixStage.hidden = !activeMatrix;
+      resizeMatrix();
+      matrixRenderer?.setPlaying(activeMatrix && playing && document.hidden !== true && !pageSuspended);
       document.dispatchEvent(new Event('savepoint:themechange'));
     }
 
@@ -211,6 +307,13 @@
         refresh();
       });
     }
+    for (const control of dosControls) {
+      control.addEventListener('change', () => {
+        dosBackground = control.value === 'matrix' ? 'matrix' : 'classic';
+        savePreference(DOS_BACKGROUND_KEY, dosBackground);
+        refresh();
+      });
+    }
     document.addEventListener('visibilitychange', refresh);
     // BFCache keeps paused renderers for pageshow; a final departure releases
     // their observers, animation frames and bitmap memory instead.
@@ -225,6 +328,12 @@
         pipesObserver?.disconnect();
         pipesRenderer?.destroy();
         pipesRenderer = null;
+        p2Observer?.disconnect();
+        p2Renderer?.destroy();
+        p2Renderer = null;
+        matrixObserver?.disconnect();
+        matrixRenderer?.destroy();
+        matrixRenderer = null;
       }
     });
     addEventListener('pageshow', () => { pageSuspended = false; refresh(); });
@@ -240,6 +349,16 @@
     }
     addEventListener('resize', resizeMaze);
     addEventListener('resize', resizePipes);
+    if (p2Stage && typeof ResizeObserver === 'function') {
+      p2Observer = new ResizeObserver(resizeP2);
+      p2Observer.observe(p2Stage);
+    }
+    addEventListener('resize', resizeP2);
+    if (matrixStage && typeof ResizeObserver === 'function') {
+      matrixObserver = new ResizeObserver(resizeMatrix);
+      matrixObserver.observe(matrixStage);
+    }
+    addEventListener('resize', resizeMatrix);
     refresh();
   }
 

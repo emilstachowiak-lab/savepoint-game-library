@@ -20,7 +20,17 @@ function backgroundHarness(options={}) {
  const remove=(map,name,handler)=>map.get(name)?.delete(handler);
  const emit=(map,name,detail={})=>{for(const handler of [...(map.get(name)??[])])handler(detail);};
  class Element {
-  constructor(tag){this.tagName=tag.toUpperCase();this.nodeType=1;this.style={};this.dataset={};this.attrs={};this.children=[];this.parentElement=null;this.hidden=false;this.isConnected=true;}
+  constructor(tag) {
+   this.tagName=tag.toUpperCase();
+   this.nodeType=1;
+   this.style={};
+   this.dataset={};
+   this.attrs={};
+   this.children=[];
+   this.parentElement=null;
+   this.hidden=false;
+   this.isConnected=true;
+  }
   setAttribute(name,value){this.attrs[name]=String(value);}
   removeAttribute(name){delete this.attrs[name];if(name==='src')this._src='';}
   getAttribute(name){return this.attrs[name]??null;}
@@ -38,22 +48,69 @@ function backgroundHarness(options={}) {
  }
  if(!options.noAnimation)Element.prototype.animate=function(frames,timing){
   if(options.animateThrows)throw new Error('Synthetic animation failure');
-  const animation={element:this,frames,timing,currentTime:0,playState:'running',playbackRate:1,
-   play(){this.playState='running';},pause(){this.playState='paused';},cancel(){this.playState='idle';},
-   updatePlaybackRate(rate){this.playbackRate=rate;},effect:{setKeyframes(next){animation.frames=next;}}};
-  animations.push(animation);return animation;
+  const animation={
+   element:this,
+   frames,
+   timing,
+   currentTime:0,
+   playState:'running',
+   playbackRate:1,
+   play() { this.playState='running'; },
+   pause() { this.playState='paused'; },
+   cancel() { this.playState='idle'; },
+   updatePlaybackRate(rate) { this.playbackRate=rate; },
+   effect:{setKeyframes(next) { animation.frames=next; }}
+  };
+  animations.push(animation);
+  return animation;
  };
- const stage=new Element('div'), picker={value:'#0874bc',addEventListener:(n,h)=>add(pickerEvents,n,h),removeEventListener:(n,h)=>remove(pickerEvents,n,h)};
- const body=new Element('body');body.append(stage);
- const media={matches:Boolean(options.reduced),addEventListener:(n,h)=>add(mediaEvents,n,h),removeEventListener:(n,h)=>remove(mediaEvents,n,h),addListener:h=>add(mediaEvents,'change',h),removeListener:h=>remove(mediaEvents,'change',h)};
- const document={hidden:Boolean(options.hidden),body,getElementById:id=>id==='xmbBackground'?(options.noStage?null:stage):id==='backgroundColor'?(options.noPicker?null:picker):null,
+ const stage=new Element('div'), picker={
+  value:'#0874bc',
+  addEventListener:(n,h)=>add(pickerEvents,n,h),
+  removeEventListener:(n,h)=>remove(pickerEvents,n,h)
+ };
+ const body=new Element('body');
+ body.append(stage);
+ const media={
+  matches:Boolean(options.reduced),
+  addEventListener:(n,h)=>add(mediaEvents,n,h),
+  removeEventListener:(n,h)=>remove(mediaEvents,n,h),
+  addListener:h=>add(mediaEvents,'change',h),
+  removeListener:h=>remove(mediaEvents,'change',h)
+ };
+ const document={
+  hidden:Boolean(options.hidden),
+  body,
+  getElementById:id=>id==='xmbBackground'?(options.noStage?null:stage):id==='backgroundColor'?(options.noPicker?null:picker):null,
   createElement(tag){
    if(options.elementThrows)throw new Error('Synthetic element creation failure');
    if(tag!=='canvas')return new Element(tag);
-   const canvas={width:300,height:150,getContext(){canvas.rasterWidth=canvas.width;canvas.rasterHeight=canvas.height;if(options.contextThrows)throw new Error('Synthetic context failure');if(options.noContext)return null;return {drawImage(image){if(options.drawThrows)throw new Error('Synthetic raster failure');canvas.svg=image.src;}};},
-    toDataURL(){if(options.dataUrlThrows)throw new Error('Synthetic PNG failure');return 'data:image/png;base64,'+Buffer.from(canvas.svg??'').toString('base64');}};
-   canvases.push(canvas);return canvas;
-  },addEventListener:(n,h)=>add(documentEvents,n,h),removeEventListener:(n,h)=>remove(documentEvents,n,h)};
+   const canvas={
+    width:300,
+    height:150,
+    getContext() {
+     canvas.rasterWidth=canvas.width;
+     canvas.rasterHeight=canvas.height;
+     if(options.contextThrows)throw new Error('Synthetic context failure');
+     if(options.noContext)return null;
+     return {
+      drawImage(image) {
+       if(options.drawThrows)throw new Error('Synthetic raster failure');
+       canvas.svg=image.src;
+      }
+     };
+    },
+    toDataURL() {
+     if(options.dataUrlThrows)throw new Error('Synthetic PNG failure');
+     return 'data:image/png;base64,'+Buffer.from(canvas.svg??'').toString('base64');
+    }
+   };
+   canvases.push(canvas);
+   return canvas;
+  },
+  addEventListener:(n,h)=>add(documentEvents,n,h),
+  removeEventListener:(n,h)=>remove(documentEvents,n,h)
+ };
  class Loader {
   constructor(){loaders.push(this);}
   set src(value){this._src=value;}get src(){return this._src;}
@@ -62,11 +119,26 @@ function backgroundHarness(options={}) {
   constructor(callback){this.callback=callback;resizers.push(this);}
   observe(){}disconnect(){this.disconnected=true;}
  }
- const context=vm.createContext({document,Image:Loader,ResizeObserver,matchMedia:()=>media,
+ const context=vm.createContext({
+  document,
+  Image:Loader,
+  ResizeObserver,
+  matchMedia:()=>media,
   getComputedStyle:element=>({display:element.hidden?'none':'block'}),
-  localStorage:{getItem:key=>{if(options.storageThrows)throw new Error('Synthetic storage failure');return store.get(key)??null;},setItem:(key,value)=>{if(options.storageThrows)throw new Error('Synthetic storage failure');store.set(key,value);}},
-  addEventListener:(n,h)=>add(events,n,h),removeEventListener:(n,h)=>remove(events,n,h),
-  requestAnimationFrame(){throw new Error('Background must not schedule JS frames');},cancelAnimationFrame(){throw new Error('Background must not schedule JS frames');}
+  localStorage:{
+   getItem:key=>{
+    if(options.storageThrows)throw new Error('Synthetic storage failure');
+    return store.get(key)??null;
+   },
+   setItem:(key,value)=>{
+    if(options.storageThrows)throw new Error('Synthetic storage failure');
+    store.set(key,value);
+   }
+  },
+  addEventListener:(n,h)=>add(events,n,h),
+  removeEventListener:(n,h)=>remove(events,n,h),
+  requestAnimationFrame() { throw new Error('Background must not schedule JS frames'); },
+  cancelAnimationFrame() { throw new Error('Background must not schedule JS frames'); }
  });
  vm.runInContext(source.slice(0,end),context,{filename:'app.js'});
  const controller=vm.runInContext('xmbBackground',context);
