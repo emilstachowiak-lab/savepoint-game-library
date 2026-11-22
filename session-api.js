@@ -296,6 +296,25 @@ function apiTimeout(action, isSessionCheck) {
   return 25000;
 }
 
+// A hosting error page means the initial read can be retried once. Both reads
+// and the short delay share the original startup deadline.
+async function requestInitialSession(generation) {
+  const started = sessionClock();
+  const timeout = apiTimeout();
+  try {
+    return await apiRequest('GET', undefined, generation);
+  } catch (error) {
+    if (!error.hostUnavailable) throw error;
+    const delay = 500 + Math.floor(Math.random() * 500);
+    const minimumRetryTime = 3000;
+    if (timeout - sessionElapsed(started) < delay + minimumRetryTime) throw error;
+    await new Promise(resolve => setTimeout(resolve, delay));
+    const remaining = Math.floor(timeout - sessionElapsed(started));
+    if (remaining < minimumRetryTime) throw error;
+    return apiRequest('GET', undefined, generation, { timeoutMs: remaining });
+  }
+}
+
 // Send same-origin JSON and accept private results only for the current
 // session. Track requests that must finish before sign-out.
 async function apiRequest(method = 'GET', body = undefined, generation = sessionGeneration, options = {}) {
@@ -338,7 +357,7 @@ async function apiRequest(method = 'GET', body = undefined, generation = session
         error.timeout = true;
         reject(error);
         abort();
-      }, apiTimeout(action, isSessionCheck));
+      }, options.timeoutMs ?? apiTimeout(action, isSessionCheck));
     });
     const transport = (async () => {
       const signal = controller?.signal || callerSignal;
@@ -379,6 +398,7 @@ async function apiRequest(method = 'GET', body = undefined, generation = session
         const error = typeof result?.error === 'string' && result.error ? new Error(result.error) : fallback;
         error.status = response.status;
         error.payload = result ?? {};
+        error.hostUnavailable = response.status === 503 && result === null;
         if (response.status === 401 && authenticated && !isLogout && action !== 'login') {
           if (isSessionCheck) void performLogout();
           else handleSessionExpired(result);

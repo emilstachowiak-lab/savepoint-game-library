@@ -18,7 +18,7 @@ function extract(start, next) {
 }
 
 const submitSource = extract('async function submitLogin(event)', '\nfunction showAuthenticatedError');
-const acceptSource = extract('async function acceptAuthenticated(', '\nasync function initialize()');
+const acceptSource = extract('async function acceptAuthenticated(', '\nlet initialSessionRequest');
 const passwordSource = extract('function setLoginPasswordVisibility(', '\nfunction initializeLoginPresentation(');
 const languageSource = extract('const LANGUAGE_KEY', '\nfunction readLegacyGames()');
 

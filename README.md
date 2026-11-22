@@ -139,6 +139,10 @@ On a self-managed server, run `apachectl configtest` now that the document root 
 2. Run the installation block above against the existing deployment. Keep `private/savepoint/config.local.php`, your database and the stored covers. Upload the listed public assets and private modules before replacing `index.html`. This release uses the same schema as v1.15.
 3. If you want Gemini photo import, cover lookup, or duplicate detection, follow [Optional Gemini features](#optional-gemini-features). Schedule the [temporary-upload cleanup](#remove-expired-temporary-uploads) and run the [deployment checks](#5-verify-the-deployment).
 
+### Apply the HTTP 503 update to an existing installation
+
+If this is the only pending update, back up `session-api.js`, `app.js`, and `index.html` from the document root. Upload the two scripts first and replace `index.html` last. Open a fresh browser tab and confirm that the sign-in screen loads and both versioned scripts return HTTP `200`.
+
 ## 3. Configure the database and application account
 
 Create a dedicated database for Savepoint, such as `savepoint`, and a database user for the application. Grant that user `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on this database. Use the database's local or private network endpoint and the exact database and user names shown by your provider, including any prefixes. Edit `private/savepoint/config.local.php` on the server and fill in the following values.
@@ -218,7 +222,8 @@ The homepage should return `200` with a `Content-Security-Policy` header. The AP
 | --- | --- |
 | The API returns `426` | The certificate, the virtual host's HTTPS settings, and the `HTTPS` variable seen by PHP. |
 | The API returns `403` when saving or signing in | The address in the browser must match `app_origin`, including the port. |
-| The API returns `500` or `503` | Check the PHP-FPM and Apache error logs. Verify PHP's access to the private configuration, the required values, `pdo_mysql` in PHP-FPM, the database connection, and both tables. If sessions fail, check the PHP session save path and `session-check-limits/` permissions. |
+| The web server returns a non-JSON `503` while the page starts | Savepoint can retry the initial session request once within the same 25-second startup limit. If it still cannot connect, use **Try again** after the service recovers. Check the web server logs for unavailable PHP workers. |
+| The API returns a JSON `500` or `503` response | Check the API message and the PHP and web server logs. Verify access to the private configuration, `pdo_mysql`, the database connection, and both tables. If sessions fail, check the PHP session save path and `session-check-limits/` permissions. |
 | The widget fails to load or sign-in reports a verification error | Check that both keys belong to the widget, the hostname is exact, the browser and PHP can reach Cloudflare, and certificate validation succeeds. |
 | The API returns `429` | Wait for the `Retry-After` interval if provided. For repeated AI errors, also check the application's `hourly_limit` and the provider quota. |
 | Import fails on an otherwise valid JSON file | Check the file and game-count limits below, JSON formatting, and write access to the private collection upload directory. Confirm that a proxy forwards the JSON request bodies and permits the full 64 KiB per request. |
@@ -271,6 +276,8 @@ Use **Menu → Export data** to save a JSON copy of the collection. It contains 
 
 Savepoint keeps retrieved cover copies in `private/savepoint/covers/images/`. New downloads use verified outbound HTTPS, including when an older cover URL uses HTTP. The server resolves cover hostnames through Google Public DNS, checks the returned addresses, and rejects local or blocked destinations. Allow outbound HTTPS on TCP port 443 to `dns.google` and the public hosts that serve your cover images. Use `cover_blocked_ipv4` for other public addresses that belong to your infrastructure. The store limit is 5 MiB per image and 512 MiB in total. If more space is needed, Savepoint can reclaim unreferenced cover copies at least 90 days old. Sign-in is required to access stored copies. [Google Public DNS over HTTPS](https://developers.google.com/speed/public-dns/docs/doh/)
 
+An HTTP `503` pauses background cover backup work for 15 seconds. Original covers can continue loading during the pause.
+
 For a full installation backup, keep the MySQL or MariaDB database, the private configuration, the matching application release, and `covers/images/` in protected storage outside the repository and document root. Protect or remove old JSON exports and database dumps according to your own retention needs. When restoring an installation, restore the matching application files and private modules, recover the database and covers, and verify the HTTPS deployment checks above.
 
 ### Remove expired temporary uploads
@@ -307,7 +314,7 @@ for test_file in tests/backend-{security,session,collection,cover-backup,mail,ai
 done
 ```
 
-The frontend suites cover session handling, collection import, appearance, photo import, cover lookup, and duplicate review. The AI HTTP route test starts a PHP test server on the loopback interface and substitutes provider responses. Complete the browser checks in step 5 for rendered CSS and native controls, including P2's clock, Mountain Lion's artwork, and the shared theme styles.
+The frontend suites cover session handling, collection import, appearance, photo import, cover lookup, and duplicate review. Simulated `503` responses exercise startup recovery and cover backup pauses. The AI HTTP route test starts a PHP test server on the loopback interface and substitutes provider responses. Complete the browser checks in step 5 for rendered CSS and native controls, including P2's clock, Mountain Lion's artwork, and the shared theme styles.
 
 The performance test compares the current frontend with an earlier version of `app.js`. Supply the path to the file you want to use as the baseline.
 

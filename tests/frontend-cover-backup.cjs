@@ -10,6 +10,17 @@ const local = id => 'api/games.php?cover='+encodeURIComponent(id);
 const requestBody = (test, index) => JSON.parse(test.requests[index].options.body);
 function image(test) { return test.nodes.grid.querySelector('img.cover-image'); }
 function loaded(loader) { loader.complete=true; loader.naturalWidth=200; loader.onload({target:loader}); }
+function timedHarness() {
+ const clock={wall:1700000000000,mono:0};
+ const test=harness({clock});
+ async function advance(milliseconds) {
+  clock.wall+=milliseconds;
+  clock.mono+=milliseconds;
+  test.runDueTimers();
+  await flush();
+ }
+ return {test,advance};
+}
 async function scanMissing(test) {
   const index=test.requests.length;
   test.runTimers(750);await flush();
@@ -227,6 +238,63 @@ async function main() {
    test.context.clearPrivateData();assert.equal(vm.runInContext('coverBackupStatusAvailable',test.context),true,'A later session can try metadata again');
   }
   console.log('PASS: unsupported, failed or malformed metadata falls back to the original sequential backup operation');
+ }
+ {
+  const {test,advance}=timedHarness();
+  const fixtures=[game,{...game,id:'cover-overload-2',coverUrl:'https://images.example.invalid/second.jpg'}];
+  const statusRequest={action:'backup-cover-status',ids:fixtures.map(fixture=>fixture.id)};
+  test.seed(fixtures);
+  test.context.render();
+  await advance(750);
+  assert.deepEqual(requestBody(test,0),statusRequest);
+  test.respond(0,503,null);
+  await flush();
+
+  await advance(750);
+  assert.equal(test.requests.length,1,'A hosting 503 must pause individual backup requests');
+  await advance(1000);
+  const sources=Array.from(test.nodes.grid.querySelectorAll('img.cover-image'),cover=>cover.src);
+  assert.deepEqual(sources.sort(),fixtures.map(fixture=>fixture.coverUrl).sort(),
+   'Original covers can load during the backup cooldown');
+  await advance(15000-750-1000-1);
+  assert.equal(test.requests.length,1,'The backup queue must remain idle until the cooldown ends');
+  await advance(1);
+  assert.equal(test.requests.length,2);
+  assert.deepEqual(requestBody(test,1),statusRequest,'The queue must recheck existing copies when service returns');
+
+  test.respond(1,200,{ok:true,backups:fixtures.map(fixture=>({id:fixture.id,coverUrl:fixture.coverUrl,ready:true}))});
+  await flush();
+  await advance(750);
+  assert.equal(test.requests.length,2,'Ready copies need no individual backup requests after recovery');
+  console.log('PASS: hosting 503 pauses backup work, allows original covers to load and resumes batch status checks');
+ }
+ {
+  const {test,advance}=timedHarness();
+  const second={...game,id:'cover-overload-individual',coverUrl:'https://images.example.invalid/second.jpg'};
+  test.seed([game,second]);
+  test.context.render();
+  await advance(750);
+  assert.deepEqual(requestBody(test,0),{action:'backup-cover-status',ids:[game.id,second.id]});
+  test.respond(0,200,{ok:true,backups:[game,second].map(fixture=>({id:fixture.id,coverUrl:fixture.coverUrl,ready:false}))});
+  await flush();
+  await advance(750);
+  assert.deepEqual(requestBody(test,1),{action:'backup-cover',id:game.id});
+  test.respond(1,503,null);
+  await flush();
+
+  await advance(750);
+  assert.equal(test.requests.length,2,'A failed individual backup must pause the rest of the queue');
+  await advance(15000-750-1);
+  assert.equal(test.requests.length,2,'No other individual backup may start during the cooldown');
+  await advance(1);
+  assert.equal(test.requests.length,3);
+  assert.deepEqual(requestBody(test,2),{action:'backup-cover',id:second.id},'The failed POST must not be replayed');
+
+  test.respond(2,200,{ok:true,backup:{status:'saved'}});
+  await flush();
+  await advance(750);
+  assert.equal(test.requests.length,3);
+  console.log('PASS: a 503 from an individual backup pauses the remaining queue without replaying the failed POST');
  }
  {
   const test=harness();test.seed([game]);test.context.render();test.runTimers(750);await flush();

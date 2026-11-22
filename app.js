@@ -373,14 +373,18 @@ function scheduleCoverBackupWorker(delay = 750) {
       }
     } catch (error) {
       // A backup failure must not block a game save, import or usable original.
-      // The server applies a retry cooldown; the next session can try again.
-      if (checkingStatus && !ignoredSessionError(error) && generation === sessionGeneration && !logoutPending) {
-        if ([400, 404, 405, 501].includes(error.status)) coverBackupStatusAvailable = false;
-        else coverStatusRetryAt = Date.now() + 15000;
-        releaseCoverSources();
-        if (currentCoverBackupCandidate(item)) {
-          coverBackupQueue = coverBackupQueue.filter(candidate => candidate.key !== item.key);
-          coverBackupQueue.unshift(item);
+      if (!ignoredSessionError(error) && generation === sessionGeneration && !logoutPending) {
+        // Pause this queue during overload. A failed status check can then
+        // resume in a batch, while a failed write keeps its existing lifecycle.
+        if (error.status === 503) nextDelay = 15000;
+        if (checkingStatus) {
+          if ([400, 404, 405, 501].includes(error.status)) coverBackupStatusAvailable = false;
+          else if (error.status !== 503) coverStatusRetryAt = Date.now() + 15000;
+          releaseCoverSources();
+          if (currentCoverBackupCandidate(item)) {
+            coverBackupQueue = coverBackupQueue.filter(candidate => candidate.key !== item.key);
+            coverBackupQueue.unshift(item);
+          }
         }
       }
     } finally {
@@ -1526,18 +1530,29 @@ async function acceptAuthenticated(initialGames, generation = sessionGeneration)
   loadCollectionTools();
   if (migrationNotice) notify(...migrationNotice);
 }
-// Recover a pending logout first, then ask the API whether it can resume an
-// existing session or needs to provide a challenge for a new login.
-async function initialize() {
+let initialSessionRequest = null;
+
+// Share startup between repeated clicks without blocking a new session.
+function initialize() {
   if (logoutPending) return performLogout();
   const generation = sessionGeneration;
+  if (initialSessionRequest?.generation === generation) return initialSessionRequest.promise;
+  const promise = initializeSession(generation).finally(() => {
+    if (initialSessionRequest?.promise === promise) initialSessionRequest = null;
+  });
+  initialSessionRequest = { generation, promise };
+  return promise;
+}
+
+// Ask the API whether to resume the session or show the sign-in challenge.
+async function initializeSession(generation) {
   if (location.protocol === 'file:') {
     showAuthError('Aplikacja została otwarta jako plik. Zalogowanie wymaga strony uruchomionej na hostingu z PHP.', true,
       'The application was opened as a file. Serve the page from a PHP host to sign in.');
     return;
   }
   try {
-    const initial = await apiRequest('GET', undefined, generation);
+    const initial = await requestInitialSession(generation);
     ensureCurrentSession(generation);
     if (freshLoginRequired || readStoredFlag(FRESH_LOGIN_REQUIRED_KEY)) {
       lockUnexpectedSession();
@@ -1556,7 +1571,10 @@ async function initialize() {
       prepareCaptcha(error.payload?.captcha);
       return;
     }
-    const [polish, english] = uiErrorText(error);
+    const [polish, english] = error.hostUnavailable
+      ? ['Serwer jest chwilowo niedostępny. Spróbuj ponownie za chwilę.',
+        'The server is temporarily unavailable. Try again shortly.']
+      : uiErrorText(error);
     setConnectionStatus('błąd połączenia z serwerem', true, 'server connection error');
     showAuthError(polish, true, english);
   }

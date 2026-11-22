@@ -175,7 +175,122 @@ async function finishLogout(test, attempt) {
   test.assertCleared();
 }
 
+function startupFixture() {
+  const clock = { wall: Date.UTC(2026, 10, 22), mono: 0 };
+  const test = browserHarness({ clock });
+  test.advance = async ms => {
+    clock.wall += ms;
+    clock.mono += ms;
+    test.runDueTimers();
+    await flush();
+  };
+  return test;
+}
+
+async function checkStartupRecovery() {
+  const guest = { ok: false, authRequired: true, captcha: challenge };
+  const session = { ok: true, games: [game] };
+  for (const status of [200, 401]) {
+    const test = startupFixture();
+    const startup = test.context.initialize();
+    test.respond(0, status, status === 200 ? session : guest);
+    await startup;
+    assert.equal(test.requests.length, 1);
+    assert.equal(test.nodes.appShell.hidden, status === 401);
+    assert.equal(test.nodes.authScreen.hidden, status === 200);
+    if (status === 401) assert.equal(test.nodes.loginForm.hidden, false);
+  }
+  console.log('PASS: a healthy session or sign-in challenge uses one startup request');
+
+  for (const status of [200, 401, 503]) {
+    const test = startupFixture();
+    const startup = test.context.initialize();
+    test.respond(0, 503, null);
+    await flush();
+    await test.advance(499);
+    assert.equal(test.requests.length, 1);
+    assert.equal(test.nodes.retryConnection.onclick(), startup);
+    await test.advance(501);
+    assert.equal(test.requests.length, 2);
+    assert.equal(test.requests[1].options.method, 'GET');
+    assert.equal(test.nodes.retryConnection.onclick(), startup);
+    test.respond(1, status, status === 200 ? session : status === 401 ? guest : null);
+    await startup;
+    await test.advance(25000);
+    assert.equal(test.requests.length, 2);
+    assert.equal(test.nodes.appShell.hidden, status !== 200);
+    assert.equal(test.nodes.authScreen.hidden, status === 200);
+    if (status === 401) assert.equal(test.nodes.loginForm.hidden, false);
+    if (status === 503) {
+      assert.equal(test.nodes.loginForm.hidden, true);
+      assert.equal(test.nodes.retryConnection.hidden, false);
+      assert.match(test.nodes.authMessage.textContent, /chwilowo niedostępny/);
+    }
+  }
+  console.log('PASS: an unstructured hosting 503 retries once and repeated clicks share the same startup');
+
+  for (const duringDelay of [false, true]) {
+    const test = startupFixture();
+    const startup = test.context.initialize();
+    await test.advance(20000);
+    test.respond(0, 503, null);
+    await flush();
+    if (duringDelay) {
+      await test.advance(5000);
+      await startup;
+      assert.equal(test.requests.length, 1, 'An expired pause must not start a second request');
+    } else {
+      await test.advance(1000);
+      assert.equal(test.requests.length, 2);
+      await test.advance(3999);
+      assert.equal(test.nodes.retryConnection.hidden, true);
+      await test.advance(1);
+      await startup;
+      assert.match(test.nodes.authMessage.textContent, /nie odpowiedział na czas/);
+      test.respond(1, 200, session);
+      await flush();
+      assert.equal(test.nodes.appShell.hidden, true, 'A late response must not reopen the private view');
+      const manualRetry = test.nodes.retryConnection.onclick();
+      test.respond(2, 401, guest);
+      await manualRetry;
+      assert.equal(test.nodes.loginForm.hidden, false);
+    }
+  }
+  console.log('PASS: the pause and second request fit the same 25-second startup limit');
+
+  for (const status of [0, 503]) {
+    const test = startupFixture();
+    const startup = test.context.initialize();
+    if (status) test.respond(0, status, { ok: false, error: 'Synthetic API failure' });
+    else await test.advance(25000);
+    await startup;
+    await test.advance(25000);
+    assert.equal(test.requests.length, 1);
+    assert.equal(test.nodes.retryConnection.hidden, false);
+    assert.equal(test.nodes.authMessage.textContent, status ? 'Synthetic API failure' : 'Serwer nie odpowiedział na czas. Spróbuj ponownie.');
+  }
+  console.log('PASS: structured API failures and timeouts stay on the manual retry path');
+
+  {
+    const test = startupFixture();
+    const startup = test.context.initialize();
+    test.respond(0, 503, null);
+    await flush();
+    test.windowEvents.storage({ key: 'savepoint-logout-pending-v1', newValue: '1' });
+    await test.advance(1000);
+    await startup;
+    assert.equal(test.requests.length, 2);
+    assert.equal(JSON.parse(test.requests[1].options.body).action, 'logout');
+    test.respond(1, 503, null);
+    await flush();
+    assert.equal(test.nodes.appShell.hidden, true);
+    assert.equal(test.requests.length, 2);
+  }
+  console.log('PASS: signing out from another tab drops the scheduled startup retry');
+}
+
 async function main() {
+  await checkStartupRecovery();
   {
     const test=browserHarness();
     const aiScripts=()=>test.document.head.querySelectorAll('script').filter(script => /^(ai-import|duplicates)\.js\?/.test(script.src));
