@@ -167,6 +167,7 @@ async function main() {
       clearCaptchaWidget() {},
       readLegacyGames() { return []; },
       setConnectionStatus() {},
+      loadCollectionTools() {},
       render() {},
       games: [],
       apiRequest() { throw new Error('Unexpected request during authenticated initialization'); }

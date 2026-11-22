@@ -17,9 +17,9 @@
   image-rendering: pixelated;
 }
 
-/* Match the existing retro selector so motion stays available for this one
-   animated desktop, without changing the static Classic variants. */
-html[data-theme="classic"][data-classic-background="maze"] :is(#authScreen, #appShell) .background-motion-control {
+/* The selected animated desktop overrides the retro rule that hides motion
+   controls. These controls are available inside the signed-in menu. */
+html[data-theme="classic"][data-classic-background="maze"] #appShell .background-motion-control {
   display: inline-flex;
 }
 

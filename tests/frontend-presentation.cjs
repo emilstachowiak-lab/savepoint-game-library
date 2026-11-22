@@ -7,9 +7,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const root = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const {parseMarkup,descendants,hasClass,nodeText,harness,flush}=require('./frontend-dom.cjs');
+const {deferredScripts,parseMarkup,descendants,hasClass,nodeText,harness,flush}=require('./frontend-dom.cjs');
 const tree = parseMarkup(html), all = descendants(tree);
 const staticIds = all.filter(node=>node.attrs.id);
 assert.equal(new Set(staticIds.map(node=>node.attrs.id)).size,staticIds.length,'HTML IDs must remain unique');
@@ -20,12 +19,17 @@ for (const node of all.filter(node=>node.tag==='symbol').flatMap(descendants)) {
   assert(!['script','foreignobject','iframe','image'].includes(node.tag),'Sprite must contain only passive vector artwork');
   assert(!Object.keys(node.attrs).some(name=>/^on/i.test(name)),'Sprite must not add event handlers');
 }
-for (const match of source.matchAll(/\$\('([A-Za-z][\w-]*)'\)/g))
-  assert(staticIds.some(node=>node.attrs.id===match[1]),'Missing DOM contract #'+match[1]);
-assert.match(html,/\[hidden\]\s*\{[^}]*display\s*:\s*none\s*!important/,'Auth/app visibility must honor hidden');
-assert.match(html,/--radius\s*:\s*7px\b/,'Classic radius must remain 7px');
-assert.match(html,/\.cover-image\s*\{[^}]*object-fit\s*:\s*contain/,'Whole covers must not be cropped');
-assert.match(html,/\.cover:{1,2}after\s*\{[^}]*pointer-events\s*:\s*none/,'Cover shine must not intercept clicks');
+for (const {source} of deferredScripts)
+  for (const match of source.matchAll(/(?:\$|document\.getElementById)\('([A-Za-z][\w-]*)'\)/g))
+    assert(staticIds.some(node=>node.attrs.id===match[1]),'Missing DOM contract #'+match[1]);
+const baseSheet = all.find(node=>node.tag==='link' && node.attrs.rel==='stylesheet');
+assert.match(baseSheet?.attrs.href ?? '',/^base\.css\?v=/,'Load the versioned base sheet before theme overrides');
+const baseCss = fs.readFileSync(path.join(root, 'base.css'), 'utf8');
+assert.match(html,/\[hidden\]\s*\{[^}]*display\s*:\s*none\s*!important/,'Auth/app visibility must honor hidden even if base.css cannot load');
+assert.match(html,/html\.privacy-suspended #appShell,[^{]*\{[^}]*visibility\s*:\s*hidden\s*!important/,'Session privacy must not depend on external styling');
+assert.match(baseCss,/--radius\s*:\s*7px\b/,'Classic radius must remain 7px');
+assert.match(baseCss,/\.cover-image\s*\{[^}]*object-fit\s*:\s*contain/,'Whole covers must not be cropped');
+assert.match(baseCss,/\.cover:{1,2}after\s*\{[^}]*pointer-events\s*:\s*none/,'Cover shine must not intercept clicks');
 const deleteDialog = all.find(node=>node.attrs['aria-labelledby']==='deleteDialogTitle');
 assert.equal(deleteDialog?.attrs.role,'alertdialog');assert.equal(deleteDialog.attrs['aria-modal'],'true');
 for (const id of ['deleteClose','deleteCancelButton','deleteConfirmButton'])
@@ -64,7 +68,7 @@ async function main(){
     assert.equal(test.document.activeElement,test.nodes.deleteCancelButton,'Initial focus must be on Cancel');
     if(cancel==='button')test.nodes.deleteCancelButton.onclick();
     if(cancel==='close')test.nodes.deleteClose.onclick();
-    if(cancel==='escape')test.events.keydown({key:'Escape'});
+    if(cancel==='escape')test.events.keydown({key:'Escape',preventDefault(){}});
     if(cancel==='backdrop')test.nodes.deleteModalBackdrop.onclick({target:test.nodes.deleteModalBackdrop});
     if(cancel==='closeModal')test.context.closeModal();
     assert.equal(await pending,false);assert.equal(test.requests.length,0);

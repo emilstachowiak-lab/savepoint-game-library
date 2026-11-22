@@ -358,7 +358,7 @@ html[data-theme="luna"] .app-menu-logout .app-menu-icon {
   color: #8a442d;
 }
 
-/* Authentication and both dialogs keep their existing geometry and semantics. */
+/* Apply Luna colors and borders to the authentication card and dialogs. */
 html[data-theme="luna"] .auth-screen {
   background: #052a5420;
 }

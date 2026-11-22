@@ -1,367 +1,12 @@
-// The API supplies the current collection. The legacy storage key is read only
-// for migration, while the background color is a separate browser preference.
+// Wire the page controls to the session, collection transfer and Aero scripts.
+// The browser's legacy collection is available for migration or recovery.
 const $ = id => document.getElementById(id);
 const LEGACY_KEY = 'savepoint-library-v1';
-const BG_KEY = 'savepoint-background-color-v1';
-const API_URL = 'api/games.php';
 let games = [];
 let toastTimer;
+let aiImportController = null;
+let duplicatesController = null;
 
-// The XMB background rasterizes two decorative ribbons at a fixed size per color.
-// The browser animates their transforms without repainting the canvas each frame.
-function createEconomyXmb(stage, getColor, onError) {
-  'use strict';
-  const bitmapWidth = 768;
-  const bitmapHeight = 432;
-  const overscan = 1.42;
-  const sheets = [
-    {
-      d: 'M-140 245C250 235 425 590 810 595S1390 240 1740 235L1740 400C1360 420 1190 785 820 825S245 420-140 430Z',
-      crest: 'M-140 320C260 345 430 675 815 705S1375 330 1740 325',
-      edge: 'M-140 245C250 235 425 590 810 595S1390 240 1740 235',
-      alpha: .38,
-      width: 90
-    },
-    {
-      d: 'M-140 405C255 395 435 690 850 665S1410 370 1740 330L1740 405C1400 455 1205 795 855 740S245 495-140 485Z',
-      crest: 'M-140 440C250 435 440 750 852 705S1400 410 1740 365',
-      edge: 'M-140 405C255 395 435 690 850 665S1410 370 1740 330',
-      alpha: .32,
-      width: 55
-    }
-  ];
-  const periods = [4800, 6000];
-  const movement = [
-    [[-.040, -.055, -.3], [.020, .035, .15], [.040, .055, .3], [-.020, -.035, -.15]],
-    [[.040, .070, .45], [-.025, -.030, -.2], [-.040, -.070, -.45], [.025, .030, .2]]
-  ];
-  let disposed = false;
-  let playing = false;
-  let loadedColor = '';
-  let pendingColor = '';
-  let generation = 0;
-  let size = { width: 0, height: 0 };
-  const layers = [];
-  const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, value));
-  function selectedColor() {
-    const color = typeof getColor === 'function' ? getColor() : '';
-    return /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#0874bc';
-  }
-  function palette(hex) {
-    const rgb = parseInt(hex.slice(1), 16);
-    const red = (rgb >> 16 & 255) / 255;
-    const green = (rgb >> 8 & 255) / 255;
-    const blue = (rgb & 255) / 255;
-    const high = Math.max(red, green, blue);
-    const low = Math.min(red, green, blue);
-    const delta = high - low;
-    const light = (high + low) / 2;
-    let hue = 205;
-    if (delta) {
-      const sector = high === red ? (green - blue) / delta % 6
-        : high === green ? (blue - red) / delta + 2
-        : (red - green) / delta + 4;
-      hue = (sector * 60 + 360) % 360;
-    }
-    const saturation = delta ? delta / (1 - Math.abs(2 * light - 1)) : 0;
-    // Normalize against the original Aero blue so a custom hue tints the
-    // existing artwork while the default palette keeps its original balance.
-    const strength = clamp(saturation / .918, 0, 1.1);
-    const luminance = clamp(light / .3843, 0, 1.5);
-    return (shift, sat, lightness, alpha = 1) => {
-      const shiftedHue = (hue + shift + 360) % 360;
-      const adjustedSaturation = clamp(sat * strength, 0, 100);
-      const adjustedLightness = clamp(lightness * luminance, 0, 100);
-      return `hsla(${shiftedHue},${adjustedSaturation}%,${adjustedLightness}%,${alpha})`;
-    };
-  }
-  function gradient(color) {
-    const shade = palette(color);
-    return `linear-gradient(180deg,${shade(-7, 95, 64)},${shade(3, 51, 46)} 47%,${shade(28, 59, 24)})`;
-  }
-  function svgFor(sheet, color, index) {
-    const shade = palette(color);
-    const prefix = 'xmb' + index;
-    const ink = shade(24, 73, 13, .65);
-    const glow = shade(-4, 85, 80, .72);
-    const soft = shade(-1, 77, 72, .5);
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="768" height="432"' +
-      ' viewBox="0 0 1600 900" preserveAspectRatio="none"><defs>' +
-      `<linearGradient id="${prefix}fill" x1="0" y1="0" x2="0.1" y2="1">` +
-        `<stop stop-color="${shade(-3, 90, 80, .15)}"/>` +
-        `<stop offset=".28" stop-color="${shade(0, 80, 62, sheet.alpha)}"/>` +
-        `<stop offset=".56" stop-color="${shade(4, 70, 38, .22)}"/>` +
-        `<stop offset=".77" stop-color="${shade(0, 78, 68, .26)}"/>` +
-        `<stop offset="1" stop-color="${shade(10, 70, 45, .08)}"/>` +
-      '</linearGradient>' +
-      `<linearGradient id="${prefix}edge">` +
-        `<stop stop-color="${shade(-4, 92, 83, .52)}"/>` +
-        `<stop offset=".46" stop-color="${shade(-1, 80, 77, .15)}"/>` +
-        `<stop offset="1" stop-color="${shade(-6, 92, 86, .60)}"/>` +
-      '</linearGradient>' +
-      `<filter id="${prefix}soft" x="-.15" y="-.25" width="1.3" height="1.5">` +
-        '<feGaussianBlur stdDeviation="15"/></filter>' +
-      `<filter id="${prefix}shadow" x="-.15" y="-.25" width="1.3" height="1.5">` +
-        '<feGaussianBlur stdDeviation="20"/></filter>' +
-      `<clipPath id="${prefix}clip"><path d="${sheet.d}"/></clipPath></defs>` +
-      `<path d="${sheet.d}" fill="url(#${prefix}fill)"/>` +
-      `<g clip-path="url(#${prefix}clip)">` +
-        `<path d="${sheet.crest}" transform="translate(0 65)" fill="none" stroke="${ink}"` +
-          ` stroke-width="${sheet.width * .8}" filter="url(#${prefix}shadow)"/>` +
-        `<path d="${sheet.crest}" fill="none" stroke="${soft}"` +
-          ` stroke-width="${sheet.width}" filter="url(#${prefix}soft)"/>` +
-        `<path d="${sheet.crest}" transform="translate(0 -22)" fill="none" stroke="${glow}"` +
-          ` stroke-width="${sheet.width * .12}" filter="url(#${prefix}soft)"/>` +
-      '</g>' +
-      `<path d="${sheet.edge}" fill="none" stroke="url(#${prefix}edge)" stroke-width="3.5"/></svg>`;
-  }
-  function fail() {
-    if (disposed) return;
-    destroy();
-    try { onError?.(); } catch {}
-  }
-  function frames(index, motion = true) {
-    const scaleX = size.width * overscan / bitmapWidth;
-    const scaleY = size.height * overscan / bitmapHeight;
-    const points = movement[index];
-    // Interpolate between the control points on each axis of the closed loop.
-    const smooth = (a, b, c, d, t) => .5 * (
-      2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t
-      + (-a + 3 * b - 3 * c + d) * t * t * t
-    );
-    return Array.from({ length: 33 }, (_, sample) => {
-      const offset = sample / 32;
-      const progress = offset * points.length;
-      const segment = Math.floor(progress) % points.length;
-      const fraction = progress - Math.floor(progress);
-      const pointAt = relative => points[(segment + relative + points.length) % points.length];
-      const [x, y, angle] = [0, 1, 2].map(axis => motion
-        ? smooth(pointAt(-1)[axis], pointAt(0)[axis], pointAt(1)[axis], pointAt(2)[axis], fraction)
-        : 0);
-      return {
-        offset,
-        transform: `scale(${scaleX},${scaleY})` +
-          ` translate3d(${x * 100 / overscan}%,${y * 100 / overscan}%,0) rotate(${angle}deg)`
-      };
-    });
-  }
-  function setPlaying(value) {
-    if (disposed) return;
-    playing = Boolean(value);
-    try {
-      for (const layer of layers) {
-        layer.image.style.willChange = playing && layer.animation ? 'transform' : 'auto';
-        if (!layer.animation) continue;
-        if (playing && layer.animation.playState !== 'running') layer.animation.play();
-        else if (!playing && layer.animation.playState === 'running') layer.animation.pause();
-      }
-      stage.dataset.xmbPlaying = String(playing && layers.some(layer => layer.animation));
-    } catch { fail(); }
-  }
-  function updateFrames() {
-    if (disposed || !loadedColor) return;
-    try {
-      for (let index = 0; index < layers.length; index++) {
-        const layer = layers[index];
-        if (!layer.animation && typeof layer.image.animate === 'function') {
-          layer.animation = layer.image.animate(frames(index), {
-            duration: periods[index],
-            iterations: Infinity,
-            easing: 'linear',
-            delay: -periods[index] * (index * .29)
-          });
-          layer.animation.pause();
-        } else if (layer.animation) {
-          // Resizing changes the transform geometry while preserving the phase.
-          const time = layer.animation.currentTime;
-          layer.animation.effect.setKeyframes(frames(index));
-          if (time !== null) layer.animation.currentTime = time;
-        } else layer.image.style.transform = frames(index,false)[0].transform;
-      }
-      setPlaying(playing);
-    } catch { fail(); }
-  }
-  function renderAsset(sheet, color, index, current) {
-    return new Promise((resolve,reject) => {
-      const loader = new Image();
-      loader.onload = () => {
-        loader.onload = loader.onerror = null;
-        if (disposed || current !== generation) { resolve(null); return; }
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = bitmapWidth; canvas.height = bitmapHeight;
-          const context = canvas.getContext('2d');
-          if (!context) throw new Error('Background bitmap unavailable');
-          context.drawImage(loader,0,0,bitmapWidth,bitmapHeight);
-          const source = canvas.toDataURL('image/png');
-          if (!source.startsWith('data:image/png')) throw new Error('Background bitmap unavailable');
-          canvas.width = canvas.height = 1;
-          resolve(source);
-        } catch (error) { reject(error); }
-      };
-      loader.onerror = () => { loader.onload = loader.onerror = null; reject(new Error('Background image unavailable')); };
-      loader.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgFor(sheet,color,index));
-    });
-  }
-  // Build both layers before swapping the palette. A generation check discards
-  // late assets when the user changes the color again or leaves the page.
-  function loadAssets(color) {
-    const current = ++generation;
-    pendingColor = color;
-    stage.dataset.xmbReady = 'false';
-    Promise.all(sheets.map((sheet,index) => renderAsset(sheet,color,index,current))).then(results => {
-      if (disposed || current !== generation) return;
-      for (let index = 0; index < layers.length; index++) layers[index].image.src = results[index];
-      stage.style.background = gradient(color);
-      loadedColor = color; pendingColor = '';
-      updateFrames();
-      if (!disposed) stage.dataset.xmbReady = 'true';
-    }).catch(() => { if (!disposed && current === generation) fail(); });
-  }
-  function refresh() {
-    if (disposed) return;
-    try {
-      const color = selectedColor(), rect = stage.getBoundingClientRect();
-      if (!loadedColor) stage.style.background = gradient(color);
-      if (rect.width < 1 || rect.height < 1) return;
-      const resized = rect.width !== size.width || rect.height !== size.height;
-      size = {width:rect.width,height:rect.height};
-      if (pendingColor && pendingColor !== color) {
-        generation++; pendingColor = '';
-        stage.dataset.xmbReady = String(Boolean(loadedColor));
-      }
-      if (color !== loadedColor && pendingColor !== color) loadAssets(color);
-      else if (resized) updateFrames();
-    } catch { fail(); }
-  }
-  function destroy() {
-    if (disposed) return;
-    disposed = true; generation++;
-    resizer?.disconnect();
-    for (const layer of layers) {
-      try { layer.animation?.cancel(); } catch {}
-      layer.image.removeAttribute('src'); layer.image.remove();
-    }
-    stage.dataset.xmbPlaying = 'false';
-  }
-  let resizer = null;
-  try {
-    for (let index = 0; index < sheets.length; index++) {
-      const image = document.createElement('img');
-      image.className = 'xmb-ribbon-layer'; image.alt = ''; image.draggable = false;
-      image.width = bitmapWidth; image.height = bitmapHeight;
-      image.style.cssText = 'position:absolute;left:50%;top:50%;display:block;' +
-        'width:768px;height:432px;max-width:none;margin-left:-384px;margin-top:-216px;' +
-        'transform-origin:50% 50%;pointer-events:none;user-select:none;';
-      layers.push({image,animation:null});
-      stage.append(image);
-    }
-    if (typeof ResizeObserver === 'function') { resizer = new ResizeObserver(refresh); resizer.observe(stage); }
-    refresh();
-  } catch (error) { destroy(); throw error; }
-  return {refresh,resize:refresh,setPlaying,destroy};
-}
-
-// Keep the decorative renderer independent of authentication and the collection.
-// A plain gradient remains available if image loading or animation fails.
-function initializeXmbBackground() {
-  const background = $('xmbBackground'), backgroundPicker = $('backgroundColor');
-  if (!background || !backgroundPicker) return null;
-  const resetButton = $('backgroundColorReset');
-  const defaultColor = '#0874bc';
-  const validColor = value => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
-  const selectedColor = () => validColor(backgroundPicker.value) ? backgroundPicker.value : defaultColor;
-  const activeAero = () => {
-    const theme = document.documentElement?.getAttribute?.('data-theme');
-    return !theme || theme === 'aero';
-  };
-  try {
-    const savedColor = localStorage.getItem(BG_KEY);
-    if (validColor(savedColor)) backgroundPicker.value = savedColor;
-  } catch {}
-  let renderer = null, disposed = false, failed = false, pageSuspended = false, reducedMotion = null;
-  try { if (typeof matchMedia === 'function') reducedMotion = matchMedia('(prefers-reduced-motion: reduce)'); } catch {}
-  function fallback() {
-    const n = parseInt(selectedColor().slice(1),16), channels = [n >> 16,n >> 8 & 255,n & 255];
-    const shade = factor => 'rgb(' + channels.map(channel => Math.round(channel*factor)).join(',') + ')';
-    background.style.background = 'linear-gradient(155deg,'+shade(.4)+','+shade(.85)+' 48%,'+shade(.25)+')';
-  }
-  function disableRenderer() {
-    if (disposed) return;
-    failed = true;
-    try { renderer?.destroy(); } catch {}
-    renderer = null;
-    refresh();
-  }
-  function refresh() {
-    if (disposed) return;
-    const active = activeAero();
-    // Keep controls accurate even when only the gradient fallback is available.
-    if (resetButton) {
-      resetButton.hidden = !active;
-      resetButton.disabled = !active || selectedColor().toLowerCase() === defaultColor;
-    }
-    if (failed) { fallback(); return; }
-    try {
-      const visible = document.hidden !== true && !pageSuspended;
-      const preference = document.documentElement?.getAttribute?.('data-background-motion');
-      const motion = preference === 'on' || (preference !== 'off' && reducedMotion?.matches !== true);
-      renderer?.setPlaying(active && motion && visible);
-      if (visible && active) renderer?.refresh();
-    } catch { disableRenderer(); }
-  }
-  function onColorChange() {
-    if (disposed) return;
-    try { localStorage.setItem(BG_KEY,selectedColor()); } catch {}
-    refresh();
-  }
-  function onColorReset() {
-    // Recheck the current theme so hidden or stale events cannot reset Aero
-    // while a different desktop is selected. Remove only this preference.
-    if (disposed || !resetButton || resetButton.hidden || resetButton.disabled || !activeAero()) return;
-    backgroundPicker.value = defaultColor;
-    try { localStorage.removeItem(BG_KEY); } catch {}
-    // Reset becomes disabled below; preserve focus within the appearance menu.
-    if (document.activeElement === resetButton) {
-      try { backgroundPicker.focus({ preventScroll: true }); } catch {}
-    }
-    refresh();
-  }
-  function onPageHide(event) {
-    // A page in the back-forward cache can resume its existing animation.
-    if (!event.persisted) { destroy(); return; }
-    pageSuspended = true;
-    refresh();
-  }
-  function onPageShow() { if (!disposed) { pageSuspended = false; refresh(); } }
-  function destroy() {
-    if (disposed) return;
-    disposed = true;
-    backgroundPicker.removeEventListener?.('input',onColorChange);
-    resetButton?.removeEventListener?.('click',onColorReset);
-    document.removeEventListener?.('visibilitychange',refresh);
-    document.removeEventListener?.('savepoint:themechange',refresh);
-    if (typeof removeEventListener === 'function') {
-      removeEventListener('resize',refresh); removeEventListener('pagehide',onPageHide); removeEventListener('pageshow',onPageShow);
-    }
-    if (typeof reducedMotion?.removeEventListener === 'function') reducedMotion.removeEventListener('change',refresh);
-    else reducedMotion?.removeListener?.(refresh);
-    try { renderer?.destroy(); } catch {}
-    renderer = null;
-  }
-  backgroundPicker.addEventListener('input',onColorChange);
-  resetButton?.addEventListener('click',onColorReset);
-  document.addEventListener('visibilitychange',refresh);
-  document.addEventListener('savepoint:themechange',refresh);
-  if (typeof addEventListener === 'function') {
-    addEventListener('resize',refresh); addEventListener('pagehide',onPageHide); addEventListener('pageshow',onPageShow);
-  }
-  if (typeof reducedMotion?.addEventListener === 'function') reducedMotion.addEventListener('change',refresh);
-  else reducedMotion?.addListener?.(refresh);
-  fallback();
-  try { renderer = createEconomyXmb(background,selectedColor,disableRenderer); refresh(); } catch { disableRenderer(); }
-  return {refresh,resize:refresh,redraw:refresh,destroy};
-}
 const xmbBackground = initializeXmbBackground();
 
 // Validate the URL scheme before loading a cover. Escape values separately
@@ -369,7 +14,7 @@ const xmbBackground = initializeXmbBackground();
 const safeImageUrl = value => {
   try {
     const url = new URL(value);
-    return ['https:', 'http:'].includes(url.protocol) ? url.href : '';
+    return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : '';
   } catch { return ''; }
 };
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -449,322 +94,20 @@ function gameLabel(field, value) {
 }
 
 // Read records from versions that saved the collection in browser storage.
+function readLegacyArchive() {
+  try { return localStorage.getItem(LEGACY_KEY); } catch { return null; }
+}
+function showLegacyArchiveControls(visible) {
+  for (const id of ['downloadLegacyBtn', 'removeLegacyBtn']) {
+    const button = $(id);
+    if (button) button.hidden = !visible;
+  }
+}
 function readLegacyGames() {
   try {
-    const stored = JSON.parse(localStorage.getItem(LEGACY_KEY) || '[]');
-    return Array.isArray(stored) ? stored.map(({ price, ...game }) => game) : [];
+    const stored = JSON.parse(readLegacyArchive() || '[]');
+    return Array.isArray(stored) ? stored : [];
   } catch { return []; }
-}
-// Request and file limits apply separately because import re-serializes JSON.
-// Session generations identify which login owns pending requests and UI work.
-const MAX_REQUEST_BYTES = 65536;
-const MAX_IMPORT_FILE_BYTES = 1024 * 1024;
-const PENDING_LOGOUT_KEY = 'savepoint-logout-pending-v1';
-const FRESH_LOGIN_REQUIRED_KEY = 'savepoint-login-required-v1';
-let sessionGeneration = 0;
-let authenticated = false;
-let logoutRequest = null;
-const activeApiRequests = new Set();
-let sessionPolicy = null;
-let sessionWarningTimer = null;
-let sessionExpiryTimer = null;
-let privacySuspended = false;
-let privacyVisibility = null;
-let sessionValidationRequest = null;
-let sessionValidationToken = 0;
-// Measure elapsed time with both clocks when available. Moving the wall clock
-// backwards cannot extend a live session while the monotonic clock advances.
-function sessionClock() {
-  return {
-    wall: Date.now(),
-    mono: typeof performance !== 'undefined' && typeof performance.now === 'function'
-      ? performance.now()
-      : null
-  };
-}
-function sessionElapsed(anchor) {
-  const wall = Math.max(0, Date.now() - anchor.wall);
-  const hasMonotonicClock = anchor.mono !== null && typeof performance !== 'undefined'
-    && typeof performance.now === 'function';
-  const mono = hasMonotonicClock ? Math.max(0, performance.now() - anchor.mono) : 0;
-  return Math.max(wall, mono);
-}
-function sessionRemaining(policy = sessionPolicy) {
-  return policy ? Math.min(policy.idleMs, policy.absoluteMs) - sessionElapsed(policy.anchor) : 0;
-}
-function setSessionWarning(visible) {
-  const warning = $('sessionWarning');
-  if (!warning) return;
-  warning.hidden = !visible || privacySuspended || !authenticated || logoutPending;
-  setUiText($('sessionWarningText'), 'Sesja wkrótce wygaśnie. Zapisz otwarty formularz.',
-    'Your session will expire soon. Save any open form.');
-}
-function clearSessionPolicy() {
-  clearTimeout(sessionWarningTimer);
-  clearTimeout(sessionExpiryTimer);
-  sessionWarningTimer = sessionExpiryTimer = null;
-  sessionPolicy = null;
-  sessionValidationToken++;
-  sessionValidationRequest = null;
-  privacySuspended = false;
-  for (const [node, hidden] of privacyVisibility || []) {
-    if (node !== $('appShell')) node.hidden = hidden;
-  }
-  privacyVisibility = null;
-  document.documentElement?.classList.remove('privacy-suspended');
-  setSessionWarning(false);
-}
-// The warning and expiry timers share the earlier of the idle and absolute
-// deadlines. Recheck on firing because browser timers can be delayed.
-function armSessionTimers() {
-  clearTimeout(sessionWarningTimer);
-  clearTimeout(sessionExpiryTimer);
-  sessionWarningTimer = sessionExpiryTimer = null;
-  setSessionWarning(false);
-  if (!authenticated || logoutPending || !sessionPolicy) return;
-  const remaining = sessionRemaining();
-  if (remaining <= 0) { void revalidatePrivateSession(true); return; }
-  if (remaining <= 60000) setSessionWarning(true);
-  else sessionWarningTimer = setTimeout(() => {
-    if (authenticated && !logoutPending) {
-      if (sessionRemaining() <= 0) void revalidatePrivateSession(true);
-      else if (sessionRemaining() <= 60000) setSessionWarning(true);
-      else armSessionTimers();
-    }
-  }, remaining - 60000);
-  sessionExpiryTimer = setTimeout(() => {
-    if (authenticated && !logoutPending) {
-      if (sessionRemaining() <= 0) void revalidatePrivateSession(true);
-      else armSessionTimers();
-    }
-  }, remaining);
-}
-// Convert server timestamps to local countdowns anchored when the request
-// started, so transport delay cannot add time to the reported lifetime.
-function applySessionMetadata(metadata, anchor) {
-  const fields = ['authenticatedAt', 'lastActivityAt', 'idleExpiresAt', 'absoluteExpiresAt', 'serverNow'];
-  if (!metadata || !fields.every(key => Number.isSafeInteger(metadata[key]) && metadata[key] > 0)
-      || metadata.authenticatedAt > metadata.lastActivityAt || metadata.lastActivityAt > metadata.serverNow
-      || metadata.idleExpiresAt !== metadata.lastActivityAt + 1800
-      || metadata.absoluteExpiresAt !== metadata.authenticatedAt + 28800) return false;
-  const next = { anchor, authenticatedAt: metadata.authenticatedAt, lastActivityAt: metadata.lastActivityAt,
-    idleMs: (metadata.idleExpiresAt - metadata.serverNow) * 1000,
-    absoluteMs: (metadata.absoluteExpiresAt - metadata.serverNow) * 1000 };
-  if (sessionPolicy && next.authenticatedAt < sessionPolicy.authenticatedAt) return sessionRemaining() > 0;
-  if (sessionPolicy?.authenticatedAt === next.authenticatedAt) {
-    if (next.lastActivityAt < sessionPolicy.lastActivityAt) return sessionRemaining() > 0;
-    const elapsed = sessionElapsed(anchor);
-    const oldElapsed = sessionElapsed(sessionPolicy.anchor);
-    // Out-of-order or passive replies cannot move an unchanged deadline later.
-    next.absoluteMs = Math.min(next.absoluteMs, sessionPolicy.absoluteMs - oldElapsed + elapsed);
-    if (next.lastActivityAt === sessionPolicy.lastActivityAt) next.idleMs = Math.min(next.idleMs, sessionPolicy.idleMs - oldElapsed + elapsed);
-  }
-  if (sessionRemaining(next) <= 0) return false;
-  sessionPolicy = next;
-  armSessionTimers();
-  return true;
-}
-// A deadline crossing hides private UI immediately. Keep the current draft
-// and prior visibility so a successful passive check can restore them.
-function suspendPrivateView() {
-  if (!authenticated || logoutPending) return;
-  if (!privacySuspended) {
-    privacySuspended = true;
-    privacyVisibility = new Map();
-    for (const id of ['appShell', 'modalBackdrop', 'deleteModalBackdrop', 'toast']) {
-      const node = $(id);
-      if (node) { privacyVisibility.set(node, node.hidden); node.hidden = true; }
-    }
-  }
-  document.documentElement?.classList.add('privacy-suspended');
-  clearTimeout(coverBackupTimer);
-  coverBackupTimer = null;
-  setSessionWarning(false);
-}
-function showSessionChecking(error = null) {
-  $('authScreen').hidden = false;
-  setUiText($('authTitle'), error ? 'Widok zablokowany' : 'Sprawdzam sesję…',
-    error ? 'View locked' : 'Checking your session…');
-  setUiText($('authIntro'),
-    error ? 'Dane pozostają ukryte do potwierdzenia ważności sesji.' : 'Potwierdzam ważność sesji kolekcji.',
-    error ? 'Your collection stays hidden until your session is verified.' : 'Verifying your collection session.');
-  $('loginForm').hidden = true;
-  setUiText($('authMessage'), ...uiErrorText(error));
-  setUiText($('captchaStatus'), '');
-  $('retryConnection').hidden = !error;
-}
-// Share one passive check between callers. Its generation and token prevent a
-// superseded request from reopening the view after a login or logout.
-async function revalidatePrivateSession(expiredCandidate = false) {
-  if (!authenticated || logoutPending) return false;
-  suspendPrivateView();
-  if (sessionValidationRequest) return sessionValidationRequest;
-  const generation = sessionGeneration;
-  const token = ++sessionValidationToken;
-  showSessionChecking();
-  let timeout;
-  const check = (async () => {
-    try {
-      await Promise.race([
-        apiRequest('GET', undefined, generation, { sessionCheck: true }),
-        new Promise((resolve, reject) => {
-          timeout = setTimeout(() => {
-            reject(uiError('Nie udało się potwierdzić sesji. Sprawdź połączenie i ponów próbę.',
-              'Could not verify your session. Check your connection and try again.'));
-          }, 10000);
-        })
-      ]);
-      ensureCurrentSession(generation);
-      if (token !== sessionValidationToken || !authenticated || logoutPending) return false;
-      if (!sessionPolicy || sessionRemaining() <= 0) {
-        void performLogout();
-        return false;
-      }
-      const visibility = privacyVisibility;
-      privacySuspended = false;
-      privacyVisibility = null;
-      for (const [node, hidden] of visibility || []) node.hidden = hidden;
-      document.documentElement?.classList.remove('privacy-suspended');
-      $('appShell').hidden = false;
-      $('authScreen').hidden = true;
-      if (renderedCollectionMetadata && renderedCollectionMetadata.language !== uiLanguage) render();
-      armSessionTimers();
-      scheduleCoverBackupWorker();
-      return true;
-    } catch (error) {
-      if (ignoredSessionError(error) || generation !== sessionGeneration || token !== sessionValidationToken) return false;
-      if (error.status === 429) {
-        showSessionChecking(error);
-        return false;
-      }
-      if (expiredCandidate || !sessionPolicy || sessionRemaining() <= 0) {
-        void performLogout();
-        return false;
-      }
-      showSessionChecking(error);
-      return false;
-    } finally {
-      clearTimeout(timeout);
-      if (token === sessionValidationToken) sessionValidationRequest = null;
-    }
-  })();
-  sessionValidationRequest = check;
-  return check;
-}
-// Async actions can wait for revalidation. Actions requiring a browser user
-// gesture use the synchronous gate below and wait for a fresh click instead.
-async function ensurePrivateSessionReady(generation = sessionGeneration) {
-  ensureCurrentSession(generation);
-  if (!authenticated || logoutPending) throw staleSessionError();
-  if (privacySuspended || (sessionPolicy && sessionRemaining() <= 0)) {
-    if (!await revalidatePrivateSession(Boolean(sessionPolicy && sessionRemaining() <= 0))) throw staleSessionError();
-    ensureCurrentSession(generation);
-  }
-}
-function privateViewUsable() {
-  if (!authenticated || logoutPending) return false;
-  if (privacySuspended || (sessionPolicy && sessionRemaining() <= 0)) {
-    void revalidatePrivateSession(Boolean(sessionPolicy && sessionRemaining() <= 0));
-    return false;
-  }
-  return true;
-}
-function initializeSessionPrivacy() {
-  // Returning to a valid session is local and immediate. Re-arm deadlines in
-  // case the browser suspended timers; only an elapsed deadline needs the API.
-  const resumeSessionTimers = () => {
-    if (!document.hidden && authenticated && !logoutPending) armSessionTimers();
-  };
-  document.addEventListener?.('visibilitychange', () => {
-    if (!document.hidden) resumeSessionTimers();
-  });
-  addEventListener('focus', resumeSessionTimers);
-  addEventListener('pageshow', resumeSessionTimers);
-}
-// Preserve logout state across reloads. Local storage also carries the marker
-// to other tabs, and session storage is a fallback for the current tab.
-function readStoredFlag(key) {
-  return ['localStorage', 'sessionStorage'].some(name => {
-    try { return globalThis[name]?.getItem(key) === '1'; } catch { return false; }
-  });
-}
-function storeFlag(key, enabled) {
-  ['localStorage', 'sessionStorage'].forEach(name => {
-    try {
-      if (enabled) globalThis[name]?.setItem(key, '1');
-      else globalThis[name]?.removeItem(key);
-    } catch {}
-  });
-}
-function readPendingLogout() { return readStoredFlag(PENDING_LOGOUT_KEY); }
-function storePendingLogout(pending) { storeFlag(PENDING_LOGOUT_KEY, pending); }
-let logoutPending = readPendingLogout();
-let freshLoginRequired = readStoredFlag(FRESH_LOGIN_REQUIRED_KEY);
-function staleSessionError() {
-  const error = new Error('Odpowiedź dotyczy zakończonej sesji.');
-  error.staleSession = true;
-  return error;
-}
-function ensureCurrentSession(generation, allowLogout = false) {
-  if (generation !== sessionGeneration || (logoutPending && !allowLogout)) throw staleSessionError();
-}
-function ignoredSessionError(error) { return Boolean(error?.staleSession || error?.sessionExpired); }
-// Send same-origin JSON, track requests that can affect the session cookie,
-// and accept private results only while their session generation is current.
-async function apiRequest(method = 'GET', body = undefined, generation = sessionGeneration, options = {}) {
-  const isLogout = body?.action === 'logout';
-  const isSessionCheck = options.sessionCheck === true;
-  ensureCurrentSession(generation, isLogout);
-  if (authenticated && !isLogout && !isSessionCheck
-      && (privacySuspended || (sessionPolicy && sessionRemaining() <= 0))) {
-    await ensurePrivateSessionReady(generation);
-  }
-  // Check encoded bytes to match the server's request limit for Unicode text.
-  const requestBody = body ? JSON.stringify(body) : undefined;
-  if (requestBody && new TextEncoder().encode(requestBody).byteLength > MAX_REQUEST_BYTES) {
-    throw uiError('Dane żądania przekraczają limit 64 KiB. Zmniejsz importowaną kolekcję.',
-      'The request exceeds the 64 KiB limit. Reduce the size of the imported collection.');
-  }
-  const anchor = sessionClock();
-  const operation = (async () => {
-    const response = await fetch(isSessionCheck ? API_URL + '?session=1' : API_URL, {
-      method,
-      headers: body
-        ? { 'Content-Type': 'application/json', 'Accept-Language': uiLanguage }
-        : { 'Accept-Language': uiLanguage },
-      body: requestBody,
-      credentials: 'same-origin'
-    });
-    let result;
-    try { result = await response.json(); } catch { result = {}; }
-    // Consume the response before a pending logout is sent, so an older login
-    // cannot apply its session cookie after the final logout request.
-    ensureCurrentSession(generation, isLogout);
-    if (!response.ok || !result.ok) {
-      const fallback = response.status === 413
-        ? uiError('Żądanie jest zbyt duże.', 'The request is too large.')
-        : response.status === 415
-          ? uiError('Żądanie musi zawierać dane JSON.', 'The request must contain JSON.')
-          : uiError('Nie udało się połączyć z bazą danych.', 'Could not connect to the database.');
-      const error = result.error ? new Error(result.error) : fallback;
-      error.status = response.status;
-      error.payload = result;
-      if (response.status === 401 && authenticated && !isLogout && body?.action !== 'login') {
-        if (isSessionCheck) void performLogout();
-        else handleSessionExpired(result);
-        error.sessionExpired = true;
-      }
-      throw error;
-    }
-    if (!isLogout && (authenticated || Array.isArray(result.games) || isSessionCheck) && !applySessionMetadata(result.session, anchor)) {
-      void performLogout();
-      throw staleSessionError();
-    }
-    return result;
-  })();
-  if (!isLogout) activeApiRequests.add(operation);
-  try { return await operation; }
-  finally { activeApiRequests.delete(operation); }
 }
 // These indicators report connection state and transient collection actions.
 function setConnectionStatus(text, failed = false, english = text) {
@@ -779,9 +122,10 @@ function notify(message, english) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => $('toast').classList.remove('show'), 2600);
 }
-// Cards load original images lazily. The API creates private backups in a
-// separate queue, and the browser can try those backups if an original fails.
+// Give the batched readiness lookup a short head start. Missing copies fall
+// back to lazy original images without waiting for the backup worker.
 const COVER_LOAD_TIMEOUT = 10000;
+const COVER_STATUS_GRACE = 2500;
 let coverBackupCollection = null;
 let coverBackupQueue = [];
 let coverBackupTimer = null;
@@ -789,7 +133,10 @@ let coverBackupWorker = null;
 const coverBackupAttempted = new Set();
 const coverBackupBusyRetries = new Map();
 const coverBackupStatusChecked = new Set();
+const coverBackupReady = new Set();
 let coverBackupStatusAvailable = true;
+let coverStatusRetryAt = 0;
+let coverSourceTimer = null;
 let coverSavedById = new Map();
 const coverImageStates = new Map();
 let coverVisibilityObserver = null;
@@ -797,6 +144,8 @@ function localCoverUrl(id) {
   return /^[a-zA-Z0-9-]{1,36}$/.test(String(id)) ? API_URL + '?cover=' + encodeURIComponent(id) : '';
 }
 function clearCoverImageTracking() {
+  clearTimeout(coverSourceTimer);
+  coverSourceTimer = null;
   coverVisibilityObserver?.disconnect();
   coverVisibilityObserver = null;
   for (const state of coverImageStates.values()) { clearTimeout(state.timer); clearCoverProbe(state); }
@@ -810,19 +159,19 @@ function clearCoverBackups() {
   coverBackupAttempted.clear();
   coverBackupBusyRetries.clear();
   coverBackupStatusChecked.clear();
+  coverBackupReady.clear();
   coverBackupStatusAvailable = true;
+  coverStatusRetryAt = 0;
   coverSavedById.clear();
   clearCoverImageTracking();
 }
-// Grid renders replace image nodes. Check both the session and the saved URL
-// before an async callback changes an image still attached to the grid.
+// A detached card or changed record cannot receive an old image callback.
 function currentCoverImage(image) {
   const state = coverImageStates.get(image);
   if (!state || state.generation !== sessionGeneration || !authenticated || logoutPending
       || !$('grid').contains(image)) return null;
-  const matchesSavedCover = state.collection === games
-    && String(state.game.coverUrl) === state.key
-    && safeImageUrl(state.game.coverUrl) === state.url;
+  const saved = coverSavedById.get(state.id);
+  const matchesSavedCover = saved && String(saved.game.coverUrl) === state.key && saved.coverUrl === state.url;
   return matchesSavedCover ? state : null;
 }
 function clearCoverProbe(state) {
@@ -858,46 +207,95 @@ function useLocalCover(image) {
   state.local = true;
   image.src = localCoverUrl(state.id);
 }
-function trackCoverImages() {
-  clearCoverImageTracking();
-  const images = $('grid').querySelectorAll('img.cover-image[data-cover-id]');
-  for (const image of images) {
-    const id = image.dataset.coverId;
-    const game = coverSavedById.get(id)?.game;
-    if (!game || !localCoverUrl(id)) continue;
-    coverImageStates.set(image, {
-      id,
-      game,
-      collection: games,
-      key: String(game.coverUrl),
-      url: image.getAttribute('src'),
-      generation: sessionGeneration,
-      local: false,
-      retried: false,
-      timer: null
-    });
-    if (image.complete && !image.naturalWidth) useLocalCover(image);
+function useOriginalCover(image, state) {
+  state.directTried = true;
+  state.local = false;
+  image.src = state.url;
+}
+function startCoverIfReady(image, state, allowOriginal = false) {
+  if (image.hasAttribute('src')) return;
+  if (coverBackupReady.has(state.key)) useLocalCover(image);
+  else if (allowOriginal || coverBackupStatusChecked.has(state.key) || !coverBackupStatusAvailable) {
+    useOriginalCover(image, state);
   }
-  // A lazy image has no reliable loadstart event. Start its watchdog only once
-  // the card is visible, rather than expiring off-screen, unrequested images.
-  if (typeof IntersectionObserver !== 'function') return;
-  coverVisibilityObserver = new IntersectionObserver(entries => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      coverVisibilityObserver?.unobserve(entry.target);
-      const state = currentCoverImage(entry.target);
-      if (!state || state.local || (entry.target.complete && entry.target.naturalWidth)) continue;
-      state.timer = setTimeout(() => probeLocalCover(entry.target), COVER_LOAD_TIMEOUT);
+}
+function trackCoverImages() {
+  const images = new Set($('grid').querySelectorAll('img.cover-image[data-cover-id]'));
+  for (const [image, state] of coverImageStates) {
+    if (images.has(image)) continue;
+    coverVisibilityObserver?.unobserve(image);
+    clearTimeout(state.timer);
+    clearCoverProbe(state);
+    coverImageStates.delete(image);
+  }
+  // A lazy image has no reliable loadstart event. Time a stalled direct
+  // source only after it has become visible.
+  if (!coverVisibilityObserver && typeof IntersectionObserver === 'function') {
+    coverVisibilityObserver = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        coverVisibilityObserver?.unobserve(entry.target);
+        const state = currentCoverImage(entry.target);
+        if (!state) continue;
+        state.visible = true;
+        scheduleCoverProbe(entry.target, state);
+      }
+    });
+  }
+  for (const image of images) {
+    if (coverImageStates.has(image)) continue;
+    const id = image.dataset.coverId;
+    const saved = coverSavedById.get(id);
+    if (!saved || !localCoverUrl(id)) continue;
+    const src = image.getAttribute('src');
+    const local = src === localCoverUrl(id) || src === localCoverUrl(id) + '&ready=1';
+    const state = {
+      id,
+      key: String(saved.game.coverUrl),
+      url: saved.coverUrl,
+      generation: sessionGeneration,
+      local,
+      directTried: Boolean(src && !local),
+      retried: local && src.endsWith('&ready=1'),
+      timer: null
+    };
+    coverImageStates.set(image, state);
+    coverVisibilityObserver?.observe(image);
+    startCoverIfReady(image, state);
+  }
+  if (!coverSourceTimer && [...coverImageStates.keys()].some(image => !image.hasAttribute('src'))) {
+    coverSourceTimer = setTimeout(() => {
+      coverSourceTimer = null;
+      for (const [image, state] of coverImageStates) {
+        if (!currentCoverImage(image)) continue;
+        startCoverIfReady(image, state, true);
+        scheduleCoverProbe(image, state);
+      }
+    }, COVER_STATUS_GRACE);
+  }
+}
+function scheduleCoverProbe(image, state) {
+  if (state.visible && state.directTried && !state.local && !state.timer && !image.complete) {
+    state.timer = setTimeout(() => probeLocalCover(image), COVER_LOAD_TIMEOUT);
+  }
+}
+function releaseCoverSources() {
+  for (const [image, state] of coverImageStates) {
+    if (currentCoverImage(image)) {
+      startCoverIfReady(image, state);
+      scheduleCoverProbe(image, state);
     }
-  });
-  for (const image of coverImageStates.keys()) coverVisibilityObserver.observe(image);
+  }
 }
 function markCoverBackupReady(key) {
+  coverBackupReady.add(key);
   for (const [image, state] of coverImageStates) {
     // The first fallback can have raced the initial backup. Retry once when
     // the server confirms the file exists; repeated image errors never loop.
-    if (state.key !== key || !state.local || state.retried || !currentCoverImage(image)) continue;
+    if (state.key !== key || state.retried || !currentCoverImage(image)) continue;
+    if (!image.hasAttribute('src')) { useLocalCover(image); continue; }
     if (image.complete && image.naturalWidth) continue;
+    if (!state.local) { useLocalCover(image); continue; }
     state.retried = true;
     image.src = localCoverUrl(state.id) + '&ready=1';
   }
@@ -923,7 +321,7 @@ function scheduleCoverBackupWorker(delay = 750) {
     const worker = {generation};
     coverBackupWorker = worker;
     let nextDelay = 750;
-    const checkingStatus = coverBackupStatusAvailable && !coverBackupStatusChecked.has(item.key);
+    const checkingStatus = coverBackupStatusAvailable && Date.now() >= coverStatusRetryAt && !coverBackupStatusChecked.has(item.key);
     try {
       if (checkingStatus) {
         // One metadata request avoids a separate PHP request and database
@@ -939,7 +337,7 @@ function scheduleCoverBackupWorker(delay = 750) {
         }
         const result = await apiRequest('POST', {action: 'backup-cover-status', ids: batch.map(candidate => candidate.id)}, generation);
         ensureCurrentSession(generation);
-        if (!Array.isArray(result.backups) || result.backups.length > 32) throw new Error('Nieprawidłowa odpowiedź stanu kopii.');
+        if (!Array.isArray(result.backups) || result.backups.length > 32) throw new Error('Invalid cover backup status response');
         const statuses = new Map();
         for (const status of result.backups) {
           if (!status || typeof status.id !== 'string') continue;
@@ -953,6 +351,7 @@ function scheduleCoverBackupWorker(delay = 750) {
           coverBackupAttempted.add(candidate.key);
           markCoverBackupReady(candidate.key);
         }
+        releaseCoverSources();
         const requeueItem = !coverBackupAttempted.has(item.key) && currentCoverBackupCandidate(item);
         coverBackupQueue = coverBackupQueue.filter(candidate =>
           !coverBackupAttempted.has(candidate.key) && (!requeueItem || candidate.key !== item.key));
@@ -976,7 +375,9 @@ function scheduleCoverBackupWorker(delay = 750) {
       // A backup failure must not block a game save, import or usable original.
       // The server applies a retry cooldown; the next session can try again.
       if (checkingStatus && !ignoredSessionError(error) && generation === sessionGeneration && !logoutPending) {
-        coverBackupStatusAvailable = false;
+        if ([400, 404, 405, 501].includes(error.status)) coverBackupStatusAvailable = false;
+        else coverStatusRetryAt = Date.now() + 15000;
+        releaseCoverSources();
         if (currentCoverBackupCandidate(item)) {
           coverBackupQueue = coverBackupQueue.filter(candidate => candidate.key !== item.key);
           coverBackupQueue.unshift(item);
@@ -1012,6 +413,7 @@ function gamePlatforms(value) {
 }
 let collectionMetadataCache = null;
 let renderedCollectionMetadata = null;
+let renderedEmptyState = '';
 let titleCollator;
 function compareGameTitles(a, b) {
   if (titleCollator === undefined) {
@@ -1028,12 +430,14 @@ function getCollectionMetadata() {
   if (collectionMetadataCache?.games === games && collectionMetadataCache.language === uiLanguage) {
     return collectionMetadataCache;
   }
-  const entries = games.map(game => ({
+  const previousEntries = collectionMetadataCache?.language === uiLanguage
+    ? new Map(collectionMetadataCache.entries.map(entry => [entry.game, entry])) : new Map();
+  const entries = games.map(game => previousEntries.get(game) ?? ({
     game,
     platforms: gamePlatforms(game.platform),
     searchText: `${game.title} ${game.platform}`.toLocaleLowerCase('pl'),
     coverUrl: game.coverUrl ? safeImageUrl(game.coverUrl) : '',
-    cardHtml: null
+    card: null
   }));
   const titles = [...new Set(games.map(game => game.title).filter(Boolean))];
   const platforms = [...new Set(entries.flatMap(entry => entry.platforms))]
@@ -1239,6 +643,101 @@ function updateCoverSearchLinks() {
     googleSearch.href = 'https://www.google.com/search?udm=2&q=' + encodeURIComponent(query ? query + ' game cover' : 'video game cover');
   }
 }
+
+let aiCoverSearchRequest = null;
+function clearAiCoverSearch() {
+  const request = aiCoverSearchRequest;
+  aiCoverSearchRequest = null;
+  request?.controller?.abort();
+  const button = $('aiCoverSearch');
+  if (button) button.disabled = false;
+  setUiText($('aiCoverSearchStatus'), '');
+}
+function setAiCoverSearchVisible(visible) {
+  clearAiCoverSearch();
+  const controls = $('aiCoverSearchControls');
+  if (controls) controls.hidden = !visible;
+}
+async function searchGameCover() {
+  const button = $('aiCoverSearch');
+  const status = $('aiCoverSearchStatus');
+  const backdrop = $('modalBackdrop');
+  if (!button || button.disabled || !backdrop.classList.contains('open') || !privateViewUsable()) return;
+
+  const draftId = $('gameId').value;
+  const titleInput = $('title');
+  const coverInput = $('coverUrl');
+  const titleValue = titleInput.value;
+  const title = titleValue.trim();
+  const selectedPlatforms = getSelectedPlatforms();
+  const coverValue = coverInput.value;
+  if (!title) {
+    setUiText(status, 'Wpisz tytuł gry, aby wyszukać okładkę.', 'Enter a game title to search for a cover.');
+    titleInput.focus();
+    return;
+  }
+  if (!selectedPlatforms.length) {
+    setUiText(status, 'Wybierz przynajmniej jedną konsolę.', 'Select at least one platform.');
+    getPlatformGroups().find(group => !group.element.hidden)?.inputs[0]?.focus();
+    return;
+  }
+  // Imported platform labels remain on the game. The cover endpoint accepts
+  // only preset platforms that its providers can use for matching.
+  const platforms = platformCheckboxes().filter(input =>
+    input.checked && input.value !== 'Inna' && !input.closest('[data-extra-platforms]')
+  ).map(input => input.value);
+  if (!platforms.length) {
+    setUiText(status, 'Wybierz platformę obsługiwaną przez wyszukiwanie okładek.',
+      'Select a platform supported by cover search.');
+    return;
+  }
+
+  const generation = sessionGeneration;
+  const request = { controller: typeof AbortController === 'function' ? new AbortController() : null };
+  aiCoverSearchRequest = request;
+  button.disabled = true;
+  setUiText(status, 'Szukam okładki…', 'Searching for a cover…');
+  const discardStaleReply = () => {
+    if (aiCoverSearchRequest !== request) return true;
+    if (generation === sessionGeneration && authenticated && !logoutPending && !privacySuspended
+        && backdrop.classList.contains('open') && $('gameId').value === draftId
+        && titleInput.value === titleValue && coverInput.value === coverValue
+        && getSelectedPlatforms().join('\n') === selectedPlatforms.join('\n')) return false;
+    clearAiCoverSearch();
+    return true;
+  };
+  try {
+    const result = await apiRequest('POST', { action: 'ai-cover-search', title, platforms }, generation,
+      { abortableAiRequest: true, signal: request.controller?.signal });
+    if (discardStaleReply()) return;
+    const coverUrl = typeof result.coverUrl === 'string' ? result.coverUrl.trim() : '';
+    if (!coverUrl) {
+      if (result.coverSearch === 'unavailable') {
+        setUiText(status, 'Wyszukiwanie okładek jest chwilowo niedostępne.', 'Cover search is temporarily unavailable.');
+      } else {
+        setUiText(status, 'Nie znaleziono pasującej okładki.', 'No matching cover was found.');
+      }
+      return;
+    }
+    const url = new URL(coverUrl);
+    if (url.protocol !== 'https:' || url.username || url.password) throw new Error('Invalid cover URL');
+    coverInput.value = url.href;
+    updateCoverPreview(true);
+    setUiText(status, 'Znaleziono okładkę.', 'Cover found.');
+  } catch (error) {
+    if (discardStaleReply() || ignoredSessionError(error)) return;
+    const messages = error?.payload?.errorDefault || error?.payload?.errorEnglish
+      ? uiErrorText(error)
+      : ['Nie udało się wyszukać okładki. Spróbuj ponownie.', 'Could not search for a cover. Try again.'];
+    setUiText(status, ...messages);
+  } finally {
+    if (aiCoverSearchRequest === request) {
+      aiCoverSearchRequest = null;
+      button.disabled = false;
+    }
+  }
+}
+
 function updateCoverPreviewTitle() {
   if (!gameFormPresentationAvailable) return;
   const title = $('title').value.trim();
@@ -1280,8 +779,15 @@ function updateCoverPreview(immediate = false) {
   };
   const saved = games.find(game => String(game.id) === $('gameId').value && safeImageUrl(game.coverUrl) === url);
   const backupUrl = saved ? localCoverUrl(saved.id) : '';
-  let usedBackup = false;
-  const load = (source = url) => {
+  const preferBackup = Boolean(backupUrl && coverBackupReady.has(String(saved.coverUrl)));
+  let usedBackup = preferBackup;
+  let usedOriginal = !preferBackup;
+  const retryPreview = () => {
+    if (!usedBackup && backupUrl) { usedBackup = true; load(backupUrl); }
+    else if (!usedOriginal) { usedOriginal = true; load(url); }
+    else showFailure();
+  };
+  const load = (source = preferBackup ? backupUrl : url) => {
     coverPreviewTimer = null;
     clearTimeout(coverPreviewWatchdog);
     clearCoverPreviewProbe();
@@ -1299,8 +805,7 @@ function updateCoverPreview(immediate = false) {
       loader.onload = null;
       loader.onerror = null;
       loader.removeAttribute('src');
-      if (!usedBackup && backupUrl) { usedBackup = true; load(backupUrl); }
-      else showFailure();
+      retryPreview();
     };
     loader.onload = () => {
       if (!isCurrent() || coverPreviewLoader !== loader) return;
@@ -1314,8 +819,7 @@ function updateCoverPreview(immediate = false) {
       image.referrerPolicy = 'no-referrer';
       image.onerror = () => {
         if (!isCurrent()) return;
-        if (!usedBackup && backupUrl) { usedBackup = true; load(backupUrl); }
-        else showFailure();
+        retryPreview();
       };
       image.src = source;
       image.hidden = false;
@@ -1389,7 +893,7 @@ function renderGameCard({ game, platforms, coverUrl }) {
     ? `<span class="edition-icons" aria-hidden="true">${aeroIcon('disc-3')}${aeroIcon('download')}</span>`
     : aeroIcon(game.edition === 'Cyfrowe' ? 'download' : 'disc-3');
   const cover = coverUrl
-    ? `<img class="cover-image" data-cover-id="${id}" src="${esc(coverUrl)}"` +
+    ? `<img class="cover-image" data-cover-id="${id}"${localCoverUrl(game.id) ? '' : ` src="${esc(coverUrl)}"`}` +
       ` alt="${uiText('Okładka gry', 'Game cover for')} ${title}" loading="lazy" referrerpolicy="no-referrer">`
     : `<div class="cover-title">${title}</div>`;
   const completed = game.status === 'Ograna';
@@ -1400,8 +904,8 @@ function renderGameCard({ game, platforms, coverUrl }) {
   const platformChips = platforms
     .map(platform => `<span class="platform platform-chip">${esc(gameLabel('platform', platform))}</span>`)
     .join('');
-  const editLabel = uiText('Edytuj', 'Edit');
-  const deleteLabel = uiText('Usuń', 'Delete');
+  const editLabel = uiText('Edytuj', 'Edit') + ' ' + title;
+  const deleteLabel = uiText('Usuń', 'Delete') + ' ' + title;
   const editButton = `<button class="icon-btn" title="${editLabel}" aria-label="${editLabel}"` +
     ` data-game-action="edit" data-game-id="${id}">${aeroIcon('pencil')}</button>`;
   const deleteButton = `<button class="icon-btn" title="${deleteLabel}" aria-label="${deleteLabel}"` +
@@ -1459,9 +963,11 @@ function render() {
     list.length === 1 ? 'GAME' : 'GAMES');
   $('count').textContent = `${list.length} ${resultUnit}`;
   const grid = $('grid');
-  clearCoverImageTracking();
   if (!list.length) {
     const isEmpty = !games.length;
+    const emptyState = `${uiLanguage}:${isEmpty}`;
+    if (renderedEmptyState === emptyState) return;
+    renderedEmptyState = emptyState;
     const title = isEmpty ? uiText('Twoja kolekcja zaczyna się tutaj', 'Your collection starts here')
       : uiText('Nie znaleziono gier', 'No games found');
     const message = isEmpty
@@ -1476,9 +982,26 @@ function render() {
       <h2>${title}</h2>
       <p>${message}</p>
       ${addFirstGame}</div>`;
+    trackCoverImages();
     return;
   }
-  grid.innerHTML = list.map(entry => entry.cardHtml ??= renderGameCard(entry)).join('');
+  renderedEmptyState = '';
+  const nodes = list.map(entry => {
+    if (!entry.card) {
+      const container = document.createElement('div');
+      container.innerHTML = renderGameCard(entry);
+      entry.card = container.firstElementChild;
+    }
+    return entry.card;
+  });
+  // Keep the cards that remain visible mounted. Updating a filter must not
+  // restart their images or blur their controls when their position is stable.
+  const wanted = new Set(nodes);
+  for (const child of [...grid.children]) if (!wanted.has(child)) child.remove();
+  nodes.forEach((node, index) => {
+    const current = grid.children[index] ?? null;
+    if (current !== node) grid.insertBefore(node, current);
+  });
   trackCoverImages();
 }
 // Reference only known SVG symbols from the page's icon sprite.
@@ -1499,8 +1022,15 @@ let captchaSolvePromise = null;
 let captchaGeneration = 0;
 let turnstileScriptPromise = null;
 let turnstileWidgetId = null;
+let turnstileWaitTimer = null;
+
+function stopTurnstileWait() {
+  if (turnstileWaitTimer !== null) clearTimeout(turnstileWaitTimer);
+  turnstileWaitTimer = null;
+}
 
 function clearCaptchaWidget() {
+  stopTurnstileWait();
   if (turnstileWidgetId !== null && window.turnstile) {
     try { window.turnstile.remove(turnstileWidgetId); } catch {}
   }
@@ -1518,20 +1048,25 @@ function loadTurnstileApi() {
     script.async = true;
     script.defer = true;
     script.dataset.turnstileApi = 'true';
-    script.onload = () => {
-      if (window.turnstile) resolve();
-      else {
+    const finish = error => {
+      clearTimeout(timer);
+      script.onload = null;
+      script.onerror = null;
+      if (error) {
         turnstileScriptPromise = null;
         script.remove();
-        reject(uiError('Nie udało się uruchomić weryfikacji Turnstile.', 'Could not start Turnstile verification.'));
-      }
+        reject(error);
+      } else resolve();
     };
-    script.onerror = () => {
-      turnstileScriptPromise = null;
-      script.remove();
-      reject(uiError('Nie udało się załadować weryfikacji. Sprawdź połączenie i spróbuj ponownie.',
-        'Could not load verification. Check your connection and try again.'));
+    const timer = setTimeout(() => finish(uiError(
+      'Weryfikacja nie załadowała się na czas. Spróbuj ponownie.',
+      'Verification did not load in time. Try again.')), 15000);
+    script.onload = () => {
+      finish(window.turnstile ? null : uiError('Nie udało się uruchomić weryfikacji Turnstile.',
+        'Could not start Turnstile verification.'));
     };
+    script.onerror = () => finish(uiError('Nie udało się załadować weryfikacji. Sprawdź połączenie i spróbuj ponownie.',
+      'Could not load verification. Check your connection and try again.'));
     document.head.append(script);
   });
   return turnstileScriptPromise;
@@ -1607,6 +1142,21 @@ function prepareCaptcha(challenge) {
     captchaSolvePromise = null;
     loadTurnstileApi().then(() => {
       if (generation !== captchaGeneration) return;
+      // A stalled widget must offer a retry. Leave any ongoing or manual
+      // verification available until the user actually chooses to retry.
+      const showRetry = () => {
+        if (generation !== captchaGeneration) return;
+        stopTurnstileWait();
+        setUiText($('captchaStatus'), 'Weryfikacja trwa dłużej niż zwykle. Możesz zaczekać lub spróbować ponownie.',
+          'Verification is taking longer than usual. You can wait or try again.');
+        $('retryConnection').hidden = false;
+      };
+      const startWaitTimer = () => {
+        stopTurnstileWait();
+        turnstileWaitTimer = setTimeout(showRetry, 25000);
+      };
+      setUiText($('captchaStatus'), 'Potwierdź weryfikację zabezpieczenia.', 'Complete the security check.');
+      startWaitTimer();
       turnstileWidgetId = window.turnstile.render('#captchaWidget', {
         sitekey: challenge.siteKey,
         action: 'login',
@@ -1614,6 +1164,7 @@ function prepareCaptcha(challenge) {
         language: uiLanguage,
         callback: token => {
           if (generation !== captchaGeneration) return;
+          stopTurnstileWait();
           captchaSolution = token;
           setUiText($('captchaStatus'), 'Weryfikacja gotowa.', 'Verification complete.');
           $('loginButton').disabled = false;
@@ -1626,19 +1177,22 @@ function prepareCaptcha(challenge) {
           setUiText($('captchaStatus'), 'Weryfikacja wygasła. Rozwiąż ją ponownie.',
             'Verification expired. Complete it again.');
           $('loginButton').disabled = true;
+          startWaitTimer();
           try { window.turnstile.reset(turnstileWidgetId); } catch {}
         },
         'error-callback': () => {
           if (generation !== captchaGeneration) return;
+          stopTurnstileWait();
           captchaSolution = null;
           setUiText($('captchaStatus'), 'Weryfikacja jest chwilowo niedostępna.', 'Verification is temporarily unavailable.');
           $('loginButton').disabled = true;
           $('retryConnection').hidden = false;
-        }
+        },
+        'timeout-callback': showRetry
       });
-      setUiText($('captchaStatus'), 'Potwierdź weryfikację zabezpieczenia.', 'Complete the security check.');
     }).catch(error => {
       if (generation !== captchaGeneration) return;
+      stopTurnstileWait();
       setUiText($('captchaStatus'), ...uiErrorText(error));
       $('retryConnection').hidden = false;
     });
@@ -1794,12 +1348,17 @@ function showAuthError(message, connectionError = false, english) {
 // Logout and expiry clear collection records, rendered cards, form drafts,
 // search options, and previews. Cancel view timers and image work as well.
 function clearPrivateData() {
+  aiImportController?.clearPrivateData();
+  duplicatesController?.clearPrivateData();
   clearSessionPolicy();
   closeAppMenu();
+  showLegacyArchiveControls(false);
   clearCoverBackups();
+  pendingGameDeletes.clear();
   games = [];
   collectionMetadataCache = null;
   renderedCollectionMetadata = null;
+  renderedEmptyState = '';
   $('appShell').hidden = true;
   $('grid').replaceChildren();
   $('gameTitleSuggestions').replaceChildren();
@@ -1816,7 +1375,7 @@ function clearPrivateData() {
   $('gameForm').reset();
   setPlatformSelection();
   $('gameId').value = '';
-  $('importFile').value = '';
+  clearCollectionImport();
   updateCoverSearchLinks();
   closeModal();
   $('loginUsername').value = '';
@@ -1934,12 +1493,11 @@ async function acceptAuthenticated(initialGames, generation = sessionGeneration)
   captchaSolvePromise = null;
   const legacyGames = readLegacyGames();
   let migrationNotice;
-  let nextGames = initialGames;
+  games = initialGames;
   if (legacyGames.length) {
     try {
-      const migration = await apiRequest('POST', { action: 'migrate', games: legacyGames }, generation);
+      const migration = await submitCollectionTransfer('migrate', legacyGames, generation);
       ensureCurrentSession(generation);
-      nextGames = migration.games;
       try { localStorage.removeItem(LEGACY_KEY); } catch {}
       if (migration.inserted > 0) {
         const unit = migration.inserted === 1 ? 'game' : 'games';
@@ -1958,13 +1516,14 @@ async function acceptAuthenticated(initialGames, generation = sessionGeneration)
     }
   }
   ensureCurrentSession(generation);
-  games = nextGames;
   setConnectionStatus('zapis w bazie danych', false, 'saved in the database');
   if (!sessionPolicy) { void performLogout(); throw staleSessionError(); }
   $('appShell').hidden = privacySuspended;
   $('authScreen').hidden = !privacySuspended;
+  showLegacyArchiveControls(readLegacyArchive() !== null);
   armSessionTimers();
   render();
+  loadCollectionTools();
   if (migrationNotice) notify(...migrationNotice);
 }
 // Recover a pending logout first, then ask the API whether it can resume an
@@ -1987,7 +1546,7 @@ async function initialize() {
     await acceptAuthenticated(initial.games, generation);
   } catch (error) {
     if (ignoredSessionError(error) || generation !== sessionGeneration || logoutPending) return;
-    if (error.status === 401) {
+    if (error.status === 401 && (error.payload?.authRequired === true || hasCaptchaChallenge(error.payload?.captcha))) {
       if (!hasCaptchaChallenge(error.payload?.captcha)) {
         showAuthError('Serwer ma starszą wersję API logowania i nie udostępnia CAPTCHA. Wgraj aktualny plik api/games.php z projektu i odśwież stronę.', true,
           'The server uses an older sign-in API without CAPTCHA. Upload the current api/games.php from the project and reload the page.');
@@ -1998,9 +1557,8 @@ async function initialize() {
       return;
     }
     const [polish, english] = uiErrorText(error);
-    setConnectionStatus('brak połączenia z bazą', true, 'database connection unavailable');
-    showAuthError(`${polish} Upewnij się, że strona działa przez HTTPS na serwerze PHP z poprawną konfiguracją bazy.`, true,
-      `${english} Make sure the site uses HTTPS on a PHP server with the correct database configuration.`);
+    setConnectionStatus('błąd połączenia z serwerem', true, 'server connection error');
+    showAuthError(polish, true, english);
   }
 }
 // Consume the challenge once. Clear the password field as soon as the request
@@ -2084,13 +1642,58 @@ addEventListener('storage', event => {
 });
 // Use one form for new and existing games. Clear stale previews and selections
 // before populating an edit, then focus the title in the current session.
+let gameDraft = null;
+const gameSaveButton = $('gameForm').querySelector('button[type="submit"]');
+function gameDraftValues() {
+  return {
+    titleInput: $('title').value,
+    selection: getSelectedPlatforms(),
+    edition: $('edition').value,
+    coverInput: $('coverUrl').value,
+    status: $('status').value
+  };
+}
+function setDraftOption(id, value) {
+  const select = $(id);
+  select.querySelector('[data-legacy-value]')?.remove();
+  if (!value) return;
+  if (![...select.querySelectorAll('option')].some(option => option.value === value)) {
+    const option = document.createElement('option');
+    option.dataset.legacyValue = 'true';
+    option.value = value;
+    option.textContent = value;
+    select.append(option);
+  }
+  select.value = value;
+}
+function requestCloseModal() {
+  if (!gameDraft) return true;
+  if (gameDraft.pending) return false;
+  if (gameDraft.original !== JSON.stringify(gameDraftValues()) && !confirm(uiText(
+    'Odrzucić niezapisane zmiany w grze?', 'Discard the unsaved changes to this game?'))) return false;
+  closeModal();
+  return true;
+}
+function updateOrdinaryModalState() {
+  $('appShell').inert = Boolean(gameDraft || pendingDeleteConfirmation);
+}
+function restoreCollectionFocus(target) {
+  if (!logoutPending && !$('appShell').hidden) {
+    const focusTarget = target?.isConnected ? target : $('addBtn');
+    focusTarget?.focus();
+  }
+}
 function openModal(game) {
-  if (!privateViewUsable()) return;
+  if (!privateViewUsable() || !requestCloseModal()) return;
+  aiImportController?.close();
+  duplicatesController?.close();
   closeAppMenu();
   clearCoverPreview();
   resolveDeleteConfirmation(false);
   const generation = sessionGeneration;
+  const focusTarget = document.activeElement;
   $('gameForm').reset();
+  setAiCoverSearchVisible(true);
   setPlatformSelection(game?.platform);
   $('gameId').value = game?.id || '';
   setUiText($('modalTitle'), game ? 'Edytuj grę' : 'Dodaj grę do kolekcji',
@@ -2100,16 +1703,21 @@ function openModal(game) {
     game ? 'Update the details of your copy.' : 'Add another title to your library.');
   if (game) {
     $('title').value = game.title;
-    $('edition').value = game.edition || 'Fizyczne';
+    setDraftOption('edition', game.edition || 'Fizyczne');
     $('coverUrl').value = game.coverUrl || '';
-    $('status').value = game.status || 'Do ogrania';
+    setDraftOption('status', game.status || 'Do ogrania');
   }
+  const draft = { id: game?.id || '', revision: game?.revision, createdAt: game?.createdAt ?? Date.now(),
+    savedCover: game?.coverUrl || '',
+    focusTarget, original: JSON.stringify(gameDraftValues()), pending: false };
+  gameDraft = draft;
+  updateOrdinaryModalState();
   updateCoverSearchLinks();
   $('modalBackdrop').classList.add('open');
   $('gameForm').querySelector('.form-grid').scrollTop = 0;
   updateCoverPreview(true);
   setTimeout(() => {
-    if (generation === sessionGeneration && !logoutPending && $('modalBackdrop').classList.contains('open')) $('title').focus();
+    if (generation === sessionGeneration && !logoutPending && gameDraft === draft) $('title').focus();
   }, 40);
 }
 // A single pending promise represents the delete dialog. Dismissal, another
@@ -2121,33 +1729,46 @@ function resolveDeleteConfirmation(confirmed) {
   $('deleteModalBackdrop').classList.remove('open');
   setUiText($('deleteGameName'), '');
   setUiText($('deleteGamePlatforms'), '');
+  updateOrdinaryModalState();
   if (pending) {
-    if (!logoutPending && !$('appShell').hidden && pending.focusTarget?.isConnected) pending.focusTarget.focus();
+    restoreCollectionFocus(pending.focusTarget);
     pending.resolve(confirmed === true);
   }
 }
 function confirmGameDeletion(game) {
+  aiImportController?.close();
+  duplicatesController?.close();
   closeAppMenu();
   resolveDeleteConfirmation(false);
-  if (!privateViewUsable()) return Promise.resolve(false);
-  closeModal();
+  if (!privateViewUsable() || !requestCloseModal()) return Promise.resolve(false);
   setUiText($('deleteGameName'), '„' + game.title + '”', '“' + game.title + '”');
   const platforms = gamePlatforms(game.platform);
   setUiText($('deleteGamePlatforms'), platforms.join(' · '),
     platforms.map(platform => englishGameLabels.platform.get(platform) ?? platform).join(' · '));
   const promise = new Promise(resolve => { pendingDeleteConfirmation = { resolve, focusTarget: document.activeElement }; });
+  updateOrdinaryModalState();
   $('deleteModalBackdrop').classList.add('open');
   $('deleteCancelButton').focus();
   return promise;
 }
 function closeModal() {
+  const closed = gameDraft;
+  gameDraft = null;
   $('modalBackdrop').classList.remove('open');
+  setAiCoverSearchVisible(false);
   clearCoverPreview();
+  setDraftOption('edition');
+  setDraftOption('status');
   $('gameForm').reset();
+  $('gameForm').inert = false;
+  $('title').setCustomValidity('');
+  $('coverUrl').setCustomValidity('');
+  if (gameSaveButton) gameSaveButton.disabled = false;
   updateCoverSearchLinks();
   setPlatformSelection();
   $('gameId').value = '';
   resolveDeleteConfirmation(false);
+  if (closed) restoreCollectionFocus(closed.focusTarget);
 }
 // Card actions look up the current record by ID before opening a dialog.
 window.openModal = openModal;
@@ -2155,27 +1776,39 @@ window.editGame = id => {
   const game = games.find(item => item.id === id);
   if (game) openModal(game);
 };
+const pendingGameDeletes = new Set();
 window.deleteGame = async id => {
   const generation = sessionGeneration;
   const game = games.find(item => item.id === id);
-  if (!game) return;
+  if (!game || pendingGameDeletes.has(game)) return;
+  pendingGameDeletes.add(game);
   try {
     if (!await confirmGameDeletion(game)) return;
     ensureCurrentSession(generation);
-    const result = await apiRequest('POST', { action: 'delete', id }, generation);
+    await apiRequest('POST', { action: 'delete', id, revision: game.revision, delta: true }, generation);
     ensureCurrentSession(generation);
-    games = result.games;
-    render();
+    if (!document.activeElement?.isConnected) restoreCollectionFocus();
     notify('Gra usunięta z kolekcji', 'Game removed from your collection');
   } catch (error) {
-    if (!ignoredSessionError(error) && generation === sessionGeneration && !logoutPending) notify(...uiErrorText(error));
-  }
+    if (!ignoredSessionError(error) && generation === sessionGeneration && !logoutPending) {
+      notify(...uiErrorText(error));
+      if (error.payload?.code === 'collection_conflict') {
+        await apiRequest('GET', undefined, generation, { reloadCollection: true }).catch(() => {});
+      }
+    }
+  } finally { pendingGameDeletes.delete(game); }
 };
 // Delegate events to the stable grid element. Capture is needed for load and
 // error events from images, which do not bubble from the replacement cards.
 $('grid').addEventListener('error', event => {
   if (!event.target.matches?.('img.cover-image')) return;
-  useLocalCover(event.target);
+  const image = event.target;
+  const state = currentCoverImage(image);
+  if (!state || !image.hasAttribute('src')) return;
+  if (state.local && !state.directTried) {
+    useOriginalCover(image, state);
+    scheduleCoverProbe(image, state);
+  } else if (!state.local && !coverBackupReady.has(state.key)) useLocalCover(image);
 }, true);
 $('grid').addEventListener('load', event => {
   const state = coverImageStates.get(event.target);
@@ -2189,35 +1822,68 @@ $('grid').addEventListener('click', event => {
   if (button.dataset.gameAction === 'delete') window.deleteGame(button.dataset.gameId);
 });
 $('addBtn').onclick = () => openModal();
+$('aiCoverSearch')?.addEventListener('click', searchGameCover);
+for (const eventName of ['input', 'change']) {
+  $('gameForm').addEventListener(eventName, event => {
+    if (['title', 'coverUrl'].includes(event.target.id) || event.target.name === 'platform') clearAiCoverSearch();
+  });
+}
 $('title').addEventListener('input', () => {
+  $('title').setCustomValidity('');
   updateCoverSearchLinks();
   updateCoverPreviewTitle();
 });
-$('closeModal').onclick = closeModal;
-$('cancelBtn').onclick = closeModal;
-$('modalBackdrop').onclick = event => { if (event.target === $('modalBackdrop')) closeModal(); };
+$('coverUrl').addEventListener('input', () => $('coverUrl').setCustomValidity(''));
+$('closeModal').onclick = requestCloseModal;
+$('cancelBtn').onclick = requestCloseModal;
+$('modalBackdrop').onclick = event => { if (event.target === $('modalBackdrop')) requestCloseModal(); };
 $('deleteClose').onclick = () => resolveDeleteConfirmation(false);
 $('deleteCancelButton').onclick = () => resolveDeleteConfirmation(false);
 $('deleteConfirmButton').onclick = () => resolveDeleteConfirmation(true);
 $('deleteModalBackdrop').onclick = event => { if (event.target === $('deleteModalBackdrop')) resolveDeleteConfirmation(false); };
 document.addEventListener('keydown', event => {
   if (handleAppMenuKeydown(event)) return;
-  if (event.key === 'Escape') closeModal();
-  if (event.key === 'Tab' && $('deleteModalBackdrop').classList.contains('open')) {
-    const first = $('deleteClose'), last = $('deleteConfirmButton');
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  const dialog = pendingDeleteConfirmation ? $('deleteModalBackdrop') : gameDraft ? $('modalBackdrop') : null;
+  if (!dialog) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    if (pendingDeleteConfirmation) resolveDeleteConfirmation(false);
+    else requestCloseModal();
+  } else if (event.key === 'Tab') {
+    const controls = [...dialog.querySelectorAll('button, input, select, textarea, a[href], [tabindex]')]
+      .filter(control => !control.disabled && control.type !== 'hidden' && control.tabIndex >= 0 &&
+        !control.closest('[hidden], fieldset[disabled]'));
+    const active = document.activeElement;
+    if (!controls.length) return;
+    const first = controls[0], last = controls[controls.length - 1];
+    if (!controls.includes(active) || (event.shiftKey ? active === first : active === last)) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    }
   }
 });
 initializeGameFormPresentation();
-// Keep an existing record's ID and creation time. Commit the UI update only
-// after the server returns the saved collection for the current session.
+// Capture the draft revision and reuse the same ID across retries. A reply
+// that belongs to another session or editor cannot reset the current form.
 $('gameForm').onsubmit = async event => {
   event.preventDefault();
   const generation = sessionGeneration;
-  if (logoutPending) return;
-  if (privacySuspended || (sessionPolicy && sessionRemaining() <= 0)) {
-    try { await ensurePrivateSessionReady(generation); } catch { return; }
+  const draft = gameDraft;
+  if (!draft || draft.pending || logoutPending) return;
+  const { titleInput, selection, edition, coverInput, status } = gameDraftValues();
+  const title = titleInput.trim();
+  const platform = platformListForStorage(selection);
+  const coverUrl = safeImageUrl(coverInput);
+  if (!title || Array.from(title).length > 255) {
+    $('title').setCustomValidity(uiText('Podaj tytuł od 1 do 255 znaków.', 'Enter a title between 1 and 255 characters.'));
+    $('title').reportValidity();
+    return;
+  }
+  if (coverInput.trim() && !coverUrl) {
+    $('coverUrl').setCustomValidity(uiText('Podaj adres HTTP lub HTTPS bez danych logowania.',
+      'Enter an HTTP or HTTPS address without login information.'));
+    $('coverUrl').reportValidity();
+    return;
   }
   if (!validatePlatformSelection()) {
     const first = platformCheckboxes()[0];
@@ -2226,92 +1892,43 @@ $('gameForm').onsubmit = async event => {
     first.reportValidity();
     return;
   }
-  const id = $('gameId').value;
-  const existing = games.find(game => game.id === id);
-  const game = {
-    id: id || crypto.randomUUID(),
-    title: $('title').value.trim(),
-    platform: getSelectedPlatforms().join(', '),
-    edition: $('edition').value,
-    coverUrl: safeImageUrl($('coverUrl').value),
-    status: $('status').value,
-    createdAt: existing?.createdAt || Date.now()
-  };
+  if (selection.length > 50 || Array.from(platform).length > 400) {
+    notify('Lista platform przekracza limit 50 pozycji lub 400 znaków.',
+      'The platform list exceeds 50 entries or 400 characters.');
+    return;
+  }
+  if (aiCoverSearchRequest) clearAiCoverSearch();
+  const mode = draft.id ? 'edit' : 'create';
+  const id = draft.id || (draft.newId ??= crypto.randomUUID());
+  const game = { id, title, platform, edition, coverUrl: coverInput === draft.savedCover ? draft.savedCover : coverUrl,
+    status, createdAt: draft.createdAt };
+  draft.pending = true;
+  $('gameForm').inert = true;
+  if (gameSaveButton) gameSaveButton.disabled = true;
   try {
-    const result = await apiRequest('POST', { action: 'save', game }, generation);
+    await apiRequest('POST', { action: 'save', mode, game, revision: draft.revision, delta: true }, generation);
     ensureCurrentSession(generation);
-    games = result.games;
-    render();
-    closeModal();
-    notify(id ? 'Zmiany zapisane' : 'Gra dodana do kolekcji', id ? 'Changes saved' : 'Game added to your collection');
+    if (gameDraft === draft) closeModal();
+    notify(mode === 'edit' ? 'Zmiany zapisane' : 'Gra dodana do kolekcji',
+      mode === 'edit' ? 'Changes saved' : 'Game added to your collection');
   } catch (error) {
-    if (!ignoredSessionError(error) && generation === sessionGeneration && !logoutPending) notify(...uiErrorText(error));
+    if (!ignoredSessionError(error) && generation === sessionGeneration && !logoutPending) {
+      notify(...uiErrorText(error));
+      if (error.payload?.code === 'collection_conflict') {
+        await apiRequest('GET', undefined, generation, { reloadCollection: true }).catch(() => {});
+      }
+    }
+  } finally {
+    if (gameDraft === draft) {
+      draft.pending = false;
+      $('gameForm').inert = false;
+      if (gameSaveButton) gameSaveButton.disabled = false;
+    }
   }
 };
 ['search', 'platformFilter', 'editionFilter', 'statusFilter', 'sort'].forEach(id =>
   $(id).addEventListener(id === 'search' ? 'input' : 'change', render));
-// Export the current collection as a temporary browser download.
-$('exportBtn').onclick = () => {
-  if (!privateViewUsable()) return;
-  const url = URL.createObjectURL(new Blob([JSON.stringify(games, null, 2)], { type: 'application/json' }));
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = 'savepoint-kolekcja.json';
-  anchor.click();
-  URL.revokeObjectURL(url);
-  notify('Kopia kolekcji pobrana', 'Collection backup downloaded');
-};
-$('importBtn').onclick = () => { if (privateViewUsable()) $('importFile').click(); };
-// Read and validate a bounded JSON file, then require explicit confirmation
-// before asking the server to replace the current collection.
-$('importFile').onchange = async event => {
-  const file = event.target.files[0];
-  if (!file) {
-    event.target.value = '';
-    return;
-  }
-  const generation = sessionGeneration;
-  try {
-    await ensurePrivateSessionReady(generation);
-    ensureCurrentSession(generation);
-    if (file.size > MAX_IMPORT_FILE_BYTES) {
-      throw uiError('Plik importu przekracza limit 1 MiB.', 'The import file exceeds the 1 MiB limit.');
-    }
-    let imported;
-    try { imported = JSON.parse(await file.text()); }
-    catch {
-      throw uiError('Nie udało się odczytać pliku JSON. Wybierz poprawny eksport Savepoint.',
-        'Could not read the JSON file. Choose a valid Savepoint export.');
-    }
-    ensureCurrentSession(generation);
-    await ensurePrivateSessionReady(generation);
-    if (!Array.isArray(imported) || imported.some(game => !game || !game.title || !game.platform)) {
-      throw uiError('Plik JSON nie zawiera poprawnej kolekcji gier.', 'The JSON file does not contain a valid game collection.');
-    }
-    const count = imported.length;
-    const unit = count === 1 ? 'game' : 'games';
-    if (confirm(uiText(`Zaimportować ${count} gier? Obecna kolekcja zostanie zastąpiona.`,
-      `Import ${count} ${unit}? This will replace your current collection.`))) {
-      ensureCurrentSession(generation);
-      const importedGames = imported.map(({ price, ...game }) => ({
-        ...game,
-        id: game.id || crypto.randomUUID(),
-        createdAt: game.createdAt || Date.now()
-      }));
-      const result = await apiRequest('POST', { action: 'replace', games: importedGames }, generation);
-      ensureCurrentSession(generation);
-      games = result.games;
-      render();
-      notify('Kolekcja zaimportowana do bazy danych', 'Collection imported into the database');
-    }
-  } catch (error) {
-    if (!ignoredSessionError(error) && generation === sessionGeneration && !logoutPending) {
-      alert(uiText(...uiErrorText(error)) || uiText('Nie udało się zaimportować kolekcji.', 'Could not import the collection.'));
-    }
-  } finally {
-    event.target.value = '';
-  }
-};
+initializeCollectionTransfer();
 
 function initializeUiLanguage() {
   // data-en replaces textContent. Use it on text-only elements so translation
@@ -2339,6 +1956,8 @@ function initializeUiLanguage() {
       const language = control.value === 'en' ? 'en' : 'pl';
       if (language === uiLanguage) return;
       uiLanguage = language;
+      aiImportController?.refreshLanguage();
+      duplicatesController?.refreshLanguage();
       try { localStorage.setItem(LANGUAGE_KEY, language); } catch {}
       document.documentElement?.setAttribute('lang', language);
       for (const selector of controls) selector.value = language;
@@ -2362,9 +1981,133 @@ function initializeUiLanguage() {
   }
 }
 
+// The photo workflow uses only authenticated API hooks. It cannot modify the
+// collection until its explicit review sends a separate, tracked batch save.
+function initializeAiImport() {
+  const button = $('addAiBtn');
+  const backdrop = $('aiImportBackdrop');
+  // An older cached document can briefly load a newer script during upload.
+  // Keep ordinary sign-in and collection controls usable without the new UI.
+  if (!button || !backdrop || aiImportController) return;
+  if (!window.SavepointAiImport) {
+    button.onclick = () => notify('Nie udało się uruchomić funkcji AI. Odśwież stronę.',
+      'Could not start the AI feature. Reload the page.');
+    return;
+  }
+  aiImportController = window.SavepointAiImport.create({
+    button,
+    backdrop,
+    request: (body, generation, signal) => apiRequest('POST', body, generation, {
+      abortableAiRequest: body.action !== 'ai-add', signal
+    }),
+    ensureReady: generation => ensurePrivateSessionReady(generation),
+    getGeneration: () => sessionGeneration,
+    isCurrent: generation => authenticated && !logoutPending && !privacySuspended && generation === sessionGeneration,
+    getGames: () => games,
+    getLanguage: () => uiLanguage,
+    errorText: uiErrorText,
+    notify,
+    beforeOpen: () => {
+      if (!requestCloseModal()) return false;
+      duplicatesController?.close();
+      closeAppMenu();
+    },
+    onSaved: (result, count) => {
+      notify(count === 1 ? 'Dodano grę do kolekcji' : `Dodano ${count} gier do kolekcji`,
+        count === 1 ? 'Added a game to your collection' : `Added ${count} games to your collection`);
+    },
+    // Share the ordinary form's presets without carrying over extra platforms
+    // that belong only to a previously edited collection entry.
+    platformGroups: getPlatformGroups().filter(group => !group.element.dataset.extraPlatforms).map(group => ({
+      name: group.name,
+      englishName: group.element.querySelector('legend').getAttribute('data-en') || group.name,
+      platforms: group.inputs.map(control => control.value)
+    })),
+    platforms: platformCheckboxes().map(control => control.value)
+  });
+}
+
+function initializeDuplicates() {
+  const button = $('findDuplicatesBtn');
+  const backdrop = $('duplicatesBackdrop');
+  if (!button || !backdrop || duplicatesController) return;
+  if (!window.SavepointDuplicates) {
+    button.onclick = () => notify('Nie udało się otworzyć wyszukiwania powtórzeń. Odśwież stronę.',
+      'Could not open duplicate detection. Reload the page.');
+    return;
+  }
+  duplicatesController = window.SavepointDuplicates.create({
+    button,
+    backdrop,
+    request: (body, generation, signal) => apiRequest('POST', body, generation, {
+      abortableAiRequest: body.action === 'ai-duplicates-scan', signal
+    }),
+    reloadCollection: generation => apiRequest('GET', undefined, generation, { reloadCollection: true }),
+    ensureReady: generation => ensurePrivateSessionReady(generation),
+    getGeneration: () => sessionGeneration,
+    isCurrent: generation => authenticated && !logoutPending && !privacySuspended && generation === sessionGeneration,
+    getLanguage: () => uiLanguage,
+    gameLabel,
+    errorText: uiErrorText,
+    notify,
+    beforeOpen: () => {
+      if (!requestCloseModal()) return false;
+      aiImportController?.close();
+      closeAppMenu();
+    },
+    onSaved: () => {}
+  });
+}
+
+// The optional controllers are needed only after sign-in. Keep the buttons
+// retryable if one script fails, without affecting the ordinary collection.
+function loadCollectionTool(id, factory, initializeTool) {
+  const button = $(id);
+  if (!button) return;
+  if (window[factory] || !button.dataset.moduleSrc) {
+    initializeTool();
+    return;
+  }
+  if (button.getAttribute('aria-busy') === 'true') return;
+  const script = document.createElement('script');
+  const retry = () => { if (privateViewUsable()) loadCollectionTool(id, factory, initializeTool); };
+  const finish = loaded => {
+    clearTimeout(timeout);
+    script.onload = null;
+    script.onerror = null;
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+    if (loaded && window[factory]) {
+      button.onclick = null;
+      initializeTool();
+    } else {
+      script.remove();
+      button.onclick = retry;
+      if (privateViewUsable()) {
+        notify('Nie udało się wczytać narzędzia AI. Kliknij przycisk, aby spróbować ponownie.',
+          'Could not load the AI tool. Click its button to try again.');
+      }
+    }
+  };
+  const timeout = setTimeout(() => finish(false), 12000);
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  script.src = button.dataset.moduleSrc;
+  script.async = true;
+  script.onload = () => finish(true);
+  script.onerror = () => finish(false);
+  document.head.append(script);
+}
+function loadCollectionTools() {
+  loadCollectionTool('addAiBtn', 'SavepointAiImport', initializeAiImport);
+  loadCollectionTool('findDuplicatesBtn', 'SavepointDuplicates', initializeDuplicates);
+}
+
 // Install page controls before the first session request updates the UI.
 initializeUiLanguage();
 initializeAppMenu();
 initializeLoginPresentation();
 initializeSessionPrivacy();
+if (window.SavepointAiImport) initializeAiImport();
+if (window.SavepointDuplicates) initializeDuplicates();
 initialize();

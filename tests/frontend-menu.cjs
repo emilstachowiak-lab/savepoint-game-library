@@ -125,6 +125,7 @@ async function main(){
   assert.equal(allocations.length,1);assert.equal(allocations[0].type,'application/json');
   assert.deepEqual(JSON.parse(allocations[0].parts[0]),[game],'Export keeps the real collection payload');
   assert.deepEqual(downloads,[{href:'blob:synthetic-menu-export',download:'savepoint-kolekcja.json'}]);
+  test.runTimers(0);
   assert.deepEqual(revocations,['blob:synthetic-menu-export']);assert.equal(test.requests.length,0);
   console.log('PASS: capture closes before the unchanged import picker and export download; data and cleanup are preserved');
  }

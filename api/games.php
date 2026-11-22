@@ -15,14 +15,23 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('X-Content-Type-Options: nosniff');
 
 const SESSION_COOKIE_NAME = 'savepoint_session_v3';
+const COLLECTION_FIELDS = 'id, title, platform, edition, cover_url, status, created_at, updated_at';
+const COLLECTION_INSERT = 'INSERT INTO games (id, title, platform, edition, cover_url, status, created_at)
+    VALUES (:id, :title, :platform, :edition, :cover_url, :status, :created_at)';
 
-function respond(int $status, array $data): void
+function respond(int $status, array $data): never
 {
+    // AI responses never set a session cookie, so a delayed reply cannot
+    // restore an old cookie after sign-out.
+    if (defined('SAVEPOINT_AI_REQUEST')) header_remove('Set-Cookie');
     $preferred = strtolower(trim(explode(',', (string)($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? ''), 2)[0]));
     $language = preg_match('/\Aen(?:-[a-z0-9]{1,8})*\z/', $preferred) === 1 ? 'en' : 'pl';
     if (is_string($data['error'] ?? null)) {
         // Route errors use catalog IDs internally. Include the alternate text
         // for clients that switch languages after receiving an error.
+        if (str_starts_with($data['error'], 'collection_')) {
+            $data['code'] = $data['error'];
+        }
         $messages = apiErrorMessages($data['error']);
         $data['error'] = $messages[$language];
         if ($language === 'en') {
@@ -48,6 +57,102 @@ function respond(int $status, array $data): void
 function apiErrorMessages(string $id): array
 {
     $catalog = [
+        'ai_not_configured' => [
+            'pl' => 'Funkcja Dodaj Gry AI jest niedostępna bez klucza Gemini API.',
+            'en' => 'Add Games AI is unavailable without a Gemini API key.',
+        ],
+        'ai_duplicates_not_configured' => [
+            'pl' => 'Wyszukiwanie powtórzeń jest niedostępne bez klucza Gemini API.',
+            'en' => 'Duplicate detection is unavailable without a Gemini API key.',
+        ],
+        'ai_duplicates_invalid' => [
+            'pl' => 'Wybierz wpis do zachowania i potwierdź operację.',
+            'en' => 'Choose the entry to keep and confirm the action.',
+        ],
+        'ai_duplicates_stale' => [
+            'pl' => 'Wpisy się zmieniły lub podgląd wygasł. Uruchom ponownie wyszukiwanie powtórzeń.',
+            'en' => 'The entries changed or the review expired. Run duplicate detection again.',
+        ],
+        'ai_duplicates_merge_too_large' => [
+            'pl' => 'Połączona lista platform przekracza limit. Uporządkuj platformy w edycji gier i sprawdź powtórzenia ponownie.',
+            'en' => 'The combined platform list exceeds the limit. Edit the platform lists and scan for duplicates again.',
+        ],
+        'ai_invalid_cover_search' => [
+            'pl' => 'Podaj poprawny tytuł gry i wybierz przynajmniej jedną platformę.',
+            'en' => 'Enter a valid game title and select at least one platform.',
+        ],
+        'ai_cover_search_unavailable' => [
+            'pl' => 'Wyszukiwanie okładek jest chwilowo niedostępne.',
+            'en' => 'Cover search is temporarily unavailable.',
+        ],
+        'ai_cover_search_rate_limited' => [
+            'pl' => 'Osiągnięto limit wyszukiwania okładek. Spróbuj ponownie później.',
+            'en' => 'The cover search limit has been reached. Try again later.',
+        ],
+        'ai_session_expired' => [
+            'pl' => 'Sesja wygasła. Zaloguj się ponownie przed użyciem AI.',
+            'en' => 'Your session expired. Sign in again before using AI.',
+        ],
+        'ai_invalid_upload' => [
+            'pl' => 'Nieprawidłowe dane zdjęcia. Wybierz je ponownie.',
+            'en' => 'Invalid photo data. Choose the photo again.',
+        ],
+        'ai_image_too_large' => [
+            'pl' => 'Zdjęcie przekracza dozwolony rozmiar. Wybierz mniejsze zdjęcie.',
+            'en' => 'The photo exceeds the size limit. Choose a smaller photo.',
+        ],
+        'ai_image_invalid' => [
+            'pl' => 'Nie udało się odczytać zdjęcia. Wybierz poprawny obraz.',
+            'en' => 'Could not read the photo. Choose a valid image.',
+        ],
+        'ai_upload_limit' => [
+            'pl' => 'Za dużo jednoczesnych zdjęć. Spróbuj ponownie za chwilę.',
+            'en' => 'Too many simultaneous photos. Try again shortly.',
+        ],
+        'ai_upload_unavailable' => [
+            'pl' => 'Zdjęcie wygasło lub jest niedostępne. Wybierz je ponownie.',
+            'en' => 'The photo expired or is unavailable. Choose it again.',
+        ],
+        'ai_upload_expired' => [
+            'pl' => 'Przesyłanie zdjęcia wygasło. Wybierz „Rozpoznaj gry”, aby przesłać zdjęcie ponownie.',
+            'en' => 'The photo upload expired. Select “Identify games” to upload it again.',
+        ],
+        'ai_upload_busy' => [
+            'pl' => 'Trwa przetwarzanie innego zdjęcia. Spróbuj ponownie za chwilę.',
+            'en' => 'Another photo is being processed. Try again shortly.',
+        ],
+        'ai_upload_incomplete' => [
+            'pl' => 'Nie przesłano całego zdjęcia. Wybierz je i spróbuj ponownie.',
+            'en' => 'The photo upload is incomplete. Choose it and try again.',
+        ],
+        'ai_rate_limited' => [
+            'pl' => 'Osiągnięto limit rozpoznań AI. Spróbuj ponownie później.',
+            'en' => 'The AI recognition limit has been reached. Try again later.',
+        ],
+        'ai_service_unavailable' => [
+            'pl' => 'Rozpoznawanie AI jest chwilowo niedostępne. Spróbuj ponownie później.',
+            'en' => 'AI recognition is temporarily unavailable. Try again later.',
+        ],
+        'ai_response_invalid' => [
+            'pl' => 'AI nie zwróciło poprawnej listy gier. Spróbuj użyć wyraźniejszego zdjęcia.',
+            'en' => 'AI did not return a valid game list. Try a clearer photo.',
+        ],
+        'ai_refused' => [
+            'pl' => 'Nie udało się rozpoznać gier na tym zdjęciu. Wybierz inne zdjęcie.',
+            'en' => 'Could not identify games in this photo. Choose another photo.',
+        ],
+        'ai_confirmation_required' => [
+            'pl' => 'Potwierdź poprawność wybranych gier przed ich dodaniem.',
+            'en' => 'Confirm that the selected games are correct before adding them.',
+        ],
+        'ai_invalid_batch' => [
+            'pl' => 'Sprawdź dane wybranych gier. Jednocześnie można dodać od 1 do 32 gier.',
+            'en' => 'Check the selected game details. You can add between 1 and 32 games at a time.',
+        ],
+        'ai_batch_conflict' => [
+            'pl' => 'Dane zapisu są w konflikcie z kolekcją. Odśwież stronę i sprawdź zapisane gry.',
+            'en' => 'The save conflicts with your collection. Reload and check your saved games.',
+        ],
         'authentication_required' => [
             'pl' => 'Zaloguj się.',
             'en' => 'Log in.',
@@ -103,6 +208,18 @@ function apiErrorMessages(string $id): array
         'invalid_app_account_configuration' => [
             'pl' => 'Nieprawidłowa konfiguracja konta aplikacji.',
             'en' => 'Invalid application account configuration.',
+        ],
+        'invalid_cover_list' => [
+            'pl' => 'Nieprawidłowa lista okładek.',
+            'en' => 'Invalid list of covers.',
+        ],
+        'invalid_credentials' => [
+            'pl' => 'Nieprawidłowa nazwa użytkownika lub hasło.',
+            'en' => 'Incorrect username or password.',
+        ],
+        'invalid_game_collection' => [
+            'pl' => 'Nieprawidłowa kolekcja gier.',
+            'en' => 'Invalid game collection.',
         ],
         'invalid_app_origin' => [
             'pl' => 'Nieprawidłowy adres aplikacji w konfiguracji serwera.',
@@ -161,8 +278,64 @@ function apiErrorMessages(string $id): array
             'en' => 'The request is too large.',
         ],
         'server_error' => [
-            'pl' => 'Błąd połączenia z bazą danych. Sprawdź konfigurację serwera.',
-            'en' => 'Could not connect to the database. Check the server configuration.',
+            'pl' => 'Wystąpił błąd serwera. Spróbuj ponownie później.',
+            'en' => 'A server error occurred. Try again later.',
+        ],
+        'database_unavailable' => [
+            'pl' => 'Baza danych jest chwilowo niedostępna. Spróbuj ponownie później.',
+            'en' => 'The database is temporarily unavailable. Try again later.',
+        ],
+        'session_unavailable' => [
+            'pl' => 'Nie można zapisać sesji. Odśwież stronę i spróbuj ponownie.',
+            'en' => 'The session could not be saved. Refresh the page and try again.',
+        ],
+        'collection_conflict' => [
+            'pl' => 'Wpis zmienił się od otwarcia. Odśwież kolekcję i spróbuj ponownie.',
+            'en' => 'This entry has changed. Refresh the collection and try again.',
+        ],
+        'collection_import_conflict' => [
+            'pl' => 'Import zawiera powtórzony identyfikator lub wpis o identyfikatorze używanym już przez inną grę.',
+            'en' => 'The import contains a repeated ID or an ID already used by a different game.',
+        ],
+        'collection_upload_invalid' => [
+            'pl' => 'Przesłany fragment kopii kolekcji jest nieprawidłowy.',
+            'en' => 'The uploaded collection chunk is invalid.',
+        ],
+        'collection_upload_missing' => [
+            'pl' => 'Przesyłanie kopii kolekcji wygasło. Wybierz plik ponownie.',
+            'en' => 'The collection upload expired. Select the file again.',
+        ],
+        'collection_upload_busy' => [
+            'pl' => 'Inna kopia kolekcji jest właśnie przesyłana. Spróbuj ponownie za chwilę.',
+            'en' => 'Another collection backup is being uploaded. Try again shortly.',
+        ],
+        'collection_upload_offset' => [
+            'pl' => 'Brakuje fragmentu kopii kolekcji. Prześlij plik ponownie.',
+            'en' => 'A collection backup chunk is missing. Upload the file again.',
+        ],
+        'collection_upload_uncertain' => [
+            'pl' => 'Nie można potwierdzić wyniku przywracania. Odśwież kolekcję przed ponownym przesłaniem pliku.',
+            'en' => 'The restore result could not be confirmed. Refresh the collection before uploading the file again.',
+        ],
+        'ai_duplicates_response_invalid' => [
+            'pl' => 'Gemini zwrócił nieprawidłowy wynik wyszukiwania powtórzeń. Spróbuj ponownie.',
+            'en' => 'Gemini returned an invalid duplicate scan result. Try again.',
+        ],
+        'ai_duplicates_refused' => [
+            'pl' => 'Gemini odrzucił żądanie wyszukania powtórzeń.',
+            'en' => 'Gemini declined the duplicate scan request.',
+        ],
+        'ai_duplicates_scan_changed' => [
+            'pl' => 'Kolekcja zmieniła się podczas sprawdzania. Uruchom wyszukiwanie ponownie.',
+            'en' => 'The collection changed during the scan. Run the scan again.',
+        ],
+        'ai_provider_rate_limited' => [
+            'pl' => 'Osiągnięto limit Gemini. Spróbuj ponownie później.',
+            'en' => 'The Gemini request limit was reached. Try again later.',
+        ],
+        'ai_provider_timeout' => [
+            'pl' => 'Gemini nie odpowiedział na czas. Spróbuj ponownie.',
+            'en' => 'Gemini took too long to respond. Try again.',
         ],
         'session_checks_rate_limited' => [
             'pl' => 'Za dużo kontroli sesji. Odczekaj chwilę i ponów próbę.',
@@ -180,9 +353,14 @@ function apiErrorMessages(string $id): array
 
 function isHttpsRequest(): bool
 {
-    // Use the web server's TLS indicator. A reverse proxy must have its TLS
-    // state mapped to this variable by the deployment's trusted server config.
-    return in_array(strtolower((string)($_SERVER['HTTPS'] ?? '')), ['on', '1'], true);
+    if (in_array(strtolower((string)($_SERVER['HTTPS'] ?? '')), ['on', '1'], true)) {
+        return true;
+    }
+    // Only a configured HTTPS-terminating proxy can attest to the external scheme.
+    $proxy = getenv('SAVEPOINT_TRUSTED_HTTPS_PROXY');
+    return is_string($proxy) && filter_var($proxy, FILTER_VALIDATE_IP) !== false
+        && $proxy === ($_SERVER['REMOTE_ADDR'] ?? null)
+        && strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
 }
 
 function startSecureSession(): void
@@ -198,7 +376,16 @@ function startSecureSession(): void
         'httponly' => true,
         'samesite' => 'Strict',
     ]);
-    session_start();
+    if (!@session_start()) {
+        respond(503, ['ok' => false, 'error' => 'session_unavailable']);
+    }
+}
+
+function closeSecureSession(): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE && !@session_write_close()) {
+        respond(503, ['ok' => false, 'error' => 'session_unavailable']);
+    }
 }
 
 function enforceSessionTimeout(bool $touch = true): void
@@ -214,7 +401,10 @@ function enforceSessionTimeout(bool $touch = true): void
     // Activity extends the 30-minute idle window within the fixed eight-hour limit.
     if ($authenticatedAt === 0 || $lastActivityAt === 0 || $now - $lastActivityAt > 1800 || $now - $authenticatedAt > 28800) {
         $_SESSION = [];
-        session_regenerate_id(true);
+        if (!@session_regenerate_id(true)) {
+            @session_destroy();
+            respond(503, ['ok' => false, 'error' => 'session_unavailable']);
+        }
         return;
     }
     if ($touch) $_SESSION['last_activity_at'] = $now;
@@ -316,11 +506,20 @@ function getDatabase(array $config): PDO
         (int)($config['port'] ?? 3306),
         $config['database']
     );
-    return new PDO($dsn, $config['username'], $config['password'], [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false,
-    ]);
+    try {
+        $db = new PDO($dsn, $config['username'], $config['password'], [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+            PDO::ATTR_TIMEOUT => 5,
+        ]);
+        // Enforce SQL column constraints independently of the hosting defaults.
+        $db->exec("SET SESSION sql_mode = CONCAT_WS(',', NULLIF(@@SESSION.sql_mode, ''), 'STRICT_ALL_TABLES')");
+        return $db;
+    } catch (PDOException $error) {
+        error_log('Savepoint database connection is unavailable.');
+        respond(503, ['ok' => false, 'error' => 'database_unavailable']);
+    }
 }
 
 function rateBucket(string $scope, string $identity, array $config): string
@@ -525,10 +724,9 @@ function clientIp(): string
 
 function sessionCheckRetryAfter(string $directory, string $address): int
 {
-    // Passive session checks use a file counter and can run without a database
-    // connection. Two hex digits limit the table to 256 files even when callers
-    // rotate IPs. Addresses in the same slot share its quota.
-    $slot = substr(hash('sha256', $address), 0, 2);
+    // Keep counters in bounded shards while giving each address its own quota.
+    $key = hash('sha256', @inet_pton($address) ?: $address);
+    $slot = substr($key, 0, 2);
     $file = @fopen($directory . '/' . $slot, 'c+b');
     if ($file === false) {
         throw new RuntimeException('Session check rate limiter is unavailable.');
@@ -540,16 +738,20 @@ function sessionCheckRetryAfter(string $directory, string $address): int
         }
         $now = time();
         $window = intdiv($now, 60);
-        $stored = stream_get_contents($file, 64);
+        $stored = stream_get_contents($file, 12288);
         if ($stored === false) {
             throw new RuntimeException('Could not read session check counter.');
         }
-        [$previousWindow, $count] = array_pad(explode(' ', $stored, 2), 2, '0');
-        $count = (int)$previousWindow === $window ? (int)$count : 0;
-        if ($count >= 30) {
+        $state = json_decode($stored, true);
+        $counts = ($state['window'] ?? null) === $window && is_array($state['counts'] ?? null)
+            ? $state['counts']
+            : [];
+        $count = (int)($counts[$key] ?? 0);
+        if ($count >= 30 || ($count === 0 && count($counts) >= 128)) {
             return 60 - ($now % 60);
         }
-        $record = $window . ' ' . ($count + 1);
+        $counts[$key] = $count + 1;
+        $record = json_encode(['window' => $window, 'counts' => $counts], JSON_THROW_ON_ERROR);
         if (!rewind($file) || fwrite($file, $record) !== strlen($record)
             || !ftruncate($file, strlen($record)) || !fflush($file)) {
             throw new RuntimeException('Could not save session check counter.');
@@ -610,8 +812,8 @@ function issueCaptchaChallenge(array $config): array
 
 function verifyTurnstileToken(array $config, string $token): ?bool
 {
-    // False means verification was rejected. Null signals unavailable
-    // transport or an unsuccessful HTTP status from the verification service.
+    // False means the submitted token was rejected. Null means verification
+    // could not complete because of transport, provider, or configuration errors.
     if ($token === '' || strlen($token) > 2048) {
         return false;
     }
@@ -638,10 +840,10 @@ function verifyTurnstileToken(array $config, string $token): ?bool
         ]);
         $response = curl_exec($curl);
         $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-        $curlError = curl_error($curl);
+        $curlError = curl_errno($curl);
         curl_close($curl);
         if ($response === false) {
-            error_log('Savepoint Turnstile request failed: ' . $curlError);
+            error_log('Savepoint Turnstile transport error ' . $curlError . '.');
             return null;
         }
     } elseif (filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOLEAN)) {
@@ -652,6 +854,7 @@ function verifyTurnstileToken(array $config, string $token): ?bool
                 'content' => $payload,
                 'timeout' => 10,
                 'ignore_errors' => true,
+                'follow_location' => 0,
             ],
             'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
         ]);
@@ -675,15 +878,30 @@ function verifyTurnstileToken(array $config, string $token): ?bool
         return null;
     }
     $result = json_decode((string)$response, true);
-    if (!is_array($result) || empty($result['success'])) {
-        return false;
+    if (!is_array($result) || !is_bool($result['success'] ?? null)) {
+        return null;
+    }
+    if (!$result['success']) {
+        $errors = $result['error-codes'] ?? null;
+        // Only response-specific rejections count against the user. Provider
+        // errors, bad configuration, and unfamiliar replies are unavailable.
+        $rejections = ['invalid-input-response', 'missing-input-response', 'timeout-or-duplicate'];
+        if (is_array($errors) && $errors !== []) {
+            foreach ($errors as $code) {
+                if (!in_array($code, $rejections, true)) {
+                    return null;
+                }
+            }
+            return false;
+        }
+        return null;
     }
     // A valid token must also belong to this deployment's login widget.
     return ($result['hostname'] ?? '') === $config['app_host']
         && ($result['action'] ?? '') === 'login';
 }
 
-function verifyAutomaticCaptcha(array $request, array $config): ?bool
+function verifyLoginChallenge(array $request, array $config): ?bool
 {
     // The hidden website field catches form-filling bots before the outbound request.
     $submitted = is_array($request['captcha'] ?? null) ? $request['captcha'] : [];
@@ -695,83 +913,302 @@ function verifyAutomaticCaptcha(array $request, array $config): ?bool
     return verifyTurnstileToken($config, $token);
 }
 
-function listGames(PDO $db): array
+function publicCoverUrl(string $url): string
 {
-    // Convert database columns to the browser's field names and value types.
-    $rows = $db->query('SELECT id, title, platform, edition, cover_url, status, created_at FROM games')->fetchAll();
-    return array_map(static function (array $row): array {
-        return [
-            'id' => $row['id'],
-            'title' => $row['title'],
-            'platform' => $row['platform'],
-            'edition' => $row['edition'],
-            'coverUrl' => $row['cover_url'] ?? '',
-            'status' => $row['status'],
-            'createdAt' => (int)$row['created_at'],
-        ];
-    }, $rows);
+    // Older versions admitted URLs containing user information. Redact them
+    // when projecting stored game rows for browser replies.
+    $parts = parse_url($url);
+    if (is_array($parts) && (array_key_exists('user', $parts) || array_key_exists('pass', $parts))) {
+        return '';
+    }
+    return $url;
+}
+
+function gameFromDatabaseRow(array $row): array
+{
+    $game = [
+        'id' => (string)$row['id'],
+        'title' => (string)$row['title'],
+        'platform' => (string)$row['platform'],
+        'edition' => (string)$row['edition'],
+        'coverUrl' => (string)($row['cover_url'] ?? ''),
+        'status' => (string)$row['status'],
+        'createdAt' => (int)$row['created_at'],
+    ];
+    $game['revision'] = hash('sha256', serialize([$game, (string)($row['updated_at'] ?? '')]));
+    $game['coverUrl'] = publicCoverUrl($game['coverUrl']);
+    return $game;
+}
+
+function listGames(PDO $db, ?array $ids = null): array
+{
+    if ($ids === null) {
+        $statement = $db->query('SELECT ' . COLLECTION_FIELDS . ' FROM games');
+    } else {
+        if ($ids === []) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $statement = $db->prepare('SELECT ' . COLLECTION_FIELDS . ' FROM games WHERE id IN (' . $placeholders . ')');
+        $statement->execute($ids);
+    }
+    return array_map('gameFromDatabaseRow', $statement->fetchAll());
+}
+
+function validCollectionText(string $text, int $limit): bool
+{
+    // SQL VARCHAR limits count Unicode code points. Reject invalid UTF-8 and
+    // control characters before passing strings to the database.
+    return strlen($text) <= $limit * 4
+        && preg_match('/\A[^\x00-\x1f\x7f]{1,' . $limit . '}\z/uD', $text) === 1;
+}
+
+function normalizeCollectionPlatform(string $platform): string
+{
+    if (strlen($platform) > 1649) {
+        throw new InvalidArgumentException('game_title_and_platform_required');
+    }
+    $platforms = array_values(array_unique(array_filter(
+        array_map(static fn(string $value): string => trim($value, ' '), explode(',', $platform)),
+        static fn(string $value): bool => $value !== ''
+    )));
+    if (count($platforms) > 50) {
+        throw new InvalidArgumentException('game_title_and_platform_required');
+    }
+    // Compact separators preserve all preset combinations in existing databases.
+    $platform = implode(', ', $platforms);
+    if (!validCollectionText($platform, 400)) {
+        $platform = implode(',', $platforms);
+    }
+    if (!validCollectionText($platform, 400)) {
+        throw new InvalidArgumentException('game_title_and_platform_required');
+    }
+    return $platform;
+}
+
+function validCollectionId(mixed $id): bool
+{
+    return is_string($id) && preg_match('/\A[a-zA-Z0-9-]{1,36}\z/D', $id) === 1;
 }
 
 function normalizedGame(array $game): array
 {
-    // Save and both import modes share a write format. Multiple platforms are
-    // stored as one comma-separated field with empty entries and repeats removed.
-    $title = trim((string)($game['title'] ?? ''));
-    $platformInput = is_string($game['platform'] ?? null) ? trim($game['platform']) : '';
-    $platforms = array_map('trim', explode(',', $platformInput));
-    $platforms = array_filter($platforms, static fn(string $value): bool => $value !== '');
-    $platforms = array_values(array_unique($platforms));
-    $platform = implode(', ', $platforms);
-    if ($title === '' || strlen($title) > 320 || $platform === '' || strlen($platform) > 400 || count($platforms) > 50) {
+    $title = is_string($game['title'] ?? null) ? trim($game['title'], ' ') : '';
+    if (!validCollectionText($title, 255)) {
         throw new InvalidArgumentException('game_title_and_platform_required');
     }
-    // Preserve valid IDs and creation times from the client or older exports.
-    $id = (string)($game['id'] ?? '');
-    if (!preg_match('/^[a-zA-Z0-9-]{1,36}$/', $id)) {
-        $id = sprintf(
-            '%04x%04x-%04x-4%03x-%04x-%012x',
-            random_int(0, 0xffff),
-            random_int(0, 0xffff),
-            random_int(0, 0xffff),
-            random_int(0, 0x0fff),
-            random_int(0, 0x3fff) | 0x8000,
-            random_int(0, 0xffffffffffff),
-        );
+    $platform = normalizeCollectionPlatform(is_string($game['platform'] ?? null) ? $game['platform'] : '');
+    $id = $game['id'] ?? null;
+    if (!validCollectionId($id)) {
+        throw new InvalidArgumentException('invalid_game_data');
     }
-    // Saving an optional cover URL only validates its format. The separate
-    // backup module applies stricter checks before contacting the remote host.
-    $cover = trim((string)($game['coverUrl'] ?? ''));
-    if ($cover !== '' && (!filter_var($cover, FILTER_VALIDATE_URL) || !preg_match('/^https?:\/\//i', $cover))) {
-        $cover = '';
+    $edition = $game['edition'] ?? 'Fizyczne';
+    $status = $game['status'] ?? 'Do ogrania';
+    if (!is_string($edition) || !is_string($status)) {
+        throw new InvalidArgumentException('invalid_game_data');
     }
-    $createdAt = filter_var($game['createdAt'] ?? null, FILTER_VALIDATE_INT);
-    if ($createdAt === false || $createdAt === null || $createdAt < 0) {
+    $edition = trim($edition, ' ');
+    $status = trim($status, ' ');
+    $edition = $edition === '' ? 'Fizyczne' : $edition;
+    $status = $status === '' ? 'Do ogrania' : $status;
+    if (!validCollectionText($edition, 50) || !validCollectionText($status, 50)) {
+        throw new InvalidArgumentException('invalid_game_data');
+    }
+    $cover = $game['coverUrl'] ?? '';
+    if (!is_string($cover) || strlen($cover) > 65535) {
+        throw new InvalidArgumentException('invalid_game_data');
+    }
+    $cover = trim($cover, ' ');
+    if ($cover !== '') {
+        $parts = parse_url($cover);
+        if (!filter_var($cover, FILTER_VALIDATE_URL) || !is_array($parts)
+            || !in_array(strtolower($parts['scheme'] ?? ''), ['http', 'https'], true)
+            || array_key_exists('user', $parts) || array_key_exists('pass', $parts)) {
+            throw new InvalidArgumentException('invalid_game_data');
+        }
+    }
+    $createdAtInput = $game['createdAt'] ?? null;
+    if ($createdAtInput === null) {
         $createdAt = (int)round(microtime(true) * 1000);
+    } elseif (!is_int($createdAtInput) && !is_string($createdAtInput)) {
+        throw new InvalidArgumentException('invalid_game_data');
+    } else {
+        $createdAt = filter_var($createdAtInput, FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 0, 'max_range' => 9007199254740991],
+        ]);
+        if ($createdAt === false) {
+            throw new InvalidArgumentException('invalid_game_data');
+        }
     }
     return [
         'id' => $id,
         'title' => $title,
         'platform' => $platform,
-        'edition' => substr(trim((string)($game['edition'] ?? 'Fizyczne')) ?: 'Fizyczne', 0, 50),
+        'edition' => $edition,
         'cover_url' => $cover,
-        'status' => substr(trim((string)($game['status'] ?? 'Do ogrania')) ?: 'Do ogrania', 0, 50),
+        'status' => $status,
         'created_at' => $createdAt,
     ];
 }
 
-function writeGame(PDOStatement $statement, array $game): void
+function findCollectionRow(PDO $db, string $id, bool $lock = false): ?array
 {
-    // Bind the shared row shape to the caller's insert or upsert statement.
-    $normalized = normalizedGame($game);
-    $statement->execute([
-        ':id' => $normalized['id'],
-        ':title' => $normalized['title'],
-        ':platform' => $normalized['platform'],
-        ':edition' => $normalized['edition'],
-        ':cover_url' => $normalized['cover_url'],
-        ':status' => $normalized['status'],
-        ':created_at' => $normalized['created_at'],
-    ]);
+    $query = 'SELECT ' . COLLECTION_FIELDS . ' FROM games WHERE id = :id';
+    $statement = $db->prepare($query . ($lock ? ' FOR UPDATE' : ''));
+    $statement->execute([':id' => $id]);
+    $row = $statement->fetch();
+    return is_array($row) ? $row : null;
+}
+
+function collectionRowMatches(array $row, array $game): bool
+{
+    foreach ($game as $field => $value) {
+        if ((string)($row[$field] ?? '') !== (string)$value) {
+            return false;
+        }
+    }
+    return true;
+}
+
+final class CollectionConflict extends RuntimeException
+{
+}
+
+function validCollectionRevision(mixed $revision): bool
+{
+    return is_string($revision) && preg_match('/\A[a-f0-9]{64}\z/D', $revision) === 1;
+}
+
+function inCollectionTransaction(PDO $db, callable $operation): mixed
+{
+    if (!$db->beginTransaction()) {
+        throw new RuntimeException('Could not begin collection transaction.');
+    }
+    try {
+        $value = $operation();
+        if (!$db->commit()) {
+            throw new RuntimeException('Could not commit collection transaction.');
+        }
+        return $value;
+    } catch (Throwable $error) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $error;
+    }
+}
+
+function saveCollectionGame(PDO $db, array $request): array
+{
+    if (!is_array($request['game'] ?? null)) {
+        throw new InvalidArgumentException('game_data_missing');
+    }
+    // Cached clients can retry an identical create, but they cannot edit an
+    // existing record without its revision.
+    $mode = $request['mode'] ?? 'create';
+    if ($mode !== 'create' && $mode !== 'edit') {
+        throw new InvalidArgumentException('invalid_game_data');
+    }
+    $revision = $request['revision'] ?? null;
+    if ($mode === 'edit' && !validCollectionRevision($revision)) {
+        throw new CollectionConflict('collection_conflict');
+    }
+    $game = normalizedGame($request['game']);
+    return inCollectionTransaction($db, static function () use ($db, $mode, $revision, $game): array {
+        $existing = findCollectionRow($db, $game['id'], true);
+        if ($mode === 'create') {
+            if ($existing === null) {
+                $db->prepare(COLLECTION_INSERT)->execute($game);
+                return gameFromDatabaseRow(findCollectionRow($db, $game['id']));
+            }
+            if (collectionRowMatches($existing, $game)) {
+                return gameFromDatabaseRow($existing);
+            }
+            throw new CollectionConflict('collection_conflict');
+        }
+        if ($existing === null || $existing['id'] !== $game['id']) {
+            throw new CollectionConflict('collection_conflict');
+        }
+        $game['created_at'] = (int)$existing['created_at'];
+        $current = gameFromDatabaseRow($existing);
+        // An identical write can be retried without overriding subsequent data.
+        if (collectionRowMatches($existing, $game)) {
+            return $current;
+        }
+        if (!hash_equals($current['revision'], $revision)) {
+            throw new CollectionConflict('collection_conflict');
+        }
+        unset($game['created_at']);
+        // Keep revisions distinct when multiple edits share a database second,
+        // including when a later edit restores the previous field values.
+        $db->prepare('UPDATE games SET title = :title, platform = :platform, edition = :edition,
+            cover_url = :cover_url, status = :status,
+            updated_at = IF(updated_at >= CURRENT_TIMESTAMP, DATE_ADD(updated_at, INTERVAL 1 SECOND), CURRENT_TIMESTAMP)
+            WHERE id = :id')->execute($game);
+        return gameFromDatabaseRow(findCollectionRow($db, $game['id']));
+    });
+}
+
+function deleteCollectionGame(PDO $db, mixed $id, mixed $revision): string
+{
+    if (!validCollectionId($id)) {
+        throw new InvalidArgumentException('invalid_game_data');
+    }
+    if (!validCollectionRevision($revision)) {
+        throw new CollectionConflict('collection_conflict');
+    }
+    return inCollectionTransaction($db, static function () use ($db, $id, $revision): string {
+        $row = findCollectionRow($db, $id, true);
+        if ($row === null) {
+            return $id;
+        }
+        if ($row['id'] !== $id || !hash_equals(gameFromDatabaseRow($row)['revision'], $revision)) {
+            throw new CollectionConflict('collection_conflict');
+        }
+        $db->prepare('DELETE FROM games WHERE id = :id')->execute(['id' => $id]);
+        return $id;
+    });
+}
+
+function importCollectionGames(PDO $db, string $mode, mixed $items): int
+{
+    if (!is_array($items) || !array_is_list($items) || count($items) > 5000) {
+        throw new InvalidArgumentException('invalid_game_collection');
+    }
+    return inCollectionTransaction($db, static function () use ($db, $mode, $items): int {
+        $inserted = 0;
+        $seen = [];
+        if ($mode === 'replace') {
+            $db->exec('DELETE FROM games');
+        }
+        $insert = $db->prepare(COLLECTION_INSERT);
+        foreach ($items as $index => $item) {
+            if (!is_array($item)) {
+                throw new InvalidArgumentException('invalid_game_data');
+            }
+            // Older local collections without IDs still import. The derived ID
+            // and timestamp stay stable across retries of the same legacy file.
+            if (!isset($item['id']) || $item['id'] === '') {
+                $item['id'] = 'legacy-' . substr(hash('sha256', serialize([$index, $item])), 0, 29);
+            }
+            $item['createdAt'] ??= 0;
+            $game = normalizedGame($item);
+            $key = strtolower($game['id']);
+            if (isset($seen[$key])) {
+                throw new CollectionConflict('collection_import_conflict');
+            }
+            $seen[$key] = true;
+            if ($mode === 'migrate' && ($existing = findCollectionRow($db, $game['id'], true)) !== null) {
+                if (!collectionRowMatches($existing, $game)) {
+                    throw new CollectionConflict('collection_import_conflict');
+                }
+                continue;
+            }
+            $insert->execute($game);
+            $inserted++;
+        }
+        return $inserted;
+    });
 }
 
 function coverBackupStore(array $config): \Savepoint\Covers\CoverBackup
@@ -804,8 +1241,6 @@ function savedCoverUrl(PDO $db, mixed $id): string
 function serveCoverBackup(PDO $db, mixed $id, array $config): void
 {
     $url = savedCoverUrl($db, $id);
-    // Release the session lock before file I/O so other browser requests can proceed.
-    session_write_close();
     $image = coverBackupStore($config)->read($url);
     if ($image === null) {
         respond(404, ['ok' => false, 'error' => 'cover_backup_unavailable']);
@@ -820,11 +1255,17 @@ function serveCoverBackup(PDO $db, mixed $id, array $config): void
 
 function createCoverBackup(PDO $db, mixed $id, array $config): void
 {
-    // Resolve the game ID to its current saved URL and release the session lock
-    // before the backup module can make a network request.
+    // Resolve the game ID to its current saved URL before making a network request.
     $url = savedCoverUrl($db, $id);
-    session_write_close();
-    $result = coverBackupStore($config)->backup($url);
+    $referencedUrls = static function () use ($db): iterable {
+        // Read current references only when the cache needs disk space. A
+        // distinct SQL text sort could collapse URLs with different suffixes.
+        $statement = $db->query("SELECT cover_url FROM games WHERE cover_url IS NOT NULL AND cover_url <> ''");
+        while (($url = $statement->fetchColumn()) !== false) {
+            yield (string)$url;
+        }
+    };
+    $result = coverBackupStore($config)->backup($url, $referencedUrls);
     respond(200, ['ok' => true, 'backup' => $result]);
 }
 
@@ -842,22 +1283,22 @@ function coverBackupStatuses(PDO $db, mixed $ids, array $config): void
     }
     $ids = array_values(array_unique($ids));
     if ($ids === []) {
-        session_write_close();
+        closeSecureSession();
         respond(200, ['ok' => true, 'backups' => []]);
     }
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     $statement = $db->prepare('SELECT id, cover_url FROM games WHERE id IN (' . $placeholders . ')');
     $statement->execute($ids);
     $rows = $statement->fetchAll();
-    session_write_close();
+    closeSecureSession();
     $store = coverBackupStore($config);
     $readyByUrl = [];
     $backups = [];
     foreach ($rows as $row) {
-        $url = (string)($row['cover_url'] ?? '');
+        $url = publicCoverUrl((string)($row['cover_url'] ?? ''));
         if (!array_key_exists($url, $readyByUrl)) {
-            // Validate cached bytes and MIME once per saved URL across the batch.
-            $readyByUrl[$url] = $url !== '' && $store->read($url) !== null;
+            // Check validated cache metadata once per saved URL across the batch.
+            $readyByUrl[$url] = $url !== '' && $store->ready($url);
         }
         $backups[] = ['id' => (string)$row['id'], 'coverUrl' => $url, 'ready' => $readyByUrl[$url]];
     }
@@ -906,7 +1347,9 @@ function scheduleSuccessfulLoginNotification(string $username, string $ip, int $
 function establishAuthenticatedSession(): void
 {
     // Regenerate the ID before assigning the account to prevent session fixation.
-    session_regenerate_id(true);
+    if (!@session_regenerate_id(true)) {
+        respond(503, ['ok' => false, 'error' => 'session_unavailable']);
+    }
     $_SESSION['user_id'] = 1;
     $_SESSION['authenticated_at'] = time();
     $_SESSION['last_activity_at'] = time();
@@ -914,6 +1357,8 @@ function establishAuthenticatedSession(): void
 
 function handleLogin(PDO $db, array $config, array $request): void
 {
+    $loginSessionId = session_id();
+    closeSecureSession();
     $ip = clientIp();
     $ipBucket = rateBucket('login_ip', $ip, $config);
     // Every submitted username shares the configured account bucket. Varying
@@ -925,8 +1370,7 @@ function handleLogin(PDO $db, array $config, array $request): void
     checkRateLimit($db, 'account', $accountBucket, $config);
     checkRateLimit($db, 'captcha_fail', $captchaBucket, $config);
     reserveLoginRequest($db, $requestBucket, $config);
-    $captchaRetry = reserveCaptchaAttempt($db, $captchaBucket, $config);
-    $captchaValid = verifyAutomaticCaptcha($request, $config);
+    $captchaValid = verifyLoginChallenge($request, $config);
     if ($captchaValid === null) {
         respond(503, [
             'ok' => false,
@@ -935,6 +1379,7 @@ function handleLogin(PDO $db, array $config, array $request): void
         ]);
     }
     if (!$captchaValid) {
+        $captchaRetry = reserveCaptchaAttempt($db, $captchaBucket, $config);
         if ($captchaRetry > 0) {
             header('Retry-After: ' . $captchaRetry);
             respond(429, [
@@ -991,8 +1436,19 @@ function handleLogin(PDO $db, array $config, array $request): void
         ':captcha_scope' => 'captcha_fail',
         ':captcha_bucket' => $captchaBucket,
     ]);
-    establishAuthenticatedSession();
     $games = listGames($db);
+    if ($loginSessionId !== '') {
+        startSecureSession();
+        if (!hash_equals($loginSessionId, session_id())) {
+            // Another request retired the session while the provider was busy.
+            // Suppress any anonymous cookie created when PHP reopened it.
+            header_remove('Set-Cookie');
+            closeSecureSession();
+            respond(409, ['ok' => false, 'error' => 'session_unavailable']);
+        }
+    }
+    establishAuthenticatedSession();
+    closeSecureSession();
     scheduleSuccessfulLoginNotification((string)$config['app_username'], $ip, time(), $config['app_origin']);
     respond(200, ['ok' => true, 'games' => $games]);
 }
@@ -1002,7 +1458,7 @@ function handleLogout(): void
     // Remove server-side state and expire the cookie using its original scope.
     $_SESSION = [];
     $params = session_get_cookie_params();
-    setcookie(session_name(), '', [
+    $cookieExpired = setcookie(session_name(), '', [
         'expires' => time() - 42000,
         'path' => $params['path'],
         'domain' => $params['domain'],
@@ -1010,8 +1466,40 @@ function handleLogout(): void
         'httponly' => $params['httponly'],
         'samesite' => $params['samesite'] ?? 'Strict',
     ]);
-    session_destroy();
+    if (!@session_destroy() || !$cookieExpired) {
+        closeSecureSession();
+        respond(503, ['ok' => false, 'error' => 'session_unavailable']);
+    }
     respond(200, ['ok' => true]);
+}
+
+function collectionUploadResponse(string $action, array $config, array $request): void
+{
+    $directory = dirname(__DIR__, 2) . '/private/savepoint/collection';
+    require_once $directory . '/TransferStore.php';
+    $store = new \Savepoint\Collection\TransferStore($directory . '/uploads');
+    $owner = hash_hmac('sha256', session_id(), (string)$config['app_password_hash']);
+    $id = $request['uploadId'] ?? null;
+
+    if ($action === 'collection-upload-start') {
+        $data = $store->start($owner, $request['mode'] ?? null, $request['size'] ?? null);
+        closeSecureSession();
+        respond(200, ['ok' => true] + $data);
+    }
+    if ($action === 'collection-upload-chunk') {
+        $offset = $store->append($owner, $id, $request['offset'] ?? null, $request['data'] ?? null);
+        closeSecureSession();
+        respond(200, ['ok' => true, 'offset' => $offset]);
+    }
+    if ($action === 'collection-upload-cancel') {
+        $store->cancel($owner, $id);
+        closeSecureSession();
+        respond(200, ['ok' => true]);
+    }
+    $db = getDatabase($config);
+    $inserted = $store->finish($owner, $id, static fn(string $mode, array $items): int => importCollectionGames($db, $mode, $items));
+    closeSecureSession();
+    respond(200, ['ok' => true, 'inserted' => $inserted, 'games' => listGames($db)]);
 }
 
 // Request dispatch validates transport and input first, then checks the session
@@ -1045,11 +1533,20 @@ try {
         if ($rawRequest === false || strlen($rawRequest) > 65536) {
             respond(413, ['ok' => false, 'error' => 'request_too_large']);
         }
-        $request = json_decode($rawRequest, true);
-        if (!is_array($request)) {
+        $request = json_decode($rawRequest, true, 32);
+        if (!is_array($request) || !str_starts_with(ltrim($rawRequest, " \t\r\n"), '{')) {
             respond(400, ['ok' => false, 'error' => 'invalid_request_data']);
         }
         $action = is_string($request['action'] ?? null) ? $request['action'] : '';
+        if (in_array($action, ['ai-cover-search', 'ai-add', 'migrate', 'replace'], true)) {
+            // Associative decoding can mistake an object with numeric keys or
+            // an empty object for a list. Replacement requires a JSON array.
+            $field = $action === 'ai-cover-search' ? 'platforms' : 'games';
+            $original = json_decode($rawRequest, false, 32)->{$field} ?? null;
+            if (!is_array($original)) {
+                $request[$field] = null;
+            }
+        }
     }
 
     $coverRequest = $method === 'GET' && array_key_exists('cover', $_GET);
@@ -1065,6 +1562,25 @@ try {
         }
         enforceSessionCheckRateLimit();
     }
+    if ($method === 'POST' && in_array($action, [
+        'ai-status', 'ai-upload-start', 'ai-upload-chunk', 'ai-upload-cancel', 'ai-recognize', 'ai-cover-search', 'ai-add',
+        'ai-duplicates-scan', 'ai-duplicates-apply',
+    ], true)) {
+        define('SAVEPOINT_AI_REQUEST', true);
+        // An installation can omit the optional AI module. Existing sessions
+        // stay untouched when its files are absent or unreadable.
+        $module = dirname(__DIR__, 2) . '/private/savepoint/ai/Routes.php';
+        if (!is_readable($module)) {
+            $error = match ($action) {
+                'ai-cover-search' => 'ai_cover_search_unavailable',
+                'ai-duplicates-scan' => 'ai_duplicates_not_configured',
+                default => 'ai_service_unavailable',
+            };
+            respond(503, ['ok' => false, 'error' => $error, 'errorId' => $error]);
+        }
+        require_once $module;
+        \Savepoint\AI\Routes::dispatch($action, $request, $config);
+    }
     startSecureSession();
     // Passive checks and image work enforce both deadlines without refreshing the idle timer.
     enforceSessionTimeout(!in_array($action, ['backup-cover', 'backup-cover-status'], true) && !$coverRequest && !$sessionCheck);
@@ -1072,19 +1588,26 @@ try {
         if ((int)($_SESSION['user_id'] ?? 0) !== 1) {
             respond(401, ['ok' => false, 'error' => 'authentication_required', 'authRequired' => true]);
         }
-        session_write_close();
+        closeSecureSession();
         respond(200, ['ok' => true]);
     }
     if ($method === 'POST' && $action === 'logout') {
         handleLogout();
     }
-    // Session checks and logout have already returned. Apply the data route
-    // guards before connecting to the database.
-    $config ??= loadLocalConfig();
-    if ($coverRequest && (int)($_SESSION['user_id'] ?? 0) !== 1) {
+    $authenticated = (int)($_SESSION['user_id'] ?? 0) === 1;
+    if ($coverRequest && !$authenticated) {
         respond(401, ['ok' => false, 'error' => 'authentication_required', 'authRequired' => true]);
     }
-    if ($method === 'POST' && $action !== 'login' && (int)($_SESSION['user_id'] ?? 0) !== 1) {
+
+    // Release the session before connecting to the database for collection
+    // reads and cover work. The login flow releases it before verification.
+    if ($method === 'GET' || in_array($action, ['backup-cover', 'backup-cover-status'], true)) {
+        closeSecureSession();
+    }
+    $config ??= loadLocalConfig();
+    if (!$authenticated && $action !== 'login') {
+        // The challenge contains a public site key. Opening the widget needs
+        // neither a database connection nor another failure-rate write.
         respond(401, [
             'ok' => false,
             'error' => 'authentication_required',
@@ -1092,15 +1615,12 @@ try {
             'captcha' => issueCaptchaChallenge($config),
         ]);
     }
-    $postActions = [
-        'login',
-        'save',
-        'delete',
-        'migrate',
-        'replace',
-        'backup-cover',
-        'backup-cover-status',
-    ];
+    if (in_array($action, [
+        'collection-upload-start', 'collection-upload-chunk', 'collection-upload-finish', 'collection-upload-cancel',
+    ], true)) {
+        collectionUploadResponse($action, $config, $request);
+    }
+    $postActions = ['login', 'save', 'delete', 'migrate', 'replace', 'backup-cover', 'backup-cover-status'];
     if ($method === 'POST' && !in_array($action, $postActions, true)) {
         respond(400, ['ok' => false, 'error' => 'unknown_action']);
     }
@@ -1110,111 +1630,47 @@ try {
         if ($coverRequest) {
             serveCoverBackup($db, $_GET['cover'], $config);
         }
-        if ((int)($_SESSION['user_id'] ?? 0) !== 1) {
-            // An unauthenticated collection request gets widget settings and
-            // consumes a challenge slot. Game records require a valid session.
-            $challengeBucket = rateBucket('challenge', clientIp(), $config);
-            checkRateLimit($db, 'challenge', $challengeBucket, $config);
-            $retryAfter = recordRateLimitAttempt($db, 'challenge', $challengeBucket, 60, 900, 60, 3600);
-            if ($retryAfter > 0) {
-                header('Retry-After: ' . $retryAfter);
-                respond(429, [
-                    'ok' => false,
-                    'error' => 'login_requests_rate_limited',
-                    'captcha' => issueCaptchaChallenge($config),
-                ]);
-            }
-            respond(401, [
-                'ok' => false,
-                'error' => 'authentication_required',
-                'authRequired' => true,
-                'captcha' => issueCaptchaChallenge($config),
-            ]);
-        }
         respond(200, ['ok' => true, 'games' => listGames($db)]);
     }
     if ($action === 'login') {
         handleLogin($db, $config, $request);
     }
-
     if ($action === 'backup-cover') {
         createCoverBackup($db, $request['id'] ?? null, $config);
     }
-
     if ($action === 'backup-cover-status') {
         coverBackupStatuses($db, $request['ids'] ?? null, $config);
     }
-
     if ($action === 'save') {
-        if (!is_array($request['game'] ?? null)) {
-            respond(400, ['ok' => false, 'error' => 'game_data_missing']);
-        }
-        // One upsert handles new games and edits to existing game IDs.
-        $statement = $db->prepare(
-            'INSERT INTO games (id, title, platform, edition, cover_url, status, created_at)
-             VALUES (:id, :title, :platform, :edition, :cover_url, :status, :created_at)
-             ON DUPLICATE KEY UPDATE
-                 title = VALUES(title),
-                 platform = VALUES(platform),
-                 edition = VALUES(edition),
-                 cover_url = VALUES(cover_url),
-                 status = VALUES(status),
-                 created_at = VALUES(created_at)'
-        );
-        writeGame($statement, $request['game']);
-        respond(200, ['ok' => true, 'games' => listGames($db)]);
+        $game = saveCollectionGame($db, $request);
+        closeSecureSession();
+        $data = ($request['delta'] ?? false) === true ? ['game' => $game] : ['games' => listGames($db)];
+        respond(200, ['ok' => true] + $data);
     }
-
     if ($action === 'delete') {
-        $id = (string)($request['id'] ?? '');
-        $statement = $db->prepare('DELETE FROM games WHERE id = :id');
-        $statement->execute([':id' => $id]);
-        respond(200, ['ok' => true, 'games' => listGames($db)]);
+        $id = deleteCollectionGame($db, $request['id'] ?? null, $request['revision'] ?? null);
+        closeSecureSession();
+        $data = ($request['delta'] ?? false) === true ? ['deletedId' => $id] : ['games' => listGames($db)];
+        respond(200, ['ok' => true] + $data);
     }
-
     if ($action === 'migrate' || $action === 'replace') {
-        $items = $request['games'] ?? null;
-        if (!is_array($items) || count($items) > 5000) {
-            respond(400, ['ok' => false, 'error' => 'invalid_game_collection']);
-        }
-        // Migration keeps existing rows with matching IDs. Replacement clears
-        // the collection and inserts the new rows in a single transaction so
-        // an invalid entry cannot leave the collection partially replaced.
-        $inserted = 0;
-        $db->beginTransaction();
-        try {
-            if ($action === 'replace') {
-                $db->exec('DELETE FROM games');
-            }
-            $insert = $action === 'migrate' ? 'INSERT IGNORE INTO games' : 'INSERT INTO games';
-            $statement = $db->prepare(
-                $insert . ' (id, title, platform, edition, cover_url, status, created_at)
-                            VALUES (:id, :title, :platform, :edition, :cover_url, :status, :created_at)'
-            );
-            foreach ($items as $item) {
-                if (!is_array($item)) {
-                    throw new InvalidArgumentException('invalid_game_data');
-                }
-                writeGame($statement, $item);
-                $inserted += $statement->rowCount();
-            }
-            $db->commit();
-        } catch (Throwable $error) {
-            if ($db->inTransaction()) {
-                $db->rollBack();
-            }
-            throw $error;
-        }
+        $inserted = importCollectionGames($db, $action, $request['games'] ?? null);
+        closeSecureSession();
         respond(200, ['ok' => true, 'inserted' => $inserted, 'games' => listGames($db)]);
     }
 
     respond(400, ['ok' => false, 'error' => 'unknown_action']);
 } catch (InvalidArgumentException $error) {
-    // Game validation errors carry catalog IDs. Import rolls back before
-    // this handler translates and returns the validation error.
     respond(422, ['ok' => false, 'error' => $error->getMessage()]);
+} catch (CollectionConflict $error) {
+    respond(409, ['ok' => false, 'error' => $error->getMessage()]);
+} catch (\Savepoint\Collection\TransferError $error) {
+    respond($error->status, ['ok' => false, 'error' => $error->getMessage()]);
+} catch (PDOException $error) {
+    error_log('Savepoint database operation failed.');
+    respond(503, ['ok' => false, 'error' => 'database_unavailable']);
 } catch (Throwable $error) {
-    // Keep unexpected exception details in the server log and send a generic error.
-    error_log('Savepoint API error: ' . $error->getMessage());
+    // Unexpected details may contain configuration or collection data.
+    error_log('Savepoint API operation failed.');
     respond(500, ['ok' => false, 'error' => 'server_error']);
 }

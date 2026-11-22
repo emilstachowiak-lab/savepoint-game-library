@@ -64,11 +64,10 @@ function cardSemantics(html) {
       platforms:nodes.filter(node=>hasClass(node,'platform')).map(nodeText).join(' · '),
       status:nodeText(status).trim(),
       statusClass:(status?.attrs.class ?? '').split(/\s+/).filter(name=>name!=='status').sort(),
-      image:image ? {src:image.attrs.src,alt:image.attrs.alt,loading:image.attrs.loading} : null,
+      image:image ? {alt:image.attrs.alt,loading:image.attrs.loading} : null,
       fallback:nodeText(first('cover-title')),
       actions:nodes.filter(node=>node.attrs['data-game-action']).map(node=>({
-        action:node.attrs['data-game-action'],id:node.attrs['data-game-id'],
-        title:node.attrs.title,label:node.attrs['aria-label']
+        action:node.attrs['data-game-action'],id:node.attrs['data-game-id']
       }))
     };
   });
@@ -86,10 +85,22 @@ function renderHarness(source) {
   const ids = ['gameTitleSuggestions','search','platformFilter','editionFilter','statusFilter','sort','count','statTotal','statPlatforms','statDone','grid'];
   const nodes = Object.fromEntries(ids.map(id => {
     let html = '', text = '', value = '', options = [];
+    const children = [];
     return [id, {
       querySelectorAll() { return []; },
-      get innerHTML() { return html; },
+      get children() { return children; },
+      insertBefore(node, reference) {
+        node.remove();
+        children.splice(reference ? children.indexOf(reference) : children.length, 0, node);
+        node.remove = () => {
+          const index = children.indexOf(node);
+          if (index >= 0) children.splice(index, 1);
+        };
+        html = '';
+      },
+      get innerHTML() { return children.length ? children.map(node=>node.html).join('') : html; },
       set innerHTML(next) {
+        children.length=0;
         html = String(next); counts.htmlWrites++;
         if (id !== 'grid') counts.metadataWrites++;
         if (id === 'platformFilter') {
@@ -104,7 +115,14 @@ function renderHarness(source) {
     }];
   }));
   class CountingURL extends URL { constructor(...args) { counts.urls++; super(...args); } }
-  const context = vm.createContext({ $: id => nodes[id], games: [], URL: CountingURL, authenticated: true, logoutPending: false, privacySuspended: false, sessionGeneration: 0, API_URL: 'api/games.php', setTimeout(){return 1;}, clearTimeout(){} });
+  const document = {
+    createElement() {
+      return {
+        set innerHTML(html) { this.firstElementChild = { html, remove() {} }; }
+      };
+    }
+  };
+  const context = vm.createContext({ $: id => nodes[id], document, games: [], URL: CountingURL, authenticated: true, logoutPending: false, privacySuspended: false, sessionGeneration: 0, API_URL: 'api/games.php', setTimeout(){return 1;}, clearTimeout(){} });
   vm.runInContext(
     section(source, 'const safeImageUrl', 'function readLegacyGames') +
     section(source, source.includes('const COVER_LOAD_TIMEOUT') ? 'const COVER_LOAD_TIMEOUT' : 'function gamePlatforms', 'function platformCheckboxes') +

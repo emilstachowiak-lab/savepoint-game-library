@@ -103,11 +103,12 @@ function appearanceHarness(entries = [], reduced = false, storageBlocked = false
   test.document.readyState = 'loading';
   vm.runInContext(source, test.context, { filename: 'appearance.js' });
   const earlyTheme = test.document.documentElement.dataset.theme;
+  const earlyThemeFamily = test.document.documentElement.dataset.themeFamily;
   const earlyMazeBackground = test.document.documentElement.dataset.classicBackground;
   const earlyDosBackground = test.document.documentElement.dataset.dosBackground;
   test.events.DOMContentLoaded();
   return {
-    ...test, earlyTheme, earlyMazeBackground, earlyDosBackground,
+    ...test, earlyTheme, earlyThemeFamily, earlyMazeBackground, earlyDosBackground,
     root: test.document.documentElement,
     themes: test.queryAll('[data-ui-theme]'),
     motions: test.queryAll('input[data-background-motion]'),
@@ -847,6 +848,7 @@ function appearanceHarness(entries = [], reduced = false, storageBlocked = false
       ['savepoint-background-color-v1', '#8b2fcb']
     ]);
     assert.equal(test.earlyTheme, name);
+    assert.equal(test.earlyThemeFamily, 'additional');
     assert(test.themes.every(control => control.value === name));
     assert(test.themes.every(control => control.querySelector(`option[value="${name}"]`).textContent === label));
     assert.equal(test.queryAll('.skin-window-caption').length, 2);
@@ -870,6 +872,7 @@ function appearanceHarness(entries = [], reduced = false, storageBlocked = false
     assert.notEqual(englishCards, polishCards);
     for (const target of ['aero', 'luna', 'classic', 'classic2', 'classic3', 'platinum', 'aqua', 'mountain', ...names.map(([key]) => key)]) {
       test.choose(target);
+      assert.equal(test.root.dataset.themeFamily, names.some(([key]) => key === target) ? 'additional' : undefined);
       assert.equal(test.nodes.appShell.hidden, false);
       assert.equal(test.nodes.title.value, 'Unsaved theme draft');
       assert.equal(test.nodes.grid.innerHTML, englishCards);
@@ -918,6 +921,7 @@ function appearanceHarness(entries = [], reduced = false, storageBlocked = false
       ['savepoint-background-color-v1', '#8b2fcb']
     ]);
     assert.equal(test.earlyTheme, name);
+    assert.equal(test.earlyThemeFamily, 'console');
     assert(test.themes.every(control => control.value === name));
     assert(test.themes.every(control => control.querySelector(`option[value="${name}"]`).textContent === label));
     assert(test.queryAll('[data-console-theme-name]').every(caption => caption.textContent === label));
@@ -939,6 +943,9 @@ function appearanceHarness(entries = [], reduced = false, storageBlocked = false
     const englishCards = test.nodes.grid.innerHTML;
     for (const target of [...previous, ...names.map(([key]) => key)]) {
       test.choose(target);
+      const consoleTheme = names.some(([key]) => key === target);
+      const expectedFamily = consoleTheme ? 'console' : oldSkins.includes(target) ? 'additional' : undefined;
+      assert.equal(test.root.dataset.themeFamily, expectedFamily);
       assert.equal(test.nodes.appShell.hidden, false);
       assert.equal(test.nodes.title.value, 'Unsaved console draft');
       assert.equal(test.nodes.grid.innerHTML, englishCards);
@@ -983,8 +990,8 @@ function appearanceHarness(entries = [], reduced = false, storageBlocked = false
   console.log('PASS: all seven renamed console skins preserve data/PL/EN/old backgrounds, isolate decoration and reuse existing actions');
 }
 
-// The P2 clock is the theme's only desktop. Its active state is independent of
-// smooth motion so a paused clock can still follow the viewing device's time.
+// The P2 desktop shows a clock and falls back to plain violet if rendering
+// fails. Pausing smooth motion still lets the clock keep time.
 {
   const test = appearanceHarness([
     [MAZE_BACKGROUND_KEY, 'maze'], [BACKGROUND_KEY, 'pipes'],

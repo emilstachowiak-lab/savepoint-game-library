@@ -16,7 +16,6 @@ namespace {
     if (!function_exists('curl_init')) {
         function curl_init(?string $url = null): false { throw new \RuntimeException('Real transport must never run.'); }
     }
-    $coverDns = [];
     $coverDnsCalls = [];
     $coverTransfers = [];
     $coverHandles = [];
@@ -31,11 +30,6 @@ namespace Savepoint\Covers {
         }
         return \file_get_contents($filename, $useIncludePath, $context, $offset, $length);
     }
-    function gethostbynamel(string $host): array|false
-    {
-        $GLOBALS['coverDnsCalls'][] = $host;
-        return $GLOBALS['coverDns'][$host] ?? false;
-    }
     function curl_init(?string $url = null): object
     {
         $handle = (object)['url' => $url, 'options' => [], 'status' => 0, 'closed' => false, 'written' => 0];
@@ -48,7 +42,7 @@ namespace Savepoint\Covers {
         $fixture = array_shift($GLOBALS['coverTransfers']);
         if (!is_array($fixture)) throw new \RuntimeException('Unexpected synthetic transfer.');
         $handle->status = $fixture['status'] ?? 200;
-        foreach ($fixture['headers'] ?? ["HTTP/1.1 {$handle->status} Synthetic\r\n"] as $line) {
+        foreach (isset($handle->options[CURLOPT_HEADERFUNCTION]) ? ($fixture['headers'] ?? ["HTTP/1.1 {$handle->status} Synthetic\r\n"]) : [] as $line) {
             if (($handle->options[CURLOPT_HEADERFUNCTION])($handle, $line) !== strlen($line)) return false;
         }
         foreach ($fixture['chunks'] ?? [] as $chunk) {
@@ -69,15 +63,17 @@ namespace SavepointCoverApiTest {
     }
     function respond(int $status, array $data): never { throw new Response($status, $data); }
     function isHttpsRequest(): bool { return true; }
-    function enforcePostOrigin(string $origin): void
-    {
-        if ($origin !== 'https://savepoint.example') throw new \RuntimeException('Origin guard must use the configured origin.');
-        $GLOBALS['coverOriginGuards']++;
-    }
+    function enforcePostOrigin(string $appOrigin): void { $GLOBALS['coverOriginGuards']++; }
     function startSecureSession(): void {}
+    function closeSecureSession(): void { $GLOBALS['coverRouteSessionClosed'] = true; }
     function enforceSessionTimeout(bool $touch = true): void { $GLOBALS['coverSessionTouch'] = $touch; }
-    function loadLocalConfig(): array { return ['app_origin' => 'https://savepoint.example']; }
-    function getDatabase(array $config): object { $GLOBALS['coverDatabaseReads']++; return new \stdClass(); }
+    function loadLocalConfig(): array { return ['app_origin' => 'https://library.example.test']; }
+    function getDatabase(array $config): object
+    {
+        if (!$GLOBALS['coverRouteSessionClosed']) throw new \RuntimeException('Read routes must release the session before connecting.');
+        $GLOBALS['coverDatabaseReads']++;
+        return new \stdClass();
+    }
     function issueCaptchaChallenge(array $config): array { return ['provider' => 'synthetic']; }
     function listGames(object $db): array { return []; }
     function file_get_contents(string $path, mixed ...$args): string|false
@@ -92,7 +88,7 @@ namespace SavepointCoverApiTest {
 
 namespace SavepointCoverStatusTest {
     function respond(int $status, array $data): never { throw new \SavepointCoverApiTest\Response($status, $data); }
-    function session_write_close(): bool { $GLOBALS['coverStatusSessionClosed'] = true; return true; }
+    function closeSecureSession(): void { $GLOBALS['coverStatusSessionClosed'] = true; }
     function coverBackupStore(array $config): \Savepoint\Covers\CoverBackup
     {
         $GLOBALS['coverStatusStoreCalls']++;
@@ -152,22 +148,22 @@ namespace {
         }
         rmdir($directory);
     }
-    function coverTransport(string $url, array $dns, array $transfers, string $applicationHost = '', array $blockedIpv4 = []): ?string
+    function coverTransport(string $url, array $dns, array $transfers): ?string
     {
-        $GLOBALS['coverDns'] = $dns;
         $GLOBALS['coverDnsCalls'] = [];
         $GLOBALS['coverTransfers'] = $transfers;
         $GLOBALS['coverHandles'] = [];
-        $store = new CoverBackup(sys_get_temp_dir(), applicationHost: $applicationHost, blockedIpv4: $blockedIpv4);
-        return (new \ReflectionMethod(CoverBackup::class, 'download'))->invoke($store, $url);
+        $resolve = static function (string $host, float $deadline) use ($dns): array {
+            $GLOBALS['coverDnsCalls'][] = $host;
+            return $dns[$host] ?? [];
+        };
+        return (new \ReflectionMethod(CoverBackup::class, 'download'))->invoke(null, $url, $resolve);
     }
     $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6l1sAAAAASUVORK5CYII=', true);
     $gif = base64_decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', true);
     coverExpect(is_string($png) && is_string($gif), 'Synthetic image fixtures must decode.');
     $url = 'https://cdn.example/covers/first.png?size=large&v=1';
     $other = 'https://cdn.example/covers/second.png';
-    $applicationHost = 'savepoint.example';
-    $blockedIpv4 = ['100.128.0.1'];
 
     foreach (['https://CDN.Example:443/a.png?x=1#part', 'http://cdn.example:80/a.png', $url] as $allowed) {
         coverExpect(CoverBackup::target($allowed) !== null, 'Normal HTTP(S) domain URLs must work.');
@@ -177,9 +173,9 @@ namespace {
         'http://localhost/a', 'http://host.local/a', 'http://host.internal/a', 'http://a.localhost/a',
         'http://127.0.0.1/a', 'http://2130706433/a', 'http://0x7f000001/a', 'http://0177.0.0.1/a',
         'http://[::1]/a', 'http://[::ffff:127.0.0.1]/a', 'https://user:pass@cdn.example/a',
-        'https://cdn.example:444/a', 'http://cdn.example:443/a', 'https://Savepoint.Example/a',
+        'https://cdn.example:444/a', 'http://cdn.example:443/a', 'https://library.example.test/a',
         "https://cdn.example/a\r\nX: yes", 'https://cdn.example\\@internal.example/a', 'https://żółw.example/a'] as $denied) {
-        coverExpect(CoverBackup::target($denied, $applicationHost) === null, 'Unsafe target must be rejected: ' . $denied);
+        coverExpect(CoverBackup::target($denied, 'library.example.test') === null, 'Unsafe target must be rejected: ' . $denied);
     }
     coverPass('URL validation excludes local/numeric targets, credentials, alternate ports, controls and non-HTTP schemes');
 
@@ -189,8 +185,8 @@ namespace {
     foreach (['0.0.0.0', '10.0.0.1', '127.0.0.1', '169.254.169.254', '172.16.0.1', '192.168.1.1',
         '100.64.0.1', '100.127.255.255', '192.0.0.1', '192.0.2.1', '198.18.0.1', '198.19.255.255',
         '198.51.100.1', '203.0.113.1', '224.0.0.1', '239.1.2.3', '240.0.0.1', '255.255.255.255',
-        '100.128.0.1', '::1', '::ffff:8.8.8.8', '2002:0808:0808::1', '64:ff9b::808:808'] as $ip) {
-        coverExpect(!CoverBackup::publicIpv4($ip, $blockedIpv4), 'Private, reserved, transition or configured application address must be denied: ' . $ip);
+        '93.184.216.34', '::1', '::ffff:8.8.8.8', '2002:0808:0808::1', '64:ff9b::808:808'] as $ip) {
+        coverExpect(!CoverBackup::publicIpv4($ip, ['93.184.216.34']), 'Private, reserved, transition or application address must be denied: ' . $ip);
     }
     coverPass('outbound IPv4 excludes private, reserved, metadata, shared-address, multicast and application-server ranges');
 
@@ -218,26 +214,32 @@ namespace {
     $handle = $coverHandles[0]; $options = $handle->options;
     coverExpect($options[CURLOPT_RESOLVE] === ['cdn.example:443:93.184.216.34'], 'Accepted DNS address must be pinned.');
     coverExpect($options[CURLOPT_FOLLOWLOCATION] === false && $options[CURLOPT_PROXY] === '', 'Automatic redirects and environment proxy must be disabled.');
-    coverExpect($options[CURLOPT_PROTOCOLS] === (CURLPROTO_HTTP | CURLPROTO_HTTPS) && $options[CURLOPT_IPRESOLVE] === CURL_IPRESOLVE_V4, 'Only allowed protocols and IPv4 may be used.');
+    coverExpect($options[CURLOPT_PROTOCOLS] === CURLPROTO_HTTPS && $options[CURLOPT_IPRESOLVE] === CURL_IPRESOLVE_V4, 'Only HTTPS and IPv4 may be used.');
     coverExpect($options[CURLOPT_SSL_VERIFYPEER] === true && $options[CURLOPT_SSL_VERIFYHOST] === 2, 'TLS certificates and hostnames must be verified.');
     coverExpect($options[CURLOPT_TIMEOUT_MS] <= 8000 && $options[CURLOPT_CONNECTTIMEOUT_MS] <= 2500, 'Transport must have bounded timeouts.');
     coverExpect(in_array('Accept-Encoding: identity', $options[CURLOPT_HTTPHEADER], true), 'Download must not negotiate response decompression.');
     coverExpect(!preg_match('/cookie|authorization|referer/i', implode("\n", $options[CURLOPT_HTTPHEADER])) && $handle->closed, 'No credentials or application referrer may be sent; handles must close.');
     coverPass('real transport options pin DNS, disable proxies/automatic redirects, verify TLS, bound time and omit application secrets');
 
+    coverExpect(coverTransport('http://cdn.example/a.png', $dns, [['chunks' => [$png]]]) === $png
+        && $coverHandles[0]->url === 'https://cdn.example/a.png', 'Old cover URLs must be upgraded before contacting their origin.');
+    $coverHandles = [];
+    $coverTransfers = [['chunks' => ['{"Status":0,"Answer":[{"type":1,"data":"93.184.216.34"}]}']], ['chunks' => [$png]]];
+    $download = new \ReflectionMethod(CoverBackup::class, 'download');
+    coverExpect($download->invoke(null, $url) === $png && count($coverHandles) === 2, 'Bounded DNS-over-HTTPS must feed validated addresses into the cover transport.');
+    coverExpect(str_starts_with($coverHandles[0]->url, 'https://dns.google/resolve?name=cdn.example&')
+        && $coverHandles[0]->options[CURLOPT_TIMEOUT_MS] <= 2000, 'Resolver must receive only the hostname and use its own short timeout.');
+    coverPass('older URLs upgrade to HTTPS and the resolver receives only the public hostname');
+
     coverExpect(coverTransport($url, ['cdn.example' => ['93.184.216.34', '127.0.0.1']], []) === null && $coverHandles === [], 'Mixed public/private DNS must be blocked before cURL.');
     coverExpect(coverTransport($url, ['cdn.example' => ['169.254.169.254']], []) === null && $coverHandles === [], 'Metadata DNS must be blocked before cURL.');
     coverExpect(coverTransport($url, [], []) === null && $coverHandles === [], 'Unresolved host must fail closed.');
-    coverExpect(coverTransport($url, ['cdn.example' => ['100.128.0.1']], [], blockedIpv4: $blockedIpv4) === null && $coverHandles === [], 'A host resolving to a blocked application address must fail before opening a connection.');
     coverPass('private, mixed and unresolved DNS answers fail before opening a synthetic transfer');
 
     $redirect = ['status' => 302, 'headers' => ["HTTP/1.1 302 Found\r\n", "Location: https://other.example/next.png\r\n"]];
     coverExpect(coverTransport($url, $dns + ['other.example' => ['8.8.8.8']], [$redirect, ['chunks' => [$gif]]]) === $gif, 'Each allowed redirect should download its own pinned destination.');
     coverExpect($coverHandles[1]->options[CURLOPT_RESOLVE] === ['other.example:443:8.8.8.8'], 'Redirect must pin its separately resolved address.');
     coverExpect(coverTransport($url, $dns + ['other.example' => ['10.0.0.1']], [$redirect]) === null && count($coverHandles) === 1, 'Redirect to private DNS must fail before second transfer.');
-    coverExpect(coverTransport($url, $dns + ['other.example' => ['100.128.0.1']], [$redirect], blockedIpv4: $blockedIpv4) === null && count($coverHandles) === 1, 'Redirect to a blocked application address must fail before second transfer.');
-    $applicationRedirect = ['status' => 302, 'headers' => ["HTTP/1.1 302 Found\r\n", "Location: https://savepoint.example/next.png\r\n"]];
-    coverExpect(coverTransport($url, $dns, [$applicationRedirect], applicationHost: $applicationHost) === null && $coverDnsCalls === ['cdn.example'], 'Redirect to the configured application hostname must fail before DNS.');
     $loop = ['status' => 302, 'headers' => ["HTTP/1.1 302 Found\r\n", "Location: /loop.png\r\n"]];
     coverExpect(coverTransport($url, $dns, array_fill(0, 4, $loop)) === null && count($coverHandles) === 4, 'Redirect loops must stop after at most three follows.');
     coverPass('redirects are re-resolved and pinned, private destinations are blocked and loops have a fixed hop limit');
@@ -254,8 +256,7 @@ namespace {
     mkdir($temporary, 0700);
     try {
         $downloads = 0;
-        $store = new CoverBackup($temporary . '/images', static function (string $source) use (&$downloads, $png): string { $downloads++; return $png; }, applicationHost: $applicationHost);
-        coverExpect($store->backup('https://savepoint.example/cover.png')['status'] === 'unavailable' && $downloads === 0, 'Backup must reject the configured application hostname before calling the downloader.');
+        $store = new CoverBackup($temporary . '/images', static function (string $source) use (&$downloads, $png): string { $downloads++; return $png; });
         coverExpect($store->read($url) === null && $downloads === 0 && !is_dir($temporary . '/images'), 'Reading absent backup must not perform network or create storage.');
         coverExpect($store->backup($url)['status'] === 'saved' && $downloads === 1, 'First backup should save the downloaded image.');
         $image = $store->read($url);
@@ -298,6 +299,22 @@ namespace {
         coverExpect($quotaStore->backup($url)['status'] === 'quota' && $quotaCalls === 0, 'Full logical quota must reject before downloading.');
         coverPass('global nonblocking lock prevents concurrent transfers and aggregate disk quota prevents another download');
 
+        $quotaPaths = [];
+        $unusedUrl = 'https://cdn.example/unused.png';
+        foreach ([$other, $unusedUrl] as $source) {
+            $path = $quotaDirectory . '/' . hash('sha256', $source) . '.img';
+            file_put_contents($path, $png);
+            touch($path, time() - 100 * 86400);
+            $quotaPaths[$source] = $path;
+        }
+        $padding = fopen($quotaDirectory . '/' . str_repeat('0', 64) . '.img', 'w');
+        ftruncate($padding, CoverBackup::MAX_TOTAL_BYTES - 2 * strlen($png));
+        fclose($padding);
+        coverExpect($quotaStore->backup($url, static fn(): array => [$other])['status'] === 'saved'
+            && is_file($quotaPaths[$other]) && !is_file($quotaPaths[$unusedUrl]),
+            'Quota cleanup must reclaim only an old unreferenced copy and protect all current URLs.');
+        coverPass('near-quota cleanup protects referenced and recent images and frees space for a validated replacement');
+
         $linkUrl = 'https://cdn.example/link.png';
         symlink($saved, $temporary . '/images/' . hash('sha256', $linkUrl) . '.img');
         coverExpect($store->read($linkUrl) === null, 'Symlink cache entries must never be served.');
@@ -310,8 +327,15 @@ namespace {
     token_get_all($source, TOKEN_PARSE);
     $statusStart = strpos($source, 'function coverBackupStatuses(');
     $statusEnd = strpos($source, 'function passwordMatches(', $statusStart);
-    coverExpect($statusStart !== false && $statusEnd !== false, 'Actual status helper must be identifiable.');
-    eval('namespace SavepointCoverStatusTest; use \\PDO; ' . substr($source, $statusStart, $statusEnd - $statusStart));
+    $urlStart = strpos($source, 'function publicCoverUrl(');
+    $urlEnd = strpos($source, 'function gameFromDatabaseRow(', $urlStart);
+    coverExpect($statusStart !== false && $statusEnd !== false && $urlStart !== false && $urlEnd !== false,
+        'Actual status and URL helpers must be identifiable.');
+    eval('namespace SavepointCoverStatusTest; use \\PDO; '
+        . substr($source, $urlStart, $urlEnd - $urlStart)
+        . substr($source, $statusStart, $statusEnd - $statusStart));
+    coverExpect(\SavepointCoverStatusTest\publicCoverUrl('https://placeholder:example@cdn.example/a.png') === '',
+        'Old embedded URL credentials must not reach the browser or collection export.');
     $coverStatusDirectory = sys_get_temp_dir() . '/savepoint-cover-status-' . bin2hex(random_bytes(6));
     mkdir($coverStatusDirectory, 0700);
     $statusRun = static function (array $rows, mixed $ids): array {
@@ -346,8 +370,13 @@ namespace {
         coverExpect($response->payload['backups'] === $expected, 'Existing, corrupt, missing and empty covers must have exact statuses; absent/unrequested IDs must not leak.');
         coverExpect($db->queries === ['SELECT id, cover_url FROM games WHERE id IN (?,?,?,?,?,?)']
             && $db->parameters === [['good-a', 'good-b', 'corrupt', 'missing', 'empty-cover', 'absent-id']], 'IDs must use one prepared query with deduplicated placeholders.');
-        coverExpect(count($coverStatusImageReads) === 2 && count(array_unique($coverStatusImageReads)) === 2 && $coverStatusSessionClosed,
+        $fullReads = array_filter($coverStatusImageReads, static fn(string $path): bool => str_ends_with($path, '.img'));
+        coverExpect(count($fullReads) === 2 && count(array_unique($fullReads)) === 2 && $coverStatusSessionClosed,
             'Full file reads must be deduplicated by raw URL and run after session release.');
+        [$response] = $statusRun($statusRows, ['good-a', 'good-b']);
+        $warmReads = array_filter($coverStatusImageReads, static fn(string $path): bool => str_ends_with($path, '.img'));
+        coverExpect($response->payload['backups'] === array_slice($expected, 0, 2) && $warmReads === [],
+            'Validated metadata must report ready covers without rereading image bytes.');
         coverExpect(count($coverDnsCalls) === $beforeDns, 'Status checks must not resolve DNS or fetch an external image.');
         coverPass('bounded status batch uses one prepared SQL query, releases session, validates existing copies once per raw URL and returns metadata only');
 
@@ -399,12 +428,16 @@ namespace {
         $_SESSION = $session; $_GET = $query;
         $GLOBALS['coverRequestBody'] = json_encode($request);
         $GLOBALS['coverDatabaseReads'] = 0; $GLOBALS['coverOriginGuards'] = 0; $GLOBALS['coverSessionTouch'] = null;
+        $GLOBALS['coverRouteSessionClosed'] = false;
         try { eval('namespace SavepointCoverApiTest; ' . $body); }
         catch (\SavepointCoverApiTest\Response $response) { return $response; }
         throw new \RuntimeException('API routing test produced no captured response.');
     };
     $response = $run('GET', [], ['cover' => 'test-game']);
     coverExpect($response->status === 401 && $coverDatabaseReads === 0 && !isset($response->payload['bytes']), 'Unauthenticated copy read must stop before DB and image data.');
+    $response = $run('GET', [], []);
+    coverExpect($response->status === 401 && $coverDatabaseReads === 0 && $coverRouteSessionClosed && isset($response->payload['captcha']),
+        'Preparing the public CAPTCHA must release the session without connecting to the database.');
     $response = $run('POST', [], [], ['action' => 'backup-cover', 'id' => 'test-game']);
     coverExpect($response->status === 401 && $coverDatabaseReads === 0 && $coverOriginGuards === 1, 'Unauthenticated backup must enforce Origin and stop before DB/download.');
     $response = $run('POST', [], [], ['action' => 'backup-cover-status', 'ids' => ['test-game']]);

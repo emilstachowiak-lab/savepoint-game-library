@@ -7,9 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const {harness:domHarness,flush} = require('./frontend-dom.cjs');
-const source = fs.readFileSync(path.join(__dirname,'..','app.js'),'utf8');
-const end = source.indexOf('const safeImageUrl');
-assert(end > source.indexOf('function initializeXmbBackground()'));
+const source = fs.readFileSync(path.join(__dirname,'..','aero-background.js'),'utf8');
 
 function backgroundHarness(options={}) {
  const events=new Map(), documentEvents=new Map(), pickerEvents=new Map(), mediaEvents=new Map();
@@ -140,8 +138,8 @@ function backgroundHarness(options={}) {
   requestAnimationFrame() { throw new Error('Background must not schedule JS frames'); },
   cancelAnimationFrame() { throw new Error('Background must not schedule JS frames'); }
  });
- vm.runInContext(source.slice(0,end),context,{filename:'app.js'});
- const controller=vm.runInContext('xmbBackground',context);
+ vm.runInContext(source,context,{filename:'aero-background.js'});
+ const controller=vm.runInContext('initializeXmbBackground()',context);
  const load=async(items=loaders.filter(loader=>!loader.finished))=>{for(const loader of items){loader.finished=true;loader.onload?.();}await flush();};
  return {context,stage,picker,body,media,store,loaders,animations,canvases,resizers,controller,assignments,load,
   layers:()=>stage.children.flatMap(child=>child.children.length?child.children:[child]).filter(element=>element.tagName==='IMG'),

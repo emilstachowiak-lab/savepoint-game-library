@@ -32,6 +32,11 @@ async function main() {
   test.respond(0,200,{ok:true,backups:fixtures.map(game=>({id:game.id,coverUrl:game.coverUrl,ready:true}))});
   await flush();test.runTimers(750);await flush();
   assert.equal(test.requests.length,1,'Nineteen existing copies must require one POST instead of nineteen');
+  for (const cover of test.nodes.grid.querySelectorAll('img.cover-image')) {
+   assert.equal(cover.src,local(cover.dataset.coverId),'A known cached image starts with the private URL');
+  }
+  assert(!test.imageAssignments.some(assignment=>assignment.url.startsWith('https://')),
+   'The original host must not be contacted when metadata finds a ready copy');
   assert.equal(vm.runInContext('coverBackupQueue.length',test.context),0);
   assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(games)',test.context)),fixtures,'Metadata must not enter games or JSON export');
   console.log('PASS: nineteen cached covers use one deferred metadata POST, preserve rendering and leave export records untouched');
@@ -52,10 +57,11 @@ async function main() {
   test.seed([game,{...game,id:'cover-test-2'},{...game,id:'cover-test-3',coverUrl:'https://images.example.invalid/other.png'}]);
   test.context.render();
   assert.equal(test.requests.length,0,'Rendering must not block on a backup POST');
-  assert.equal(image(test).src,game.coverUrl,'Original cover remains the first source');
+  assert.equal(image(test).getAttribute('src'),null,'A valid saved ID gives the cache lookup a short head start');
   assert.equal(image(test).getAttribute('loading'),'lazy');
   assert.equal(image(test).getAttribute('referrerpolicy'),'no-referrer');
   await scanMissing(test);
+  assert.equal(image(test).src,game.coverUrl,'Without a cached copy, use the original URL');
   assert.equal(test.requests.length,2);
   assert.deepEqual(requestBody(test,1),{action:'backup-cover',id:game.id},'Only the saved ID is sent, never an arbitrary URL');
   test.context.render();test.runTimers(750);await flush();assert.equal(test.requests.length,2,'One worker only, including during repeated renders');
@@ -72,6 +78,7 @@ async function main() {
   const second={...game,id:'cover-normalized-2',coverUrl:'https://images.example.invalid/cover.jpg'};
   assert.equal(new URL(first.coverUrl).href,new URL(second.coverUrl).href);
   test.seed([first,second]);test.context.render();
+  test.runTimers(2500);
   const images=test.nodes.grid.querySelectorAll('img.cover-image');
   for (const cover of images) test.fire(cover,'error');
   await scanMissing(test);test.respond(1,200,{ok:true,backup:{status:'saved'}});await flush();
@@ -86,6 +93,7 @@ async function main() {
  }
  {
   const test=harness();test.seed([game]);test.context.render();
+  test.runTimers(2500);
   const cover=image(test);const before=test.imageAssignments.length;
   test.fire(cover,'error');assert.equal(cover.src,local(game.id));
   test.fire(cover,'error');test.fire(cover,'error');assert.equal(test.imageAssignments.length,before+1,'Failure of the backup must not create a loop');
@@ -104,15 +112,17 @@ async function main() {
    disconnect(){this.disconnected=true;}
   };
   test.seed([game]);test.context.render();const cover=image(test);
+  test.runTimers(2500);
   test.runTimers(10000);assert.equal(cover.src,game.coverUrl,'Off-screen lazy covers cannot time out before being requested');
   observer.callback([{target:cover,isIntersecting:false}]);test.runTimers(10000);assert.equal(cover.src,game.coverUrl);
   observer.callback([{target:cover,isIntersecting:true}]);test.runTimers(10000);
   assert.equal(cover.src,game.coverUrl,'The slow original remains pending while its backup is probed');
   const probe=test.images.at(-1);assert.equal(probe.src,local(game.id));loaded(probe);
   assert.equal(cover.src,local(game.id),'A visibly stalled source switches only after its copy loads');
-  test.context.render();const current=image(test),currentObserver=observer;
-  currentObserver.callback([{target:current,isIntersecting:true}]);current.complete=true;current.naturalWidth=200;test.fire(current,'load');test.runTimers(10000);
-  assert.equal(current.src,game.coverUrl,'A successful source clears the watchdog');
+  test.context.render();assert.equal(image(test),cover,'An unchanged render preserves the loaded fallback');
+  test.nodes.search.value='no-match';test.context.render();
+  test.nodes.search.value='';test.context.render();assert.equal(image(test),cover,'Returning to a result reuses the card');
+  test.seed([{...game,coverUrl:'https://images.example.invalid/new-cover.jpg'}]);test.context.render();
   const count=test.imageAssignments.length;test.fire(cover,'error');assert.equal(test.imageAssignments.length,count,'Detached cards cannot change after a new render');
   console.log('PASS: visibility starts the stalled-image watchdog without defeating lazy loading; successful and detached cards are safe');
  }
@@ -120,6 +130,7 @@ async function main() {
   const test=harness();test.seed([game]);test.context.render();await scanMissing(test);
   const old=image(test);const changed={...game,coverUrl:'https://images.example.invalid/new-cover.png'};
   test.seed([changed]);test.context.render();const current=image(test);
+  test.runTimers(2500);
   test.respond(1,200,{ok:true,backup:{status:'saved'}});await flush();
   assert.equal(current.src,changed.coverUrl,'Completing the old URL cannot overwrite the new image');
   test.fire(old,'error');assert.equal(current.src,changed.coverUrl);
@@ -167,6 +178,7 @@ async function main() {
   const test=harness();let observer;
   test.context.IntersectionObserver=class {constructor(cb){this.callback=cb;observer=this;}observe(){}unobserve(){}disconnect(){}};
   test.seed([game]);test.context.render();const cover=image(test);
+  test.runTimers(2500);
   observer.callback([{target:cover,isIntersecting:true}]);test.runTimers(10000);
   const cardProbe=test.images.at(-1);cardProbe.onerror({target:cardProbe});assert.equal(cover.src,game.coverUrl,'An unavailable copy must not cancel a slow but viable original');
   test.context.openModal(game);test.runTimers(200);const original=test.images.at(-1);test.runTimers(10000);

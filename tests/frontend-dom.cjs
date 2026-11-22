@@ -1,7 +1,7 @@
 'use strict';
 
 // A deterministic, offline DOM model for executing the real frontend. It
-// implements DOM primitives only; application behavior always comes from app.js.
+// implements DOM primitives only; application behavior comes from the page scripts.
 // Browser QA covers visual layout, clipping and native popup behavior.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -9,7 +9,6 @@ const path = require('node:path');
 const vm = require('node:vm');
 const {canvasFixture}=require('./frontend-canvas.cjs');
 const root = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const decode = value => value.replace(/&(amp|lt|gt|quot|#39);/g, entity => ({'&amp;':'&','&lt;':'<','&gt;':'>','&quot;':'"','&#39;':"'" }[entity]));
 // Parse controlled application markup, rather than implementing a browser's
@@ -36,6 +35,17 @@ const descendants = node => typeof node === 'string' ? [] : node.children.flatMa
 const hasClass = (node,name) => (node.attrs.class ?? '').split(/\s+/).includes(name);
 const nodeText = node => !node ? '' : typeof node === 'string' ? node : node.children.map(nodeText).join('');
 
+// Run the same deferred scripts in document order so the tests catch missing
+// files and dependencies. Head scripts are loaded separately by theme tests.
+const deferredScripts = descendants(parseMarkup(html))
+  .filter(node => node.tag === 'script' && Object.hasOwn(node.attrs, 'defer'))
+  .map(node => {
+    const name = node.attrs.src?.split('?')[0];
+    assert.match(name || '', /^[a-z][a-z0-9-]*\.js$/, 'Expected a local script');
+    return { name, source: fs.readFileSync(path.join(root, name), 'utf8') };
+  });
+assert.equal(deferredScripts.at(-1)?.name, 'app.js', 'The page bootstrap must run last');
+
 const escape = value => String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const deferred = () => { let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject}; };
 const flush = async () => { for (let index=0;index<20;index++) await Promise.resolve(); };
@@ -43,7 +53,14 @@ function harness(options = {}) {
  const requests=[],timers=[],events={},images=[],imageAssignments=[],reportedValidity=[];
  const windowEvents={};
  const listeners=new Map(),windowListeners=new Map();
- const addListener=(registry,publicEvents,name,handler)=>{const set=registry.get(name)??new Set();set.add(handler);registry.set(name,set);publicEvents[name]=event=>{for(const listener of [...set])listener(event);};};
+ function addListener(registry, publicEvents, name, handler) {
+  const listenersForEvent = registry.get(name) ?? new Set();
+  listenersForEvent.add(handler);
+  registry.set(name, listenersForEvent);
+  publicEvents[name] = event => {
+   for (const listener of [...listenersForEvent]) listener(event);
+  };
+ }
  const removeListener=(registry,name,handler)=>registry.get(name)?.delete(handler);
  const background=canvasFixture({width:1280,height:720,record:false,...options.backgroundCanvas});
  let document;
@@ -62,12 +79,27 @@ function harness(options = {}) {
   for(const [,name] of selector.matchAll(/\.([\w-]+)/g))if(!element.classList.contains(name))return false;
   return true;
  }
- function matches(element,selector,scope) {
-  return selector.split(',').some(part=>{
-   const tokens=part.trim().replace(/\s*>\s*/g,' > ').split(/\s+/);let index=tokens.length-1,node=element;
-   if(!simpleMatch(node,tokens[index--],scope))return false;
-   while(index>=0){if(tokens[index]==='>'){index--;node=node.parentElement;if(!simpleMatch(node,tokens[index--],scope))return false;}
-    else{const wanted=tokens[index--];node=node.parentElement;while(node&&!simpleMatch(node,wanted,scope))node=node.parentElement;if(!node)return false;}}
+ function matches(element, selector, scope) {
+  return selector.split(',').some(part => {
+   const tokens = part.trim().replace(/\s*>\s*/g, ' > ').split(/\s+/);
+   let index = tokens.length - 1;
+   let node = element;
+   if (!simpleMatch(node, tokens[index--], scope)) return false;
+
+   // Walk the selector backwards. A child combinator checks one parent;
+   // a descendant combinator can search further up the tree.
+   while (index >= 0) {
+    const directParent = tokens[index] === '>';
+    if (directParent) index--;
+    const wanted = tokens[index--];
+    node = node.parentElement;
+    if (directParent) {
+     if (!simpleMatch(node, wanted, scope)) return false;
+    } else {
+     while (node && !simpleMatch(node, wanted, scope)) node = node.parentElement;
+     if (!node) return false;
+    }
+   }
    return true;
   });
  }
@@ -128,7 +160,16 @@ function harness(options = {}) {
   get tabIndex(){return Number(this.attrs.tabindex??0);}set tabIndex(value){this.attrs.tabindex=String(value);}
   get textContent(){return this.childNodes.map(node=>node.textContent).join('');}set textContent(value){this.replaceChildren(new TextNode(value));}
   get innerHTML(){return this.childNodes.map(serialize).join('');}set innerHTML(value){this.replaceChildren(...parseMarkup(String(value)).children.map(build));}
-  get value(){if(this._value!==undefined)return this._value;if(this.tagName==='SELECT'){const choices=this.querySelectorAll('option');const option=choices.find(e=>e.hasAttribute('selected'))??choices[0];return option?(option.getAttribute('value')??option.textContent):'';}return this.attrs.value??'';}set value(value){this._value=String(value);}
+  get value() {
+   if (this._value !== undefined) return this._value;
+   if (this.tagName === 'SELECT') {
+    const choices = this.querySelectorAll('option');
+    const option = choices.find(choice => choice.hasAttribute('selected')) ?? choices[0];
+    return option ? (option.getAttribute('value') ?? option.textContent) : '';
+   }
+   return this.attrs.value ?? '';
+  }
+  set value(value) { this._value = String(value); }
   get src(){return this.attrs.src??'';}set src(value){this.attrs.src=String(value);imageAssignments.push({element:this,url:String(value)});this.complete=false;this.naturalWidth=0;}
   get href(){return this.attrs.href??'';}set href(value){this.attrs.href=String(value);}
   get currentSrc(){return this.src;}
@@ -137,8 +178,29 @@ function harness(options = {}) {
   getAttribute(name){return Object.hasOwn(this.attrs,name)?this.attrs[name]:null;}
   hasAttribute(name){return Object.hasOwn(this.attrs,name);}
   removeAttribute(name){delete this.attrs[name];}
-  append(...nodes){for(let node of nodes){if(typeof node==='string')node=new TextNode(node);if(node.nodeType===11){this.append(...node.childNodes);continue;}node.remove();node.parentElement=this;this.childNodes.push(node);}}
+  append(...nodes) {
+   for (let node of nodes) {
+    if (typeof node === 'string') node = new TextNode(node);
+    if (node.nodeType === 11) {
+     this.append(...node.childNodes);
+     continue;
+    }
+    node.remove();
+    node.parentElement = this;
+    this.childNodes.push(node);
+   }
+  }
   appendChild(node){this.append(node);return node;}
+  insertBefore(node,reference){
+   if(!reference)return this.appendChild(node);
+   if(node===reference)return node;
+   node.remove();
+   const index=this.childNodes.indexOf(reference);
+   if(index<0)throw Error('Reference is not a child');
+   node.parentElement=this;
+   this.childNodes.splice(index,0,node);
+   return node;
+  }
   removeChild(node){const index=this.childNodes.indexOf(node);if(index>=0){this.childNodes.splice(index,1);node.parentElement=null;}return node;}
   remove(){this.parentElement?.removeChild(this);}
   replaceChildren(...nodes){for(const child of this.childNodes)child.parentElement=null;this.childNodes=[];this.append(...nodes);}
@@ -233,6 +295,7 @@ function harness(options = {}) {
   clearTimeout(timer) { if(timer)timer.cleared=true; },
   crypto:{randomUUID:()=>'synthetic-new-id'},
   TextEncoder,
+  btoa:value=>Buffer.from(value,'latin1').toString('base64'),
   URL,
   confirm() { throw new Error('Deletion must use the Aero dialog'); },
   alert() {},
@@ -242,7 +305,13 @@ function harness(options = {}) {
    return request.promise;
   }
  });
- const startup=source.lastIndexOf('\ninitialize();');assert(startup>0,'Expected explicit app bootstrap');vm.runInContext(source.slice(0,startup),context,{filename:'app.js'});
+ for(const {name,source} of deferredScripts){
+  if(name==='app.js'){
+   const startup=source.lastIndexOf('\ninitialize();');
+   assert(startup>0,'Expected explicit app bootstrap');
+   vm.runInContext(source.slice(0,startup),context,{filename:name});
+  }else vm.runInContext(source,context,{filename:name});
+ }
  return {context,nodes,document,requests,timers,events,windowEvents,images,imageAssignments,reportedValidity,fire,metadata,
   seed(games){context.syntheticGames=games;context.syntheticSession=metadata();vm.runInContext('games=syntheticGames;authenticated=false;applySessionMetadata(syntheticSession,sessionClock());authenticated=true;',context);nodes.appShell.hidden=false;nodes.authScreen.hidden=true;},
   respond(index,status,payload){const action=requests[index].options.body?JSON.parse(requests[index].options.body).action:'';if(options.autoSession!==false&&payload?.ok===true&&action!=='logout'&&!Object.hasOwn(payload,'session'))payload={...payload,session:metadata()};requests[index].settled=true;requests[index].resolve({status,ok:status>=200&&status<300,json:async()=>payload});},
@@ -251,4 +320,4 @@ function harness(options = {}) {
   query(selector){return document.querySelector(selector);},queryAll(selector){return document.querySelectorAll(selector);}
  };
 }
-module.exports={source,html,parseMarkup,descendants,hasClass,nodeText,harness,deferred,flush};
+module.exports={deferredScripts,html,parseMarkup,descendants,hasClass,nodeText,harness,deferred,flush};

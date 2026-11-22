@@ -7,6 +7,7 @@
   const CLASSIC_BACKGROUND_KEY = 'savepoint-classic-background-v1';
   const CLASSIC3_BACKGROUND_KEY = 'savepoint-classic3-background-v1';
   const DOS_BACKGROUND_KEY = 'savepoint-dos-background-v1';
+  const RENDERER_IDLE_TIMEOUT_MS = 30000;
   const root = document.documentElement;
   const macThemes = ['platinum', 'aqua', 'mountain'];
   const additionalThemes = ['liquidglass', 'oldlinux', 'ulinux', 'flinux', 'bee', 'dos', 'longhorn'];
@@ -36,11 +37,35 @@
   const motionEnabled = () => motionPreference === null
     ? reducedMotion?.matches !== true
     : motionPreference === 'on';
-  root.dataset.theme = theme;
+  function setThemeAttributes() {
+    root.dataset.theme = theme;
+    // The two families share component styles. Their palettes still match
+    // individual theme keys and override the common styles in document order.
+    if (additionalThemes.includes(theme)) root.dataset.themeFamily = 'additional';
+    else if (consoleThemeKeys.includes(theme)) root.dataset.themeFamily = 'console';
+    else root.removeAttribute('data-theme-family');
+  }
+
+  setThemeAttributes();
   root.dataset.backgroundMotion = motionEnabled() ? 'on' : 'off';
   root.dataset.classicBackground = classicBackground;
   root.dataset.classic3Background = classic3Background;
   root.dataset.dosBackground = dosBackground;
+  // The script element supplies the versioned URLs for optional backgrounds.
+  const backgroundScripts = document.currentScript?.dataset ?? {};
+  const themeStyles = Array.from(document.querySelectorAll('link[data-theme-style]'));
+
+  function loadThemeStyles(initial = false) {
+    // Leave the links in document order so theme overrides use the same cascade.
+    for (const link of themeStyles) {
+      if (!link.hasAttribute('href') && link.dataset.themes.split(' ').includes(theme)) {
+        if (initial) link.setAttribute('blocking', 'render');
+        link.href = link.dataset.themeStyle;
+      }
+    }
+  }
+
+  loadThemeStyles(true);
 
   function initializeAppearance() {
     const themeControls = document.querySelectorAll('[data-ui-theme]');
@@ -51,8 +76,8 @@
     const motionControls = document.querySelectorAll('input[data-background-motion]');
     const mazeControls = document.querySelectorAll('select[data-classic-background]');
     const mazeStatuses = document.querySelectorAll('[data-maze-status]');
-    const backgroundControls = document.querySelectorAll('select[data-classic3-background]');
-    const backgroundStatuses = document.querySelectorAll('[data-pipes-status]');
+    const pipesControls = document.querySelectorAll('select[data-classic3-background]');
+    const pipesStatuses = document.querySelectorAll('[data-pipes-status]');
     const dosControls = document.querySelectorAll('select[data-dos-background]');
     const matrixStatuses = document.querySelectorAll('[data-matrix-status]');
     const aquarium = document.getElementById('aquariumBackground');
@@ -68,134 +93,114 @@
     const matrixCanvas = document.getElementById('matrixCanvas');
     let pageSuspended = false;
     let disposed = false;
-    let mazeRenderer = null;
-    let mazeFailed = false;
-    let mazeObserver = null;
-    let pipesRenderer = null;
-    let pipesFailed = false;
-    let pipesObserver = null;
-    let p2Renderer = null;
-    let p2Failed = false;
-    let p2Observer = null;
-    let matrixRenderer = null;
-    let matrixFailed = false;
-    let matrixObserver = null;
 
-    function onMatrixFailure() {
-      matrixFailed = true;
-      // Display the unchanged Classic desktop without losing the saved choice.
-      Promise.resolve().then(refresh);
+    const maze = createCanvasBackground(mazeStage, mazeCanvas, 'SavepointMaze', backgroundScripts.maze);
+    const pipes = createCanvasBackground(pipesStage, pipesCanvas, 'SavepointPipes', backgroundScripts.pipes);
+    const p2Clock = createCanvasBackground(
+      p2Stage, p2Canvas, 'SavepointP2Clock', backgroundScripts.p2,
+      (renderer, active, playing) => {
+        // Pausing smooth motion keeps the clock current at one hertz.
+        // Hidden pages and other themes stop its work entirely.
+        renderer.setState({ active: active && document.hidden !== true && !pageSuspended, playing });
+      }
+    );
+    const matrix = createCanvasBackground(matrixStage, matrixCanvas, 'SavepointMatrix', backgroundScripts.matrix);
+
+    function updateAnimation(renderer, active, playing) {
+      renderer.setPlaying(active && playing && document.hidden !== true && !pageSuspended);
     }
 
-    function resizeMatrix() {
-      if (!disposed && matrixStage && !matrixStage.hidden) matrixRenderer?.resize();
-    }
+    function createCanvasBackground(stage, canvas, factoryName, scriptUrl, updateRenderer = updateAnimation) {
+      let renderer = null;
+      let failed = false;
+      let observer = null;
+      let script = null;
+      let idleTimer = null;
 
-    function onP2Failure() {
-      p2Failed = true;
-      // Keep the plain violet desktop if canvas rendering is unavailable.
-      Promise.resolve().then(refresh);
-    }
+      function onFailure() {
+        failed = true;
+        // A factory or draw can report failure synchronously. Let it return
+        // before refreshing the fallback, and keep the saved background choice.
+        Promise.resolve().then(refresh);
+      }
 
-    function resizeP2() {
-      if (!disposed && p2Stage && !p2Stage.hidden) p2Renderer?.resize();
-    }
+      function destroyRenderer() {
+        clearTimeout(idleTimer);
+        idleTimer = null;
+        renderer?.destroy();
+        renderer = null;
+      }
 
-    function onMazeFailure() {
-      mazeFailed = true;
-      // Defer fallback until the factory or active draw has returned. Keep the
-      // saved choice so a later page load can retry a temporary canvas failure.
-      Promise.resolve().then(refresh);
-    }
-
-    function resizeMaze() {
-      if (!disposed && mazeStage && !mazeStage.hidden) mazeRenderer?.resize();
-    }
-
-    function onPipesFailure() {
-      pipesFailed = true;
-      // A renderer can fail during its first draw. Defer the UI update until
-      // its factory returns, preventing reentrant construction or disposal.
-      Promise.resolve().then(refresh);
-    }
-
-    function resizePipes() {
-      if (!disposed && pipesStage && !pipesStage.hidden) pipesRenderer?.resize();
-    }
-
-    // Create optional renderers only when requested. A failed renderer changes
-    // the displayed fallback without overwriting the saved background choice.
-    function refresh() {
-      if (disposed) return;
-      const playing = motionEnabled();
-      const wantsMatrix = theme === 'dos' && dosBackground === 'matrix' && !matrixFailed;
-      if (matrixStage) matrixStage.hidden = !wantsMatrix;
-      if (wantsMatrix && !matrixRenderer) {
-        try {
-          matrixRenderer = window.SavepointMatrix?.create(matrixCanvas, onMatrixFailure) ?? null;
-        } catch {
-          matrixFailed = true;
+      // While the script loads, keep the chosen background and hide its canvas.
+      // Only an actual failure marks the option unavailable and shows a fallback.
+      function prepare(requested) {
+        if (requested && !failed && !window[factoryName] && scriptUrl) {
+          if (!script) {
+            script = document.createElement('script');
+            script.src = scriptUrl;
+            script.addEventListener('load', () => {
+              if (window[factoryName]) refresh();
+              else onFailure();
+            }, { once: true });
+            script.addEventListener('error', onFailure, { once: true });
+            document.head.append(script);
+          }
+          return false;
         }
-        if (!matrixRenderer) matrixFailed = true;
-      }
-      if (matrixFailed && matrixRenderer) {
-        matrixRenderer.destroy();
-        matrixRenderer = null;
-      }
-      const activeMatrix = wantsMatrix && !matrixFailed;
-      const displayedDosBackground = matrixFailed ? 'classic' : dosBackground;
-      const wantsP2 = theme === 'p2' && !p2Failed;
-      if (p2Stage) p2Stage.hidden = !wantsP2;
-      if (wantsP2 && !p2Renderer) {
-        try {
-          p2Renderer = window.SavepointP2Clock?.create(p2Canvas, onP2Failure) ?? null;
-        } catch {
-          p2Failed = true;
+        const available = requested && !failed;
+        if (stage) stage.hidden = !available;
+        if (available && !renderer) {
+          try {
+            renderer = window[factoryName]?.create(canvas, onFailure) ?? null;
+          } catch {
+            failed = true;
+          }
+          if (!renderer) failed = true;
         }
-        if (!p2Renderer) p2Failed = true;
+        if (failed && renderer) destroyRenderer();
+        return available && !failed;
       }
-      if (p2Failed && p2Renderer) {
-        p2Renderer.destroy();
-        p2Renderer = null;
+
+      function resize() {
+        if (!disposed && stage && !stage.hidden) renderer?.resize();
       }
-      const activeP2 = wantsP2 && !p2Failed;
-      const wantsMaze = theme === 'classic' && classicBackground === 'maze' && !mazeFailed;
-      if (mazeStage) mazeStage.hidden = !wantsMaze;
-      if (wantsMaze && !mazeRenderer) {
-        try {
-          mazeRenderer = window.SavepointMaze?.create(mazeCanvas, onMazeFailure) ?? null;
-        } catch {
-          mazeFailed = true;
+
+      function update(active, playing) {
+        if (stage) stage.hidden = !active;
+        resize();
+        if (renderer === null) return;
+        updateRenderer(renderer, active, playing);
+        if (active && idleTimer !== null) {
+          clearTimeout(idleTimer);
+          idleTimer = null;
+        } else if (!active && idleTimer === null) {
+          // A quick switch can reuse the scene. Release large inactive bitmaps
+          // after a short grace period, regardless of the motion setting.
+          idleTimer = setTimeout(destroyRenderer, RENDERER_IDLE_TIMEOUT_MS);
         }
-        if (!mazeRenderer) mazeFailed = true;
       }
-      if (mazeFailed && mazeRenderer) {
-        mazeRenderer.destroy();
-        mazeRenderer = null;
-      }
-      const activeMaze = wantsMaze && !mazeFailed;
-      const mazeBackground = mazeFailed ? 'classic' : classicBackground;
-      const wantsPipes = theme === 'classic3' && classic3Background === 'pipes' && !pipesFailed;
-      if (pipesStage) pipesStage.hidden = !wantsPipes;
-      if (wantsPipes && !pipesRenderer) {
-        try {
-          pipesRenderer = window.SavepointPipes?.create(pipesCanvas, onPipesFailure) ?? null;
-        } catch {
-          pipesFailed = true;
+
+      function observe() {
+        if (stage && typeof ResizeObserver === 'function') {
+          observer = new ResizeObserver(resize);
+          observer.observe(stage);
         }
-        if (!pipesRenderer) pipesFailed = true;
       }
-      if (pipesFailed && pipesRenderer) {
-        pipesRenderer.destroy();
-        pipesRenderer = null;
+
+      function dispose() {
+        observer?.disconnect();
+        destroyRenderer();
       }
-      const activePipes = wantsPipes && !pipesFailed;
-      const background = pipesFailed ? 'classic' : classic3Background;
-      root.dataset.theme = theme;
+
+      return { prepare, resize, update, observe, dispose, get failed() { return failed; } };
+    }
+
+    function updateThemeControls(playing, displayedClassic, displayedClassic3, displayedDos) {
+      setThemeAttributes();
       root.dataset.backgroundMotion = playing ? 'on' : 'off';
-      root.dataset.classicBackground = mazeBackground;
-      root.dataset.classic3Background = background;
-      root.dataset.dosBackground = displayedDosBackground;
+      root.dataset.classicBackground = displayedClassic;
+      root.dataset.classic3Background = displayedClassic3;
+      root.dataset.dosBackground = displayedDos;
       for (const control of themeControls) control.value = theme;
       // Decorative Mac captions never participate in the existing theme layouts.
       for (const caption of macCaptions) caption.hidden = !macThemes.includes(theme);
@@ -205,61 +210,68 @@
       const isConsoleTheme = consoleThemeKeys.includes(theme);
       for (const element of consoleElements) element.hidden = !isConsoleTheme;
       for (const name of consoleNames) name.textContent = consoleThemes[theme] || '';
-      for (const control of mazeControls) {
-        control.value = mazeBackground;
-        control.querySelector('option[value="maze"]').disabled = mazeFailed;
-        const label = control.closest('.classic-background-control');
-        if (label) label.hidden = theme !== 'classic';
+    }
+
+    function updateBackgroundPicker({ controls, statuses, themeKey, option, saved, displayed, failed }) {
+      const active = theme === themeKey;
+      for (const control of controls) {
+        control.value = displayed;
+        control.querySelector(`option[value="${option}"]`).disabled = failed;
+        const label = control.closest(`.${themeKey}-background-control`);
+        if (label) label.hidden = !active;
       }
-      for (const status of mazeStatuses) status.hidden = !(theme === 'classic' && classicBackground === 'maze' && mazeFailed);
-      for (const control of backgroundControls) {
-        control.value = background;
-        control.querySelector('option[value="pipes"]').disabled = pipesFailed;
-        const label = control.closest('.classic3-background-control');
-        if (label) label.hidden = theme !== 'classic3';
-      }
-      for (const status of backgroundStatuses) status.hidden = !(theme === 'classic3' && classic3Background === 'pipes' && pipesFailed);
-      for (const control of dosControls) {
-        control.value = displayedDosBackground;
-        control.querySelector('option[value="matrix"]').disabled = matrixFailed;
-        const label = control.closest('.dos-background-control');
-        if (label) label.hidden = theme !== 'dos';
-      }
-      for (const status of matrixStatuses) status.hidden = !(theme === 'dos' && dosBackground === 'matrix' && matrixFailed);
+      for (const status of statuses) status.hidden = !(active && saved === option && failed);
+    }
+
+    function updateMotionControls(playing, hasAnimatedDesktop) {
       for (const control of motionControls) {
         control.checked = playing;
         const label = control.closest('.background-motion-control');
-        if (label) label.hidden = theme !== 'aero' && theme !== 'luna'
-          && !activePipes && !activeMaze && !activeP2 && !activeMatrix;
+        if (label) label.hidden = theme !== 'aero' && theme !== 'luna' && !hasAnimatedDesktop;
       }
+    }
+
+    function updateAquarium(playing) {
+      if (!aquarium) return;
+      aquarium.hidden = theme !== 'luna';
+      aquarium.dataset.playing = String(theme === 'luna' && playing
+        && document.hidden !== true && !pageSuspended);
+      // Aero never downloads the optional aquarium artwork. The blue water
+      // remains visible while the image loads or when it is unavailable.
+      if (theme === 'luna' && reef && !reef.hasAttribute('src')) reef.src = reef.dataset.src;
+    }
+
+    function refresh() {
+      if (disposed) return;
+      loadThemeStyles();
+      const playing = motionEnabled();
+
+      // Prepare the canvases before publishing a background or its fallback.
+      const activeMatrix = matrix.prepare(theme === 'dos' && dosBackground === 'matrix');
+      const displayedDos = matrix.failed ? 'classic' : dosBackground;
+      const activeP2 = p2Clock.prepare(theme === 'p2');
+      const activeMaze = maze.prepare(theme === 'classic' && classicBackground === 'maze');
+      const displayedClassic = maze.failed ? 'classic' : classicBackground;
+      const activePipes = pipes.prepare(theme === 'classic3' && classic3Background === 'pipes');
+      const displayedClassic3 = pipes.failed ? 'classic' : classic3Background;
+
+      updateThemeControls(playing, displayedClassic, displayedClassic3, displayedDos);
+      updateBackgroundPicker({ controls: mazeControls, statuses: mazeStatuses, themeKey: 'classic',
+        option: 'maze', saved: classicBackground, displayed: displayedClassic, failed: maze.failed });
+      updateBackgroundPicker({ controls: pipesControls, statuses: pipesStatuses, themeKey: 'classic3',
+        option: 'pipes', saved: classic3Background, displayed: displayedClassic3, failed: pipes.failed });
+      updateBackgroundPicker({ controls: dosControls, statuses: matrixStatuses, themeKey: 'dos',
+        option: 'matrix', saved: dosBackground, displayed: displayedDos, failed: matrix.failed });
+      updateMotionControls(playing, activePipes || activeMaze || activeP2 || activeMatrix);
       // This controller owns only Aero's original picker. The shared static
       // desktop color/reset controls are owned by static-background-colors.js.
       if (colorControl) colorControl.hidden = theme !== 'aero';
-      if (aquarium) {
-        aquarium.hidden = theme !== 'luna';
-        aquarium.dataset.playing = String(theme === 'luna' && playing
-          && document.hidden !== true && !pageSuspended);
-        // Aero never downloads the optional aquarium artwork. The blue water
-        // remains visible while the image loads or when it is unavailable.
-        if (theme === 'luna' && reef && !reef.hasAttribute('src')) reef.src = reef.dataset.src;
-      }
-      if (mazeStage) mazeStage.hidden = !activeMaze;
-      resizeMaze();
-      mazeRenderer?.setPlaying(activeMaze && playing && document.hidden !== true && !pageSuspended);
-      if (pipesStage) pipesStage.hidden = !activePipes;
-      resizePipes();
-      pipesRenderer?.setPlaying(activePipes && playing && document.hidden !== true && !pageSuspended);
-      if (p2Stage) p2Stage.hidden = !activeP2;
-      // Pausing smooth motion keeps the functional clock current at one hertz.
-      // Hidden pages and other themes stop its work entirely.
-      resizeP2();
-      p2Renderer?.setState({
-        active: activeP2 && document.hidden !== true && !pageSuspended,
-        playing
-      });
-      if (matrixStage) matrixStage.hidden = !activeMatrix;
-      resizeMatrix();
-      matrixRenderer?.setPlaying(activeMatrix && playing && document.hidden !== true && !pageSuspended);
+      updateAquarium(playing);
+
+      maze.update(activeMaze, playing);
+      pipes.update(activePipes, playing);
+      p2Clock.update(activeP2, playing);
+      matrix.update(activeMatrix, playing);
       document.dispatchEvent(new Event('savepoint:themechange'));
     }
 
@@ -300,7 +312,7 @@
         refresh();
       });
     }
-    for (const control of backgroundControls) {
+    for (const control of pipesControls) {
       control.addEventListener('change', () => {
         classic3Background = control.value === 'pipes' ? 'pipes' : 'classic';
         savePreference(CLASSIC3_BACKGROUND_KEY, classic3Background);
@@ -322,43 +334,23 @@
       refresh();
       if (!event.persisted) {
         disposed = true;
-        mazeObserver?.disconnect();
-        mazeRenderer?.destroy();
-        mazeRenderer = null;
-        pipesObserver?.disconnect();
-        pipesRenderer?.destroy();
-        pipesRenderer = null;
-        p2Observer?.disconnect();
-        p2Renderer?.destroy();
-        p2Renderer = null;
-        matrixObserver?.disconnect();
-        matrixRenderer?.destroy();
-        matrixRenderer = null;
+        maze.dispose();
+        pipes.dispose();
+        p2Clock.dispose();
+        matrix.dispose();
       }
     });
     addEventListener('pageshow', () => { pageSuspended = false; refresh(); });
     if (typeof reducedMotion?.addEventListener === 'function') reducedMotion.addEventListener('change', refresh);
     else reducedMotion?.addListener?.(refresh);
-    if (mazeStage && typeof ResizeObserver === 'function') {
-      mazeObserver = new ResizeObserver(resizeMaze);
-      mazeObserver.observe(mazeStage);
-    }
-    if (pipesStage && typeof ResizeObserver === 'function') {
-      pipesObserver = new ResizeObserver(resizePipes);
-      pipesObserver.observe(pipesStage);
-    }
-    addEventListener('resize', resizeMaze);
-    addEventListener('resize', resizePipes);
-    if (p2Stage && typeof ResizeObserver === 'function') {
-      p2Observer = new ResizeObserver(resizeP2);
-      p2Observer.observe(p2Stage);
-    }
-    addEventListener('resize', resizeP2);
-    if (matrixStage && typeof ResizeObserver === 'function') {
-      matrixObserver = new ResizeObserver(resizeMatrix);
-      matrixObserver.observe(matrixStage);
-    }
-    addEventListener('resize', resizeMatrix);
+    maze.observe();
+    pipes.observe();
+    addEventListener('resize', maze.resize);
+    addEventListener('resize', pipes.resize);
+    p2Clock.observe();
+    addEventListener('resize', p2Clock.resize);
+    matrix.observe();
+    addEventListener('resize', matrix.resize);
     refresh();
   }
 

@@ -6,7 +6,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { harness: browserHarness } = require('./frontend-dom.cjs');
 const source = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const sessionSource = fs.readFileSync(path.join(__dirname, '..', 'session-api.js'), 'utf8');
+const transferSource = fs.readFileSync(path.join(__dirname, '..', 'collection-transfer.js'), 'utf8');
 new vm.Script(source, { filename: 'app.js' });
 function section(start, end) {
   const first = source.indexOf(start), last = source.indexOf(end, first);
@@ -29,7 +32,7 @@ function harness(persisted = false, shared = {}) {
   const session = shared.session ?? new Map(persisted === 'session' ? marker : []);
   const storage = data => ({ getItem: key => data.get(key) ?? null, setItem: (key,value) => data.set(key,value), removeItem: key => data.delete(key) });
   const nodes = {};
-  for (const id of ['grid','gameTitleSuggestions','platformFilter','editionFilter','statusFilter','search','sort','count','statTotal','statPlatforms','statDone','gameForm','gameId','title','coverUrl','coverSearch','edition','status','modalBackdrop','loginUsername','loginPassword','toggleLoginPassword','appShell','authScreen','authTitle','authIntro','loginForm','websiteField','authMessage','retryConnection','loginButton','captchaStatus','captchaWidget','toast','importFile','logoutBtn','platform','platformOptions']) {
+  for (const id of ['grid','gameTitleSuggestions','platformFilter','editionFilter','statusFilter','search','sort','count','statTotal','statPlatforms','statDone','gameForm','gameId','title','coverUrl','coverSearch','edition','status','modalBackdrop','loginUsername','loginPassword','toggleLoginPassword','appShell','authScreen','authTitle','authIntro','loginForm','websiteField','authMessage','retryConnection','loginButton','captchaStatus','captchaWidget','toast','importFile','importBtn','logoutBtn','platform','platformOptions']) {
     const classes = new Set();
     const attributes = {};
     nodes[id] = {
@@ -43,6 +46,7 @@ function harness(persisted = false, shared = {}) {
       addEventListener() {}
     };
   }
+  nodes.exportBtn = {};
   let inputs = ['PC','PlayStation 5'].map(value => ({ value, checked: false, setCustomValidity(message) { this.validationMessage = message; }, reportValidity() { return !this.validationMessage; } }));
   let extra = false;
   nodes.platform.querySelectorAll = () => inputs;
@@ -57,7 +61,7 @@ function harness(persisted = false, shared = {}) {
   const test = { requests, alerts, notices, prepared, timers, nodes, local, session, cookies, listeners, legacy: [], confirms: 0, deleteConfirms: 0 };
   const context = vm.createContext({
     $: id => nodes[id], API_URL: 'api/games.php', LEGACY_KEY: 'synthetic-legacy-key',
-    TextEncoder, URL, window: {}, location: { protocol: 'https:' },
+    TextEncoder, URL, btoa: value => Buffer.from(value,'latin1').toString('base64'), window: {}, location: { protocol: 'https:' },
     localStorage: storage(local), sessionStorage: storage(session),
     crypto: { randomUUID: () => 'synthetic-new-id' },
     readLegacyGames: () => test.legacy,
@@ -76,19 +80,21 @@ function harness(persisted = false, shared = {}) {
       return test.deleteConfirmation ? await test.deleteConfirmation : test.deleteConfirmResult ?? true;
     },
     setConnectionStatus() {},
-    closeModal: () => nodes.modalBackdrop.classList.remove('open'),
+    loadCollectionTools() {},
+    closeModal: () => { nodes.modalBackdrop.classList.remove('open'); vm.runInContext('gameDraft=null',context); },
     clearCaptchaWidget: () => nodes.captchaWidget.replaceChildren(),
     document: { hidden:false, createElement() { throw new Error('Unexpected DOM creation in lifecycle fixture'); } },
     renderCalls: 0
   });
   vm.runInContext(`let games = []; let toastTimer; let captchaGeneration = 0; let captchaChallenge = null; let captchaSolution = null; let captchaSolvePromise = null;
+    let aiImportController = null; let duplicatesController = null;
     function render() { renderCalls++; $('grid').innerHTML = games.map(game => game.title).join('|'); }
     function prepareCaptcha(challenge) { captchaChallenge = challenge; captchaSolution = null; preparedChallenge(challenge); }
     function showAuthenticatedError(message) { $('authMessage').textContent = message; }`, context);
   context.preparedChallenge = value => prepared.push(value);
   vm.runInContext(
     section('const safeImageUrl', 'function readLegacyGames') +
-    section('const MAX_REQUEST_BYTES', 'function setConnectionStatus') +
+    sessionSource + transferSource +
     section('const COVER_LOAD_TIMEOUT', 'function platformCheckboxes') +
     section('function platformCheckboxes', 'function render()') +
     section('function hasCaptchaChallenge', 'async function solveAutomaticCaptcha') +
@@ -96,9 +102,9 @@ function harness(persisted = false, shared = {}) {
     section('function showLogin()', 'async function submitLogin') +
     section('async function submitLogin', 'function showAuthenticatedError') +
     section("$('retryConnection').onclick =", 'function openModal') +
-    section('window.deleteGame =', "$('grid').addEventListener") +
+    section('const pendingGameDeletes =', "$('grid').addEventListener") +
     section("$('gameForm').onsubmit =", "['search', 'platformFilter'") +
-    section("$('importFile').onchange =", '\nfunction initializeUiLanguage()') +
+    '\ninitializeCollectionTransfer();' +
     // These cases isolate session/API races. Real form presentation, imported
     // producer tabs and image lifecycles run in frontend-game-form.cjs.
     '\nfunction getPlatformGroups(){return [];} function rebuildPlatformTabs(){} function updatePlatformSelectionSummary(){} function initializeGameFormPresentation(){} function clearCoverPreview(){}', context);
@@ -112,6 +118,8 @@ function harness(persisted = false, shared = {}) {
     nodes.platformFilter.innerHTML = 'private consoles';
     for (const id of ['search','title','coverUrl','gameId']) nodes[id].value = 'synthetic-private-value';
     nodes.title.value = game.title; nodes.gameId.value = game.id;
+    nodes.coverUrl.value = game.coverUrl;
+    vm.runInContext('gameDraft = { id: games[0].id, createdAt: games[0].createdAt };',context);
     nodes.appShell.hidden = false; nodes.authScreen.hidden = true;
     nodes.modalBackdrop.classList.add('open');
     extra = true; inputs.push({value:'Synthetic imported console',checked:true,extra:true,setCustomValidity(){}});
@@ -168,7 +176,45 @@ async function finishLogout(test, attempt) {
 }
 
 async function main() {
-  for (const [status,message] of [[413,'Żądanie jest zbyt duże.'],[415,'Żądanie musi zawierać dane JSON.']]) {
+  {
+    const test=browserHarness();
+    const aiScripts=()=>test.document.head.querySelectorAll('script').filter(script => /^(ai-import|duplicates)\.js\?/.test(script.src));
+    assert.equal(aiScripts().length,0,'Sign-in does not load AI code');
+    const initializing=test.context.initialize();
+    test.respond(0,200,{ok:true,games:[]});await initializing;
+    assert.equal(aiScripts().length,2);
+    assert.equal(test.nodes.addAiBtn.disabled,true);
+    assert.equal(test.nodes.findDuplicatesBtn.disabled,true);
+    const photo=aiScripts().find(script=>script.src.startsWith('ai-import'));
+    photo.onerror();
+    assert.equal(test.nodes.addAiBtn.disabled,false);
+    test.nodes.addAiBtn.onclick();
+    assert.equal(test.nodes.addAiBtn.disabled,true);
+    assert.equal(aiScripts().length,2,'Retry creates a replacement instead of adding duplicate loaders');
+    console.log('PASS: sign-in excludes optional AI scripts and an authenticated failed loader stays retryable');
+  }
+  {
+    const test=browserHarness();
+    const errorPromise=test.context.apiRequest().catch(error=>error);
+    test.runTimers(25000);
+    const error=await errorPromise;
+    assert.equal(error.timeout,true);assert.match(error.englishMessage,/time/);
+    test.respond(0,200,{ok:true,games:[]});await flush();
+    assert.equal(test.nodes.appShell.hidden,true,'A late connection response cannot revive the screen');
+    const first=test.context.loadTurnstileApi().catch(error=>error);
+    const scripts=()=>test.document.head.querySelectorAll('[data-turnstile-api]');
+    assert.equal(scripts().length,1);
+    test.runTimers(15000);
+    assert.match((await first).englishMessage,/time/);
+    assert.equal(scripts().length,0);
+    const retry=test.context.loadTurnstileApi();
+    assert.equal(scripts().length,1);
+    test.context.window.turnstile={};
+    scripts()[0].onload();
+    await retry;
+    console.log('PASS: response and Turnstile-loading deadlines stop waiting and permit a fresh verification attempt');
+  }
+  for (const [status,message] of [[413,'Żądanie jest zbyt duże.'],[415,'Serwer odrzucił typ danych żądania.']]) {
     const test=harness();test.seed();
     const operation=test.context.apiRequest('POST',{action:'save',game}).catch(error=>error);
     assert.equal(test.requests.length,1);assert.equal(test.action(0),'save');
@@ -199,9 +245,9 @@ async function main() {
     test.requests[0].settled=true;
     test.requests[0].resolve(new Response('<html>Unavailable</html>',{status:500,headers:{'Content-Type':'text/html'}}));
     const error=await operation;
-    assert.equal(error.message,'Nie udało się połączyć z bazą danych.');assert.equal(error.status,500);
+    assert.equal(error.message,'Serwer nie zwrócił poprawnej odpowiedzi.');assert.equal(error.status,500);
     assert.equal(JSON.stringify(error.payload),'{}');
-    console.log('PASS: other non-JSON HTTP failures retain the existing connection error');
+    console.log('PASS: non-JSON server failures are described without guessing a database error');
   }
   {
     const test=harness(); test.seed();
@@ -379,9 +425,9 @@ async function main() {
   }
   {
     const test=harness();test.seed(); let reads=0;
-    const imported=test.import({size:1024*1024+1,text:async()=>{reads++;return '[]';}}); await imported.promise;
+    const imported=test.import({size:16*1024*1024+1,text:async()=>{reads++;return '[]';}}); await imported.promise;
     assert.equal(reads,0);assert.equal(test.requests.length,0);assert.equal(imported.target.value,'');
-    assert.match(test.alerts[0],/1 MiB/);
+    assert.match(test.alerts[0],/16 MiB/);
     console.log('PASS: oversized file is rejected before reading and input clears');
   }
   {
@@ -394,10 +440,36 @@ async function main() {
   }
   {
     const test=harness();test.seed();
-    const huge={...game,title:'ł'.repeat(40000)};
-    const imported=test.import({size:90000,text:async()=>JSON.stringify([huge])});await imported.promise;
-    assert.equal(test.requests.length,0);assert.equal(imported.target.value,'');assert.match(test.alerts[0],/64 KiB/);
-    console.log('PASS: full outgoing JSON is limited by UTF-8 bytes before fetch');
+    const records=Array.from({length:200},(_,index)=>({...game,id:'synthetic-'+index,title:'ł'.repeat(200)}));
+    const data=JSON.stringify(records);
+    const imported=test.import({size:Buffer.byteLength(data),text:async()=>data});
+    await flush();
+    const start=JSON.parse(test.requests[0].options.body);
+    assert.equal(start.action,'collection-upload-start');
+    assert.equal(start.size,Buffer.byteLength(data));
+    test.respond(0,200,{ok:true,uploadId:'test-upload',offset:0});await flush();
+    const restored=[];
+    let request=1,replayed=false;
+    while(test.action(request)==='collection-upload-chunk'){
+      const body=JSON.parse(test.requests[request].options.body);
+      const chunk=Buffer.from(body.data,'base64');
+      assert(chunk.length<=32768);assert(Buffer.byteLength(test.requests[request].options.body)<65536);
+      assert.equal(body.offset,Buffer.concat(restored).length);
+      if(!replayed){
+        test.respond(request++,503,{ok:false,error:'Synthetic temporary failure'});await flush();
+        assert.deepEqual(JSON.parse(test.requests[request].options.body),body);
+        replayed=true;
+      }
+      restored.push(chunk);
+      test.respond(request++,200,{ok:true,offset:body.offset+chunk.length});await flush();
+    }
+    assert.equal(Buffer.concat(restored).toString('utf8'),data);
+    assert.equal(test.action(request),'collection-upload-finish');
+    assert.equal(test.state().games.length,1,'Do not replace visible games until atomic finish');
+    test.respond(request,200,{ok:true,games:records,inserted:records.length});
+    await imported.promise;
+    assert.equal(test.state().games.length,records.length);
+    console.log('PASS: a large Unicode collection uses replayable bounded byte chunks and updates only after the final commit');
   }
   {
     const test=harness();test.seed();const text=' '.repeat(70000)+JSON.stringify([game]);
@@ -405,7 +477,7 @@ async function main() {
     assert.equal(test.action(0),'replace');assert(Buffer.byteLength(test.requests[0].options.body)<65536);
     test.respond(0,200,{ok:true,games:[game]});await imported.promise;
     assert.equal(imported.target.value,'');assert.equal(test.state().games.length,1);
-    console.log('PASS: whitespace-heavy file below 1 MiB can import when compact request fits 64 KiB');
+    console.log('PASS: whitespace-heavy file can import directly when compact request fits 64 KiB');
   }
   {
     const test=harness();test.seed();const reading=deferred();
@@ -419,7 +491,7 @@ async function main() {
     const test=harness();test.seed();test.legacy=[{...game,title:'ł'.repeat(40000)}];test.local.set('synthetic-legacy-key','synthetic-backup');
     await test.context.acceptAuthenticated([game]);
     assert.equal(test.requests.length,0);assert.equal(test.state().games.length,1);
-    assert.equal(test.local.get('synthetic-legacy-key'),'synthetic-backup');assert.match(test.notices[0],/64 KiB/);
+    assert.equal(test.local.get('synthetic-legacy-key'),'synthetic-backup');assert.match(test.notices[0],/poprawnej kolekcji/);
     assert.equal(test.nodes.appShell.hidden,false);
     console.log('PASS: oversized legacy migration keeps backup and does not block authenticated collection');
   }
@@ -437,19 +509,30 @@ async function main() {
   {
     const nodes=Object.fromEntries(['authIntro','loginButton','retryConnection','captchaStatus','captchaWidget'].map(id=>[id,{textContent:'',disabled:false,hidden:true,replaceChildren(){}}]));
     let callbacks,removals=0,resets=0;
+    const waitTimers=[];
     const context=vm.createContext({
       $:id=>nodes[id],
       window:{turnstile:{render:(selector,options)=>{callbacks=options;return 'synthetic-widget';},remove(){removals++;},reset(){resets++;}}},
+      setTimeout(handler,delay){const timer={handler,delay,cleared:false};waitTimers.push(timer);return timer;},
+      clearTimeout(timer){timer.cleared=true;},
       hasCaptchaChallenge:()=>true,loadTurnstileApi:()=>Promise.resolve(),
       solveAutomaticCaptcha(){throw new Error('Unexpected automatic verification');}
     });
-    vm.runInContext('let captchaGeneration=0;let captchaChallenge=null;let captchaSolution=null;let captchaSolvePromise=null;let turnstileWidgetId=null;',context);
+    vm.runInContext('let captchaGeneration=0;let captchaChallenge=null;let captchaSolution=null;let captchaSolvePromise=null;let turnstileWidgetId=null;let turnstileWaitTimer=null;',context);
     vm.runInContext(
       section('const LANGUAGE_KEY', 'function readLegacyGames()')+
-      section('function clearCaptchaWidget()', 'function loadTurnstileApi()')+
+      section('function stopTurnstileWait()', 'function loadTurnstileApi()')+
       section('function prepareCaptcha(', 'function showLogin()')+
       section('function clearSessionCaptcha()', 'function handleSessionExpired('),context);
     context.prepareCaptcha(challenge);await flush();assert(callbacks);
+    assert.equal(waitTimers[0].delay,25000);
+    waitTimers[0].handler();
+    assert.equal(nodes.retryConnection.hidden,false);
+    assert.equal(nodes.loginButton.disabled,true);
+    assert.equal(removals,0,'Retry hint must keep the widget available');
+    callbacks.callback('synthetic-complete');
+    assert.equal(nodes.loginButton.disabled,false);
+    assert.equal(nodes.retryConnection.hidden,true);
     context.clearSessionCaptcha();
     nodes.loginButton.disabled=true;nodes.loginButton.textContent='Wylogowywanie…';nodes.captchaStatus.textContent='Synthetic logout status';
     callbacks.callback('synthetic-old-token');callbacks['expired-callback']();callbacks['error-callback']();

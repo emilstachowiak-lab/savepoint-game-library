@@ -1,0 +1,146 @@
+/* Shared modal and button classes supply each theme's appearance. */
+.duplicates-modal {
+  width: min(100%, 820px);
+}
+
+.duplicates-body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 16px 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.duplicates-body p {
+  margin: 0 0 12px;
+}
+
+.duplicates-body .duplicates-notice,
+.duplicates-body .duplicates-limit {
+  margin: 12px 0 0;
+}
+
+.duplicates-limit,
+.duplicates-error {
+  border-inline-start: 3px solid currentColor;
+  padding-inline-start: 8px;
+}
+
+.duplicates-error {
+  font-weight: 600;
+}
+
+.duplicates-results {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.duplicates-results:empty {
+  margin-top: 0;
+}
+
+.duplicates-pair {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line, #a8c4d6);
+  border-radius: 4px;
+}
+
+.duplicates-pair legend {
+  padding: 0 5px;
+  font-weight: 600;
+}
+
+.duplicates-records {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.duplicates-record {
+  border: 1px solid var(--line, #a8c4d6);
+  border-radius: 3px;
+  padding: 10px;
+}
+
+.duplicates-record:has(input:checked) {
+  border-color: currentColor;
+}
+
+.duplicates-keep {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.duplicates-keep input {
+  flex: 0 0 auto;
+  margin: 3px 0 0;
+}
+
+.duplicates-keep small {
+  display: block;
+  font-size: 12px;
+}
+
+.duplicates-details {
+  display: grid;
+  grid-template-columns: minmax(min-content, auto) minmax(0, 1fr);
+  gap: 3px 10px;
+  margin: 10px 0 0;
+  font-size: 12px;
+}
+
+.duplicates-details dt {
+  font-weight: 600;
+}
+
+.duplicates-details dd {
+  margin: 0;
+}
+
+.duplicates-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.duplicates-actions button {
+  white-space: normal;
+}
+
+.duplicates-confirmation {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line, #a8c4d6);
+}
+
+.form-actions.duplicates-help {
+  display: block;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+@media (max-width: 560px) {
+  .duplicates-body,
+  .form-actions.duplicates-help {
+    padding: 12px;
+  }
+
+  .duplicates-records {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 350px) {
+  .hero-actions:has(#findDuplicatesBtn) {
+    flex-wrap: wrap;
+  }
+}

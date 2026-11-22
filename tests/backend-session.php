@@ -21,7 +21,7 @@ namespace SavepointSessionTest {
         $GLOBALS['sessionLimitChecks']++;
         if ($GLOBALS['sessionRateLimited']) respond(429, ['ok' => false]);
     }
-    function session_write_close(): bool { $GLOBALS['sessionClosed'] = true; return true; }
+    function closeSecureSession(): void { $GLOBALS['sessionClosed'] = true; }
     function loadLocalConfig(): never
     {
         $GLOBALS['sessionConfigReads']++;
@@ -147,7 +147,12 @@ namespace {
             sessionExpect(SavepointSessionTest\sessionCheckRetryAfter($directory, $ip) === 0, 'First 30 checks must be admitted.');
         }
         sessionExpect(SavepointSessionTest\sessionCheckRetryAfter($directory, $ip) === 60 - ($sessionNow % 60), 'The next check must return seconds until the new window.');
-        sessionExpect(SavepointSessionTest\sessionCheckRetryAfter($directory, '192.0.2.2') === 0, 'An address in another slot must retain its own allowance.');
+        $prefix = substr(hash('sha256', inet_pton($ip)), 0, 2);
+        for ($index = 0; ; $index++) {
+            $neighbor = '198.51.' . intdiv($index, 256) . '.' . ($index % 256);
+            if (substr(hash('sha256', inet_pton($neighbor)), 0, 2) === $prefix) break;
+        }
+        sessionExpect(SavepointSessionTest\sessionCheckRetryAfter($directory, $neighbor) === 0, 'An address in the same shard must retain its own allowance.');
         $sessionNow += 60;
         sessionExpect(SavepointSessionTest\sessionCheckRetryAfter($directory, $ip) === 0, 'A new window must reset the allowance.');
     } finally {

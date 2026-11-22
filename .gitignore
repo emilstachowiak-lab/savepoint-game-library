@@ -4,7 +4,13 @@
 .env.*
 /private/
 /backups/
+/server/ai/uploads/
+/server/ai/*-budget.json
+/server/ai/igdb-token.json
+/server/collection/uploads/
+/server/covers/images/
 savepoint-kolekcja*.json
+savepoint-stara-kolekcja*.json
 *.img
 *.log
 
@@ -19,5 +25,9 @@ savepoint-kolekcja*.json
 !/api/schema.sql
 *.sql.gz
 *.zip
+*.7z
+*.tgz
 *.tar
 *.tar.gz
+*.tar.xz
+*.tar.bz2

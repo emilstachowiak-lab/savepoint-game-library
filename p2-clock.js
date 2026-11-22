@@ -311,8 +311,8 @@
       for (const item of items) item.type === 'face' ? drawFace(item) : drawOrb(item);
     }
 
-    // A stopped clock still reflects local time once per second. All scheduling
-    // goes through this guard so failure cancels both kinds of pending work.
+    // An active clock updates once per second when smooth motion is paused.
+    // Inactive or failed renderers do not schedule either kind of update.
     function schedule() {
       if (disposed || failed || !active) return;
       try {

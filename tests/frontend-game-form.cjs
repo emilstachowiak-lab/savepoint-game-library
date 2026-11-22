@@ -8,6 +8,7 @@ const {harness,flush,html,parseMarkup,descendants} = require('./frontend-dom.cjs
 const all = descendants(parseMarkup(html));
 const productionPlatforms = all.filter(node=>node.tag==='input'&&node.attrs.name==='platform').map(node=>node.attrs.value);
 const game = {id:'synthetic-form-id',title:'Synthetic game',platform:'Xbox 360, PlayStation 5',edition:'Fizyczne i cyfrowe',status:'W trakcie',coverUrl:'',createdAt:1};
+const foundCover = 'https://images.igdb.com/igdb/image/upload/t_cover_big/cofixture.jpg';
 const checkboxes = test => test.nodes.platform.querySelectorAll('input[name="platform"]');
 const tabs = test => test.nodes.platformTabs.querySelectorAll('[role="tab"]');
 const groups = test => test.nodes.platformOptions.querySelectorAll('.platform-group');
@@ -38,11 +39,17 @@ function assertPrivatePreviewCleared(test){
  if(test.nodes.googleCoverSearch)assertGoogleCoverQuery(test);
 }
 function urlInput(test,value){test.nodes.coverUrl.value=value;test.fire(test.nodes.coverUrl,'input');test.runTimers(200);}
+function titleInput(test,value){test.nodes.title.value=value;test.fire(test.nodes.title,'input');}
+function manualCoverDraft(){
+ const test=harness();test.seed([]);test.context.AbortController=AbortController;test.context.openModal();
+ titleInput(test,game.title);pick(test,'PC');return test;
+}
 function classicFormDocument(document){
  // Keep the original inputs, native fieldsets and all existing application IDs,
  // but remove the optional gallery UI, reproducing the old form DOM contract.
  const field = id => document.getElementById(id).closest('.field');
  const title=field('title'),cover=field('coverUrl'),edition=field('edition'),status=field('status');
+ document.getElementById('aiCoverSearchControls')?.remove();
  const platform=document.getElementById('platform'),options=document.getElementById('platformOptions'),help=document.getElementById('platformHelp');
  document.getElementById('platformSelectionCount').remove();
  const legend=platform.querySelector('legend');
@@ -82,6 +89,144 @@ async function main(){
   test.context.closeModal();test.context.openModal(game);test.context.clearPrivateData();
   assert.equal(test.requests.length,0,'The optional search link must not break the previous HTML during deployment');
   console.log('PASS: previous HTML without the Google search link still opens, updates and clears the form safely');
+ }
+ {
+  const test=harness();test.seed([game]);test.context.AbortController=AbortController;
+  const {aiCoverSearch: button,aiCoverSearchStatus: status}=test.nodes;
+  assert.equal(button.type,'button','AI cover lookup must not submit the form');
+  assert.equal(status.getAttribute('role'),'status');assert.equal(isVisible(button),false);
+  test.context.openModal();assert.equal(isVisible(button),true);
+  test.fire(button,'click');assert.match(status.textContent,/Wpisz tytuł/);
+  assert.equal(test.document.activeElement,test.nodes.title);
+  titleInput(test,'  '+game.title+'  ');test.fire(button,'click');assert.match(status.textContent,/Wybierz/);
+  assert.equal(test.document.activeElement.name,'platform');assert.equal(isVisible(test.document.activeElement),true);
+  assert.equal(test.requests.length,0,'Title and at least one platform are required before lookup');
+  pick(test,'Xbox 360');pick(test,'PlayStation 5');test.fire(button,'click');test.fire(button,'click');
+  assert.equal(button.disabled,true);assert.match(status.textContent,/Szukam/);
+  assert.equal(test.requests.length,1,'One pending lookup suppresses repeated clicks');
+  const search=test.requests[0];
+  assert.equal(search.options.method,'POST');assert.equal(search.options.credentials,'same-origin');assert(search.options.signal);
+  assert.deepEqual(JSON.parse(search.options.body),{action:'ai-cover-search',title:game.title,platforms:['Xbox 360','PlayStation 5']});
+  test.respond(0,200,{ok:true,coverUrl:foundCover,coverSource:'igdb'});await flush();
+  assert.equal(button.disabled,false);assert.match(status.textContent,/Znaleziono okładkę/);
+  assert.equal(test.nodes.coverUrl.value,foundCover);const image=latestImage(test);assert.equal(image.src,foundCover);load(image);
+  assert.equal(test.nodes.coverPreview.src,foundCover);assert.equal(test.nodes.coverPreview.hidden,false);
+  assert.equal(test.requests.length,1,'A matching result must populate the draft without saving it');
+  const save=test.nodes.gameForm.onsubmit({preventDefault(){}});
+  const body=JSON.parse(test.requests[1].options.body);assert.equal(body.action,'save');assert.equal(body.game.coverUrl,foundCover);
+  test.respond(1,200,{ok:true,games:[body.game]});await save;
+  assertPrivatePreviewCleared(test);assert.equal(status.textContent,'');assert.equal(isVisible(button),false);
+  console.log('PASS: manually adding a game supports authenticated, editable AI cover lookup with a preview and an explicit save');
+ }
+ {
+  const originalCover = 'https://images.example.invalid/existing-cover.jpg';
+  const edited = {...game, coverUrl: originalCover, platform: `${game.platform}, Inna, Legacy console`};
+  const test = harness();
+  test.seed([edited]);
+  const {aiCoverSearch: button, aiCoverSearchStatus: status} = test.nodes;
+  test.context.openModal(edited);
+  assert.equal(isVisible(button), true, 'Editing exposes the same AI cover lookup as adding');
+  assert.equal(test.nodes.title.value, edited.title);
+  assert.equal(test.nodes.coverUrl.value, originalCover);
+  load(latestImage(test));
+  assert.equal(test.nodes.coverPreview.src, originalCover);
+
+  test.fire(button, 'click');
+  assert.equal(test.requests.length, 1);
+  assert.deepEqual(JSON.parse(test.requests[0].options.body), {
+   action: 'ai-cover-search', title: edited.title, platforms: ['Xbox 360', 'PlayStation 5']
+  }, 'Lookup sends the supported platforms from the edited game');
+  test.respond(0, 200, {ok: true, coverUrl: foundCover, coverSource: 'igdb'});
+  await flush();
+  assert.match(status.textContent, /Znaleziono okładkę/);
+  assert.equal(test.nodes.coverUrl.value, foundCover);
+  load(latestImage(test));
+  assert.equal(test.nodes.coverPreview.src, foundCover);
+  assert.equal(test.requests.length, 1, 'Finding an edit cover must not automatically save it');
+
+  const pending = test.nodes.gameForm.onsubmit({preventDefault(){}});
+  assert.equal(test.requests.length, 2);
+  const saved = {...edited, coverUrl: foundCover};
+  assert.deepEqual(JSON.parse(test.requests[1].options.body), {action: 'save', mode: 'edit', game: saved, delta: true},
+   'Explicit save updates the cover while preserving ID, creation time, and all selected platforms');
+  test.respond(1, 200, {ok: true, game: saved});
+  await pending;
+  assertPrivatePreviewCleared(test);
+  assert.equal(isVisible(button), false);
+  console.log('PASS: edit looks up and previews a replacement cover, and saves it only on explicit submission');
+ }
+ {
+  const edited = {...game, coverUrl: 'https://images.example.invalid/first-edit-cover.jpg'};
+  const next = {...edited, id: 'different-synthetic-id'};
+  const test = harness();
+  test.seed([edited, next]);
+  test.context.AbortController = AbortController;
+  const {aiCoverSearch: button, aiCoverSearchStatus: status} = test.nodes;
+  test.context.openModal(edited);
+  test.fire(button, 'click');
+  test.context.openModal(next);
+  assert.equal(test.requests[0].options.signal.aborted, true, 'Switching games must cancel the previous draft lookup');
+  test.fire(button, 'click');
+  test.respond(0, 200, {ok: true, coverUrl: foundCover});
+  await flush();
+  assert.equal(test.nodes.gameId.value, next.id);
+  assert.equal(test.nodes.coverUrl.value, next.coverUrl, 'An identical title, platforms, and old cover do not make the old reply current');
+  assert.equal(button.disabled, true, 'The late reply must leave the new lookup in progress');
+  assert.match(status.textContent, /Szukam/);
+  test.respond(1, 200, {ok: true, coverUrl: foundCover});
+  await flush();
+  assert.equal(test.nodes.coverUrl.value, foundCover);
+  test.context.closeModal();
+  assertPrivatePreviewCleared(test);
+  assert.equal(test.requests.length, 2, 'Cancelling a draft with a suggested cover must not save it');
+  console.log('PASS: lookup replies stay with the correct edit draft even when two games share the same form values');
+ }
+ {
+  const test=manualCoverDraft();const {aiCoverSearch: button,aiCoverSearchStatus: status}=test.nodes;
+  const typedCover='https://images.example.invalid/user-supplied-cover.jpg';urlInput(test,typedCover);
+  for(const [code,result,message] of [
+   [200,{ok:true,coverUrl:''},/Nie znaleziono/],
+   [200,{ok:true,coverUrl:'',coverSearch:'unavailable'},/chwilowo niedostępne/],
+   [200,{ok:true,coverUrl:'javascript:alert(1)'},/Nie udało się/],
+   [200,{ok:true,coverUrl:'https://user@images.example.invalid/cover.jpg'},/Nie udało się/],
+   [429,{ok:false,error:'Synthetic cover quota exhausted.',errorDefault:'Osiągnięto limit okładek.'},/limit okładek/],
+   [503,{ok:false},/Nie udało się/],
+  ]){
+   const index=test.requests.length;test.fire(button,'click');test.respond(index,code,result);await flush();
+   assert.match(status.textContent,message);assert.equal(button.disabled,false);
+   assert.equal(test.nodes.coverUrl.value,typedCover,'A failed lookup must preserve an existing cover URL');
+  }
+  assert.equal(test.images.length,1,'Neither a miss nor an unsafe response starts a new image preview');
+  console.log('PASS: empty, unavailable, invalid and failed searches preserve the user’s cover URL and report status');
+ }
+ {
+  for(const [label,change] of [
+   ['title',test=>titleInput(test,'A newer synthetic title')],
+   ['platforms',test=>pick(test,'PlayStation 5')],
+   ['manual cover',test=>urlInput(test,'https://images.example.invalid/new-manual-cover.jpg')],
+   ['reopened form',test=>{test.context.closeModal();test.context.openModal();titleInput(test,game.title);pick(test,'PC');}],
+  ]){
+   const test=manualCoverDraft();const {aiCoverSearch: button,aiCoverSearchStatus: status}=test.nodes;
+   test.fire(button,'click');change(test);
+   assert.equal(test.requests[0].options.signal.aborted,true,label+' must cancel the prior search');
+   const expected=test.nodes.coverUrl.value;
+   test.fire(button,'click');
+   test.respond(0,200,{ok:true,coverUrl:foundCover});await flush();
+   assert.equal(test.nodes.coverUrl.value,expected,label+' must reject late results from a previous draft');
+   assert.equal(button.disabled,true,'A late reply must not re-enable the button during another lookup');
+   assert.match(status.textContent,/Szukam/);
+   test.respond(1,200,{ok:true,coverUrl:''});await flush();
+   assert.equal(test.nodes.coverUrl.value,expected);assert.equal(button.disabled,false);
+  }
+  const test=manualCoverDraft();const {aiCoverSearch: button,aiCoverSearchStatus: status}=test.nodes;
+  test.fire(button,'click');const logout=test.context.performLogout();await flush();
+  assert.equal(test.requests[0].options.signal.aborted,true);assert.equal(test.requests.length,2,'Cookie-free lookup must not delay logout');
+  assert.equal(JSON.parse(test.requests[1].options.body).action,'logout');
+  test.respond(0,200,{ok:true,coverUrl:foundCover});await flush();
+  assertPrivatePreviewCleared(test);assert.equal(status.textContent,'');
+  test.respond(1,200,{ok:true});await flush();test.respond(2,401,{ok:false,authRequired:true});await logout;
+  assertPrivatePreviewCleared(test);assert.equal(status.textContent,'');
+  console.log('PASS: aborted searches cannot cross draft changes, close/reopen, or logout even when a stale reply arrives');
  }
  {
   const test=harness();test.seed([]);test.context.openModal();
@@ -148,6 +293,52 @@ async function main(){
   console.log('PASS: edit submits exactly one normal save preserving multiple consoles, both editions and status');
  }
  {
+  const test=harness();test.seed([]);
+  test.nodes.addBtn.focus();
+  test.context.openModal();test.runTimers(40);
+  assert.equal(test.document.activeElement,test.nodes.title);
+  assert.equal(test.nodes.appShell.inert,true);
+  const submit=test.nodes.gameForm.querySelector('button[type="submit"]');
+  submit.focus();
+  let tabTrapped=false;
+  test.events.keydown({key:'Tab',preventDefault(){tabTrapped=true;}});
+  assert.equal(tabTrapped,true);
+  assert.equal(test.document.activeElement,test.nodes.closeModal);
+  test.nodes.title.value='Retryable draft';
+  checkboxes(test).find(input=>input.value==='PC').checked=true;
+  let dismissed=0;
+  test.context.confirm=()=>{dismissed++;return false;};
+  test.events.keydown({key:'Escape',preventDefault(){}});
+  assert.equal(dismissed,1);assert.equal(test.nodes.title.value,'Retryable draft');
+
+  const before=test.nodes.gameForm.onsubmit({preventDefault(){}});
+  await test.nodes.gameForm.onsubmit({preventDefault(){}});
+  assert.equal(test.requests.length,1,'A double submission sends one request');
+  const original=JSON.parse(test.requests[0].options.body);
+  test.respond(0,503,{ok:false,error:'Synthetic temporary failure'});await before;
+  const retry=test.nodes.gameForm.onsubmit({preventDefault(){}});
+  assert.deepEqual(JSON.parse(test.requests[1].options.body),original,'Retry retains ID, timestamp and data');
+  test.respond(1,200,{ok:true,game:{...original.game,revision:'a'.repeat(64)}});await retry;
+  assert.equal(test.nodes.appShell.inert,false);assert.equal(test.document.activeElement,test.nodes.addBtn);
+  console.log('PASS: keyboard confinement and dirty dismissal, one in-flight save, stable retry ID and focus restoration');
+ }
+ {
+  const previous={...game,revision:'a'.repeat(64),edition:'Imported custom edition',status:'Imported custom status'};
+  const reviewed={...previous,revision:'b'.repeat(64)};
+  const test=harness();test.seed([previous]);test.context.openModal(previous);
+  test.seed([reviewed]);
+  test.nodes.title.value='My draft still matters';
+  const pending=test.nodes.gameForm.onsubmit({preventDefault(){}});
+  const request=JSON.parse(test.requests[0].options.body);
+  assert.equal(request.revision,previous.revision,'Revision belongs to the record originally opened');
+  assert.equal(request.game.edition,previous.edition);assert.equal(request.game.status,previous.status);
+  test.respond(0,409,{ok:false,code:'collection_conflict',error:'Synthetic edit conflict'});await flush();
+  assert.equal(test.requests[1].options.method,'GET');
+  test.respond(1,200,{ok:true,games:[reviewed]});await pending;
+  assert.equal(test.nodes.title.value,'My draft still matters');assert.equal(test.nodes.modalBackdrop.classList.contains('open'),true);
+  console.log('PASS: an older edit sends its original revision, preserves imported options and retains the draft during conflict recovery');
+ }
+ {
   const test=harness();test.seed([]);test.context.openModal();
   for(const unsafe of ['javascript:alert(1)','data:image/svg+xml,synthetic','blob:synthetic']){
    urlInput(test,unsafe);assert.equal(test.images.length,0,'Unsafe image schemes must not start a loader');
@@ -210,6 +401,7 @@ async function main(){
   const test=harness(archivedMarkup?{markup:archivedMarkup}:{prepareDocument:classicFormDocument});
   test.seed([game]);
   assert.equal(test.document.getElementById('coverPreview'),null);assert.equal(test.document.getElementById('platformTabs'),null);
+  assert.equal(test.document.getElementById('aiCoverSearch'),null);
   assert.equal(checkboxes(test).length,35);
   test.context.openModal();assert.equal(test.nodes.modalBackdrop.classList.contains('open'),true);assert.equal(test.nodes.title.value,'');
   assert.equal(visibleGroups(test).length,5,'Old HTML must retain all five visible producer groups');

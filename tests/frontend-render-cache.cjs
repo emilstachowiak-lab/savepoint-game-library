@@ -21,7 +21,7 @@ assert(!first.includes('javascript:'));
 const firstNode=test.nodes.grid.firstElementChild;
 test.nodes.search.value='FIFA';test.context.render();
 assert.equal(test.nodes.grid.innerHTML,first,'Cached markup must match the initial render exactly');
-assert.notEqual(test.nodes.grid.firstElementChild,firstNode,'Every render must retain the existing DOM replacement behavior');
+assert.equal(test.nodes.grid.firstElementChild,firstNode,'An unchanged result must keep the original card and focus');
 assert.deepEqual(Array.from(test.context.cardBuilds),['1'],'The same visible card should reuse its HTML');
 test.nodes.search.value='';test.context.render();
 assert.deepEqual(Array.from(test.context.cardBuilds),['1','2'],'A newly visible card should be built lazily once');
@@ -32,7 +32,7 @@ test.nodes.sort.value='title';test.context.render();
 test.nodes.platformFilter.value='PlayStation 5';test.context.render();
 test.nodes.editionFilter.value='Cyfrowe';test.context.render();
 assert.deepEqual(Array.from(test.context.cardBuilds),['1','2'],'Sort/filter changes must reuse card markup');
-console.log('PASS: lazy construction, exact cached HTML, hostile content escaping and unchanged DOM replacement');
+console.log('PASS: lazy construction, stable card nodes, exact cached HTML and hostile content escaping');
 
 test.seed(fixtures.map(game=>({...game,title:'Replacement '+game.title,edition:'Fizyczne',status:'Do ogrania'})));
 for(const id of ['search','platformFilter','editionFilter','statusFilter'])test.nodes[id].value='';

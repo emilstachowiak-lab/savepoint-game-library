@@ -20,9 +20,9 @@ html[data-theme="classic3"][data-classic3-background="pipes"] body {
   background: #000;
 }
 
-/* Match the specificity of the existing retro motion-control rule without
-   changing that stylesheet or any of the other themes. */
-html[data-theme="classic3"][data-classic3-background="pipes"] :is(#authScreen, #appShell) .background-motion-control {
+/* The background attribute gives this rule higher specificity than the
+   retro rule that hides the motion controls by default. */
+html[data-theme="classic3"][data-classic3-background="pipes"] #appShell .background-motion-control {
   display: inline-flex;
 }
 

@@ -12,6 +12,8 @@ final class CoverBackup
     public const MAX_BYTES = 5242880;
     public const MAX_TOTAL_BYTES = 536870912;
     private const RETRY_AFTER = 21600;
+    private const USAGE_CACHE_SECONDS = 600;
+    private const UNUSED_RETENTION_SECONDS = 90 * 86400;
     private \Closure $download;
 
     // The default downloader enforces the network policy. Isolated tests can
@@ -22,7 +24,11 @@ final class CoverBackup
         private string $applicationHost = '',
         private array $blockedIpv4 = [],
     ) {
-        $this->download = $download === null ? $this->download(...) : \Closure::fromCallable($download);
+        $this->download = $download === null
+            ? fn(string $url): ?string => self::download(
+                $url, applicationHost: $this->applicationHost, blockedIpv4: $this->blockedIpv4
+            )
+            : \Closure::fromCallable($download);
     }
 
     // Parse a fetch target without making a network request. Preserve the path
@@ -151,24 +157,34 @@ final class CoverBackup
 
     // Allow an initial request and at most three redirects within one transfer
     // budget. Resolve and validate the destination again at each hop.
-    private function download(string $url): ?string
-    {
+    private static function download(
+        string $url,
+        ?callable $resolve = null,
+        string $applicationHost = '',
+        array $blockedIpv4 = [],
+    ): ?string {
         if (!function_exists('curl_init')) {
             return null;
         }
         $deadline = microtime(true) + 8;
+        $resolve ??= self::resolveIpv4(...);
+        // Look up a legacy HTTP cover over HTTPS and retain its original
+        // cache key. Existing private copies still work for HTTP-only hosts.
+        $original = self::target($url, $applicationHost);
+        if ($original === null) return null;
+        $url = preg_replace('/\Ahttp:/', 'https:', $original['url']);
         for ($hop = 0; $hop <= 3; $hop++) {
-            $target = self::target($url, $this->applicationHost);
+            $target = self::target($url, $applicationHost);
             if ($target === null || microtime(true) >= $deadline) {
                 return null;
             }
-            $addresses = @gethostbynamel($target['host']);
+            $addresses = $resolve($target['host'], $deadline);
             if (!is_array($addresses) || $addresses === []) {
                 return null;
             }
             // Reject mixed public/private DNS answers, then pin the accepted IP.
             foreach ($addresses as $address) {
-                if (!self::publicIpv4($address, $this->blockedIpv4)) {
+                if (!self::publicIpv4($address, $blockedIpv4)) {
                     return null;
                 }
             }
@@ -188,8 +204,8 @@ final class CoverBackup
                 // Pin the connection to the checked IPv4 address and keep the
                 // URL hostname for HTTP routing and TLS certificate checks.
                 curl_setopt_array($curl, [
-                    CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-                    CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+                    CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+                    CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
                     CURLOPT_FOLLOWLOCATION => false,
                     CURLOPT_PROXY => '',
                     CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
@@ -242,12 +258,55 @@ final class CoverBackup
             if (!in_array($status, [301, 302, 303, 307, 308], true) || $hop === 3 || !is_string($location)) {
                 return null;
             }
-            $url = self::redirect($target['url'], $location, $this->applicationHost);
+            $url = self::redirect($target['url'], $location, $applicationHost);
             if ($url === null) {
                 return null;
             }
         }
         return null;
+    }
+
+    private static function resolveIpv4(string $host, float $deadline): array
+    {
+        // The system resolver has no per-call timeout in PHP. A fixed DoH
+        // endpoint shares the transfer deadline and receives only a hostname.
+        $remainingMs = min(2000, (int)(($deadline - microtime(true)) * 1000));
+        if ($remainingMs < 1) return [];
+        $curl = curl_init('https://dns.google/resolve?name=' . rawurlencode($host)
+            . '&type=A&edns_client_subnet=0.0.0.0%2F0');
+        if ($curl === false) return [];
+        $body = '';
+        try {
+            curl_setopt_array($curl, [
+                CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_PROXY => '',
+                CURLOPT_RESOLVE => ['dns.google:443:8.8.8.8,8.8.4.4'],
+                CURLOPT_CONNECTTIMEOUT_MS => min(1200, $remainingMs),
+                CURLOPT_TIMEOUT_MS => $remainingMs,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+                CURLOPT_HTTPHEADER => ['Accept: application/dns-json'],
+                CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$body): int {
+                    if (strlen($body) + strlen($chunk) > 16384) return 0;
+                    $body .= $chunk;
+                    return strlen($chunk);
+                },
+            ]);
+            if (curl_exec($curl) === false || (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE) !== 200) return [];
+            $reply = json_decode($body, true, 12);
+            if (($reply['Status'] ?? null) !== 0 || ($reply['TC'] ?? false) === true
+                || !is_array($reply['Answer'] ?? null)) return [];
+            $addresses = [];
+            foreach ($reply['Answer'] as $answer) {
+                if (($answer['type'] ?? null) !== 1) continue;
+                if (!is_string($answer['data'] ?? null)) return [];
+                $addresses[] = $answer['data'];
+            }
+            return $addresses;
+        } finally {
+            curl_close($curl);
+        }
     }
 
     // Use the exact saved URL as a cache key without putting it in a filename.
@@ -269,14 +328,106 @@ final class CoverBackup
         return $mime === null ? null : ['bytes' => $bytes, 'mime' => $mime];
     }
 
+    public function ready(string $url): bool
+    {
+        if ($url === '') return false;
+        $path = $this->directory . '/' . hash('sha256', $url) . '.img';
+        $fingerprint = self::imageFingerprint($path);
+        if ($fingerprint === null) return false;
+        $marker = $path . '.ready';
+        if (!is_link($marker) && @file_get_contents($marker, false, null, 0, 128) === $fingerprint) return true;
+        // Older copies gain metadata after one full validation. Serving a
+        // cached image still checks the file bytes every time.
+        if ($this->read($url) === null || self::imageFingerprint($path) !== $fingerprint) return false;
+        $this->writeMetadata($marker, $fingerprint);
+        return true;
+    }
+
+    private static function imageFingerprint(string $path): ?string
+    {
+        clearstatcache(true, $path);
+        $stat = @lstat($path);
+        if ($stat === false || ($stat['mode'] & 0170000) !== 0100000 || $stat['size'] < 1
+            || $stat['size'] > self::MAX_BYTES) return null;
+        return implode(':', [$stat['dev'], $stat['ino'], $stat['size'], $stat['mtime'], $stat['ctime']]);
+    }
+
+    private function writeMetadata(string $path, string $data): bool
+    {
+        $temporary = @tempnam($this->directory, '.metadata-');
+        if ($temporary === false) return false;
+        try {
+            return chmod($temporary, 0600) && file_put_contents($temporary, $data) === strlen($data)
+                && rename($temporary, $path);
+        } finally {
+            if (is_file($temporary)) @unlink($temporary);
+        }
+    }
+
+    /** @return array{int,int} The byte count and last directory scan time. */
+    private function usage(bool $refresh = false): array
+    {
+        $usagePath = $this->directory . '/.usage';
+        $stored = is_link($usagePath) ? false : @file_get_contents($usagePath, false, null, 0, 64);
+        if (!$refresh && is_string($stored) && preg_match('/\A([0-9]{1,10}):([0-9]{1,12})\z/', $stored, $record)
+            && (int)$record[2] >= time() - self::USAGE_CACHE_SECONDS) return [(int)$record[1], (int)$record[2]];
+
+        $bytes = 0;
+        $scanTime = time();
+        foreach (new \DirectoryIterator($this->directory) as $entry) {
+            if ($entry->isLink() || !$entry->isFile()) continue;
+            if (preg_match('/\A[a-f0-9]{64}\.img\z/', $entry->getFilename())) {
+                $bytes += $entry->getSize();
+            } elseif (str_ends_with($entry->getFilename(), '.failed')
+                && $entry->getMTime() <= $scanTime - self::RETRY_AFTER) {
+                @unlink($entry->getPathname());
+            }
+        }
+        $this->writeMetadata($usagePath, $bytes . ':' . $scanTime);
+        return [$bytes, $scanTime];
+    }
+
+    private function reclaimUnused(int $needed, string $requestedKey, callable $referencedUrls): int
+    {
+        // Start with a complete, fresh list. If the database read fails,
+        // no image is eligible for removal.
+        $protected = [$requestedKey => true];
+        foreach ($referencedUrls() as $url) {
+            if (is_string($url) && $url !== '') $protected[hash('sha256', $url)] = true;
+        }
+
+        $cutoff = time() - self::UNUSED_RETENTION_SECONDS;
+        $unused = [];
+        $reclaimable = 0;
+        foreach (new \DirectoryIterator($this->directory) as $entry) {
+            if ($entry->isLink() || !$entry->isFile()
+                || !preg_match('/\A([a-f0-9]{64})\.img\z/', $entry->getFilename(), $match)
+                || isset($protected[$match[1]]) || $entry->getMTime() > $cutoff) continue;
+            $unused[$entry->getPathname()] = $entry->getMTime();
+            $reclaimable += $entry->getSize();
+        }
+        if ($reclaimable < $needed) return 0;
+        asort($unused, SORT_NUMERIC);
+        $released = 0;
+        foreach ($unused as $path => $mtime) {
+            if ($released >= $needed) break;
+            $size = @filesize($path);
+            if ($size !== false && @unlink($path)) {
+                $released += $size;
+                @unlink($path . '.ready');
+            }
+        }
+        return $released;
+    }
+
     // Reuse a valid copy or attempt one download. A failure marker limits
     // repeated fetches of the same unavailable image.
-    public function backup(string $url): array
+    public function backup(string $url, ?callable $referencedUrls = null): array
     {
         if (self::target($url, $this->applicationHost) === null) {
             return ['status' => 'unavailable'];
         }
-        if ($this->read($url) !== null) {
+        if ($this->ready($url)) {
             return ['status' => 'cached'];
         }
         if (!is_dir($this->directory) && !@mkdir($this->directory, 0700, true) && !is_dir($this->directory)) {
@@ -304,14 +455,12 @@ final class CoverBackup
         $temporaryPath = null;
         try {
             // Another request may have saved the image before we got the lock.
-            if ($this->read($url) !== null) {
+            if ($this->ready($url)) {
                 return ['status' => 'cached'];
             }
-            $usedBytes = 0;
-            foreach (glob($this->directory . '/*.img') ?: [] as $file) {
-                $usedBytes += (int)filesize($file);
-            }
-            if ($usedBytes >= self::MAX_TOTAL_BYTES) {
+            [$usedBytes, $scanTime] = $this->usage();
+            if ($usedBytes >= self::MAX_TOTAL_BYTES - self::MAX_BYTES) [$usedBytes, $scanTime] = $this->usage(true);
+            if ($usedBytes >= self::MAX_TOTAL_BYTES && $referencedUrls === null) {
                 return ['status' => 'quota'];
             }
 
@@ -321,8 +470,14 @@ final class CoverBackup
                 @chmod($failureMarker, 0600);
                 return ['status' => 'unavailable'];
             }
-            if ($usedBytes + strlen($bytes) > self::MAX_TOTAL_BYTES) {
-                return ['status' => 'quota'];
+            $needed = $usedBytes + strlen($bytes) - self::MAX_TOTAL_BYTES;
+            if ($needed > 0) {
+                if ($referencedUrls === null) return ['status' => 'quota'];
+                $usedBytes -= $this->reclaimUnused($needed, $key, $referencedUrls);
+                if ($usedBytes + strlen($bytes) > self::MAX_TOTAL_BYTES) {
+                    $this->writeMetadata($this->directory . '/.usage', $usedBytes . ':' . $scanTime);
+                    return ['status' => 'quota'];
+                }
             }
 
             // Publish the finished file with a same-directory rename so reads
@@ -333,10 +488,16 @@ final class CoverBackup
             }
             @chmod($temporaryPath, 0600);
             $backupPath = $this->directory . '/' . $key . '.img';
-            if (file_put_contents($temporaryPath, $bytes) !== strlen($bytes) || !rename($temporaryPath, $backupPath)) {
+            // Reserve the bytes before publishing the image. A terminated
+            // worker can leave an overcount, which the next scan corrects.
+            if (file_put_contents($temporaryPath, $bytes) !== strlen($bytes)
+                || !$this->writeMetadata($this->directory . '/.usage', ($usedBytes + strlen($bytes)) . ':' . $scanTime)
+                || !rename($temporaryPath, $backupPath)) {
                 return ['status' => 'unavailable'];
             }
             $temporaryPath = null;
+            $fingerprint = self::imageFingerprint($backupPath);
+            if ($fingerprint !== null) $this->writeMetadata($backupPath . '.ready', $fingerprint);
             @unlink($failureMarker);
             return ['status' => 'saved'];
         } catch (\Throwable $error) {

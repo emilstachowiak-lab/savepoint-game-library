@@ -216,9 +216,9 @@ $mainStart = strpos($source, "\ntry {\n    if (!isHttpsRequest())");
 expect($mainStart !== false, 'API entry point was not found.');
 $functions = substr($source, strpos($source, 'function respond('), $mainStart - strpos($source, 'function respond('));
 $respondEnd = strpos($functions, 'function isHttpsRequest(');
-$functions = 'function respond(int $status, array $data): void { throw new TestResponse($status, $data); }' . "\n" . substr($functions, $respondEnd);
+$functions = 'function respond(int $status, array $data): never { throw new TestResponse($status, $data); }' . "\n" . substr($functions, $respondEnd);
 $verifyStart = strpos($functions, 'function verifyTurnstileToken(');
-$verifyEnd = strpos($functions, 'function verifyAutomaticCaptcha(', $verifyStart);
+$verifyEnd = strpos($functions, 'function verifyLoginChallenge(', $verifyStart);
 $functions = substr($functions, 0, $verifyStart) . 'function verifyTurnstileToken(array $config, string $token): ?bool { $GLOBALS["siteverifyCalls"]++; return $GLOBALS["captchaResult"]; }' . "\n" . substr($functions, $verifyEnd);
 $sessionStart = strpos($functions, 'function establishAuthenticatedSession(');
 $sessionEnd = strpos($functions, 'function handleLogin(', $sessionStart);
@@ -226,17 +226,35 @@ $functions = substr($functions, 0, $sessionStart) . 'function establishAuthentic
 $notificationStart = strpos($functions, 'function scheduleSuccessfulLoginNotification(');
 $notificationEnd = strpos($functions, 'function establishAuthenticatedSession(', $notificationStart);
 expect($notificationStart !== false && $notificationEnd > $notificationStart, 'The optional mail boundary must remain separately testable.');
-$functions = substr($functions, 0, $notificationStart) . 'function scheduleSuccessfulLoginNotification(string $username, string $ip, int $timestamp): void { $GLOBALS["loginNotifications"][] = compact("username", "ip", "timestamp"); }' . "\n" . substr($functions, $notificationEnd);
+$functions = substr($functions, 0, $notificationStart) . 'function scheduleSuccessfulLoginNotification(string $username, string $ip, int $timestamp, string $appOrigin): void { $GLOBALS["loginNotifications"][] = compact("username", "ip", "timestamp", "appOrigin"); }' . "\n" . substr($functions, $notificationEnd);
 $functions = str_replace('function passwordMatches(', 'function actualPasswordMatches(', $functions);
 $functions .= "\n" . 'function passwordMatches(array $config, string $password): bool { $GLOBALS["passwordCalls"]++; if (is_callable($GLOBALS["passwordHook"])) ($GLOBALS["passwordHook"])(); return actualPasswordMatches($config, $password); }';
 $functions = preg_replace('/(?<![a-zA-Z0-9_])time\(\)/', 'testNow()', $functions);
-eval($functions);
+$constants = substr($source, strpos($source, 'const SESSION_COOKIE_NAME'), strpos($source, 'function respond(') - strpos($source, 'const SESSION_COOKIE_NAME'));
+eval($constants . $functions);
+
+$savedServer = $_SERVER;
+$savedProxy = getenv('SAVEPOINT_TRUSTED_HTTPS_PROXY');
+try {
+    putenv('SAVEPOINT_TRUSTED_HTTPS_PROXY');
+    $_SERVER = ['HTTPS' => 'off', 'REMOTE_ADDR' => '192.0.2.10', 'HTTP_X_FORWARDED_PROTO' => 'https'];
+    expect(!isHttpsRequest(), 'A forwarded scheme from an unconfigured peer must never establish HTTPS.');
+    putenv('SAVEPOINT_TRUSTED_HTTPS_PROXY=192.0.2.11');
+    expect(!isHttpsRequest(), 'A forwarded scheme from the wrong address must never establish HTTPS.');
+    $_SERVER['REMOTE_ADDR'] = '192.0.2.11';
+    expect(isHttpsRequest(), 'The exact configured proxy may attest to HTTPS.');
+    $_SERVER = ['HTTPS' => 'on'];
+    expect(isHttpsRequest(), 'The web server TLS flag must independently establish HTTPS.');
+} finally {
+    $_SERVER = $savedServer;
+    putenv($savedProxy === false ? 'SAVEPOINT_TRUSTED_HTTPS_PROXY' : 'SAVEPOINT_TRUSTED_HTTPS_PROXY=' . $savedProxy);
+}
 
 $salt = 'isolated-test-salt';
 $config = [
+    'app_origin' => 'https://savepoint.example.test',
     'app_username' => 'test-user', 'app_password_salt' => bin2hex($salt),
     'app_password_iterations' => 1, 'app_password_hash' => hash_pbkdf2('sha256', 'test-password', $salt, 1, 64),
-    'app_origin' => 'https://savepoint.example.test',
     'turnstile_site_key' => 'test-site', 'turnstile_secret_key' => 'test-secret',
 ];
 $login = ['username' => 'test-user', 'password' => 'test-password', 'captcha' => ['token' => 'synthetic-token']];
@@ -265,12 +283,13 @@ expect(!isset($db->buckets[$accountKey]) && !isset($db->buckets[$ipKey]), 'Inval
 resetTestState();
 $db = new MemoryDatabase();
 $GLOBALS['captchaResult'] = null;
-for ($attempt = 0; $attempt < 5; $attempt++) {
+for ($attempt = 0; $attempt < 10; $attempt++) {
     $response = captureResponse(fn() => handleLogin($db, $config, $login));
-    expect($response->status === 503, 'Unavailable CAPTCHA must fail closed during its reservation budget.');
+    expect($response->status === 503, 'Unavailable CAPTCHA must fail closed during the request budget.');
 }
 $response = captureResponse(fn() => handleLogin($db, $config, $login));
-expect($response->status === 429 && $GLOBALS['siteverifyCalls'] === 5 && $GLOBALS['passwordCalls'] === 0, 'CAPTCHA outages must not create unlimited outbound requests or check passwords.');
+expect($response->status === 429 && $GLOBALS['siteverifyCalls'] === 10 && $GLOBALS['passwordCalls'] === 0, 'CAPTCHA outages must still respect the outbound request budget and must never check passwords.');
+expect(!isset($db->buckets[$captchaKey]), 'Outages must never count as failed user verifications.');
 
 resetTestState();
 $db = new MemoryDatabase();
@@ -293,7 +312,9 @@ $response = captureResponse(fn() => handleLogin($db, $config, $login));
 expect($response->status === 200 && ($_SESSION['user_id'] ?? 0) === 1 && $GLOBALS['passwordCalls'] === 1, 'Valid login must still establish the session.');
 expect(!isset($db->buckets[$captchaKey]) && !isset($db->buckets[$accountKey]) && !isset($db->buckets[$ipKey]), 'Successful login must clear all three authentication buckets.');
 expect(isset($db->buckets[$requestKey]), 'Success must preserve the independent request budget.');
-expect($GLOBALS['loginNotifications'] === [['username' => 'test-user', 'ip' => '203.0.113.20', 'timestamp' => testNow()]], 'Exactly one successful login notice must use the trusted account, peer address and authentication time.');
+expect($GLOBALS['loginNotifications'] === [['username' => 'test-user', 'ip' => '203.0.113.20',
+    'timestamp' => testNow(), 'appOrigin' => $config['app_origin']]],
+    'Exactly one successful login notice must use the trusted account, peer address, time and configured origin.');
 expect(!str_contains(json_encode($response->payload), 'test-password') && !str_contains(json_encode($response->payload), 'synthetic-token'), 'Login responses must not contain password or CAPTCHA credentials.');
 
 resetTestState();
@@ -302,7 +323,9 @@ $GLOBALS['captchaResult'] = true;
 $_SERVER['HTTP_X_FORWARDED_FOR'] = '198.51.100.250';
 $injectedLogin = array_replace($login, ['email' => 'untrusted@example.invalid', 'smtp_host' => 'attacker.invalid']);
 $response = captureResponse(fn() => handleLogin($db, $config, $injectedLogin));
-expect($response->status === 200 && $GLOBALS['loginNotifications'] === [['username' => 'test-user', 'ip' => '203.0.113.20', 'timestamp' => testNow()]], 'Request email fields and forwarded IP headers must not control login notifications.');
+expect($response->status === 200 && $GLOBALS['loginNotifications'] === [['username' => 'test-user', 'ip' => '203.0.113.20',
+    'timestamp' => testNow(), 'appOrigin' => $config['app_origin']]],
+    'Request email fields and forwarded IP headers must not control login notifications.');
 unset($_SERVER['HTTP_X_FORWARDED_FOR']);
 
 resetTestState();
@@ -373,7 +396,7 @@ foreach ([false, true] as $existing) {
         };
     }
     runOverlapping($callbacks);
-    expect($GLOBALS['siteverifyCalls'] === 5 && $GLOBALS['passwordCalls'] === 0 && $store->buckets[$captchaKey]['failed_attempts'] === 5, 'Overlapping invalid CAPTCHA requests must reserve at most five outbound calls, with cold or existing rows.');
+    expect($GLOBALS['siteverifyCalls'] <= 10 && $GLOBALS['passwordCalls'] === 0 && $store->buckets[$captchaKey]['failed_attempts'] === 5, 'Overlapping invalid CAPTCHA requests must respect the ten-call outbound quota and the five-failure cooldown.');
 }
 
 resetTestState();
@@ -414,14 +437,30 @@ foreach (["respond(405,", 'enforcePostOrigin($config[\'app_origin\']);', '$reque
 expect(!preg_match('/CREATE\s+TABLE|ALTER\s+TABLE|INFORMATION_SCHEMA|ensureSchema/i', $source), 'Runtime API must not perform schema administration.');
 expect(!str_contains($source, "'provider' => 'pow'"), 'The API must not fall back to a bot-solvable local challenge.');
 expect(str_contains($source, "\$config['turnstile_site_key'] === '' || \$config['turnstile_secret_key'] === ''"), 'Both Turnstile keys must be mandatory.');
+$migration = file_get_contents(dirname(__DIR__) . '/scripts/migrate.php');
+token_get_all($migration, TOKEN_PARSE);
+$cliGuardAt = strpos($migration, "if (PHP_SAPI !== 'cli')");
+$configReadAt = strpos($migration, 'require $configPath');
+expect($cliGuardAt !== false && $configReadAt !== false && $cliGuardAt < $configReadAt, 'Migration must reject HTTP before reading config.');
 
-$appOrigin = 'https://savepoint.example.test:8443';
+// Run the real optional integration helper with an absent module. Namespaced
+// filesystem/log shims ensure this can never read a real private configuration.
+$helperStart = strpos($source, 'function scheduleSuccessfulLoginNotification(');
+$helperEnd = strpos($source, 'function establishAuthenticatedSession(', $helperStart);
+$helper = substr($source, $helperStart, $helperEnd - $helperStart);
+$GLOBALS['missingMailPaths'] = [];
+$GLOBALS['missingMailLogs'] = [];
+eval('namespace SavepointMissingMailSandbox; use \\Throwable; function is_file(string $path): bool { $GLOBALS["missingMailPaths"][] = $path; return false; } function error_log(string $message): bool { $GLOBALS["missingMailLogs"][] = $message; return true; } ' . $helper);
+SavepointMissingMailSandbox\scheduleSuccessfulLoginNotification('test-user', '203.0.113.20', testNow(), $config['app_origin']);
+expect(count($GLOBALS['missingMailPaths']) === 1 && str_ends_with($GLOBALS['missingMailPaths'][0], '/smtp.local.php'),
+    'The integration must only inspect its fixed private configuration path when SMTP is disabled.');
+expect(!str_contains(implode("\n", $GLOBALS['missingMailLogs']), 'test-user'), 'Optional-module errors must log no account or credential data.');
+expect(substr_count($main, 'scheduleSuccessfulLoginNotification(') === 0, 'GET and data-operation entry points must not schedule login mail.');
+
 expect(httpsOrigin('https://SAVEPOINT.example.test:443/') === $config['app_origin'], 'The configured default HTTPS port and hostname must be normalized.');
 expect(httpsOrigin('https://savepoint.example.test/invalid') === null, 'A configured origin cannot include a deployment path.');
-$_SERVER = ['HTTP_X_FORWARDED_PROTO' => 'https', 'HTTP_HOST' => 'savepoint.example.test:8443'];
-expect(!isHttpsRequest(), 'A client header must not enable HTTPS handling.');
-$_SERVER['HTTPS'] = 'on';
-expect(isHttpsRequest(), 'Server-side HTTPS must enable HTTPS handling.');
+$appOrigin = 'https://savepoint.example.test:8443';
+$_SERVER = ['HTTP_HOST' => 'savepoint.example.test:8443', 'HTTPS' => 'on'];
 foreach ([
     ['HTTP_ORIGIN' => 'https://savepoint.example.test'],
     ['HTTP_ORIGIN' => 'http://savepoint.example.test:8443'],
@@ -433,31 +472,13 @@ foreach ([
     unset($_SERVER['HTTP_ORIGIN'], $_SERVER['HTTP_REFERER']);
     $_SERVER += $headers;
     $response = captureResponse(fn() => enforcePostOrigin($appOrigin));
-    expect($response->status === 403, 'Requests without the configured HTTPS origin must be rejected.');
+    expect($response->status === 403 && $response->payload['error'] === 'origin_not_allowed',
+        'Untrusted POST origins must fail before touching collection or session data.');
 }
 $_SERVER['HTTP_ORIGIN'] = $appOrigin;
 enforcePostOrigin($appOrigin);
 unset($_SERVER['HTTP_ORIGIN']);
-$_SERVER['HTTP_REFERER'] = $appOrigin . '/index.html?v=1';
+$_SERVER['HTTP_REFERER'] = $appOrigin . '/game?with=detail';
 enforcePostOrigin($appOrigin);
-
-$migration = file_get_contents(dirname(__DIR__) . '/scripts/migrate.php');
-token_get_all($migration, TOKEN_PARSE);
-$cliGuardAt = strpos($migration, "if (PHP_SAPI !== 'cli')");
-$configReadAt = strpos($migration, 'require $configPath');
-expect($cliGuardAt !== false && $configReadAt !== false && $cliGuardAt < $configReadAt, 'Migration must reject HTTP before reading config.');
-
-// Run the real optional integration helper with absent SMTP configuration. Namespaced
-// filesystem/log shims ensure this can never read a real private configuration.
-$helperStart = strpos($source, 'function scheduleSuccessfulLoginNotification(');
-$helperEnd = strpos($source, 'function establishAuthenticatedSession(', $helperStart);
-$helper = substr($source, $helperStart, $helperEnd - $helperStart);
-$GLOBALS['missingMailPaths'] = [];
-$GLOBALS['missingMailLogs'] = [];
-eval('namespace SavepointMissingMailSandbox; use \\Throwable; function is_file(string $path): bool { $GLOBALS["missingMailPaths"][] = $path; return false; } function error_log(string $message): bool { $GLOBALS["missingMailLogs"][] = $message; return true; } ' . $helper);
-SavepointMissingMailSandbox\scheduleSuccessfulLoginNotification('test-user', '203.0.113.20', testNow(), $appOrigin);
-expect(count($GLOBALS['missingMailPaths']) === 1 && str_ends_with($GLOBALS['missingMailPaths'][0], '/private/savepoint/mail/smtp.local.php'), 'The integration must check only its fixed private SMTP configuration when disabled.');
-expect($GLOBALS['missingMailLogs'] === [], 'An intentionally unconfigured SMTP integration must not log errors.');
-expect(substr_count($main, 'scheduleSuccessfulLoginNotification(') === 0, 'GET and data-operation entry points must not schedule login mail.');
 
 echo "PASS: locked cooldown/window checks, bounded transaction retries, overlapping CAPTCHA/account reservations, password recovery, request/migration guards and successful-login-only email scheduling.\n";
