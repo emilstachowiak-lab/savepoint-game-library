@@ -270,6 +270,7 @@ async function notify(env, username, ip, time) {
     try {
       const { connect } = await import('cloudflare:sockets');
       await sendSmtp(connect, { ...message, host, password: env.SMTP_PASSWORD });
+      console.info('Savepoint SMTP login notification accepted.');
     } catch (error) {
       console.warn('Savepoint SMTP login notification failed:', error instanceof SmtpError ? error.message : 'connection');
     }
