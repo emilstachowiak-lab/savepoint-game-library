@@ -1,28 +1,27 @@
-# Local configuration, private runtime storage and exported collections.
-*.local.php
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
 .env
 .env.*
+*.local.json
+*.local.jsonc
+.wrangler/
+node_modules/
+
+# Private data and exports.
+*.local.php
 /private/
 /backups/
-/server/ai/uploads/
-/server/ai/*-budget.json
-/server/ai/igdb-token.json
-/server/collection/uploads/
-/server/covers/images/
 savepoint-kolekcja*.json
 savepoint-stara-kolekcja*.json
 *.img
 *.log
-
-# Private key and certificate bundle formats.
 *.key
 *.pem
 *.p12
 *.pfx
-
-# Database dumps and archives. Keep the versioned schema for new installations.
 *.sql
-!/api/schema.sql
+!/migrations/*.sql
 *.sql.gz
 *.zip
 *.7z

@@ -1,0 +1,96 @@
+import { ApiError, fail, failedCheck, json, object, parseJson, readBounded, securityHeaders } from './http.mjs';
+import { challenge, getSession, login, logout, sessionMetadata, validateTransport } from './auth.mjs';
+import { collectionAction, listGames } from './collection.mjs';
+import { backupCover, coverStatuses, serveCover } from './covers.mjs';
+import { aiAction, aiActions } from './ai.mjs';
+
+const limit = 65536;
+const passiveActions = new Set(['backup-cover', 'backup-cover-status']);
+
+async function postBody(request) {
+  if ((request.headers.get('Content-Type') ?? '').split(';')[0].trim().toLowerCase() !== 'application/json') {
+    fail(415, 'json_required');
+  }
+  if (Number(request.headers.get('Content-Length')) > limit) fail(413, 'request_too_large');
+  return parseJson(await readBounded(request.body, limit), 'invalid_request_data', object);
+}
+
+function protectedError(request, action, error) {
+  const ai = aiActions.has(action);
+  if (failedCheck(error)) error = new ApiError(401, ai ? 'ai_session_expired' : 'authentication_required', { authRequired: true });
+  if (!(error instanceof ApiError)) {
+    console.warn('Savepoint API operation failed.');
+    const databaseError = /\bD1_(?:ERROR|EXEC_ERROR|COLUMN_NOTFOUND)\b/i.test(String(error?.message));
+    const id = action === 'ai-cover-search' ? 'ai_cover_search_unavailable'
+      : ai ? 'ai_service_unavailable' : databaseError ? 'database_unavailable' : 'server_error';
+    error = new ApiError(ai || databaseError ? 503 : 500, id);
+  }
+  const extra = ai && error.id.startsWith('ai_')
+    ? { errorId: error.id, authRequired: error.status === 401, ...error.extra }
+    : error.extra;
+  return json(request, error.status, { ok: false, error: error.id, ...extra },
+    error.retry ? { 'Retry-After': String(error.retry) } : {});
+}
+
+export async function onRequest(context) {
+  const { request, env } = context;
+  const url = new URL(request.url);
+  if (['/api', '/api/', '/api/index.php'].includes(url.pathname)) {
+    return new Response('Dostęp zabroniony.', { status: 403,
+      headers: { ...securityHeaders, 'Content-Type': 'text/plain; charset=utf-8' } });
+  }
+  if (url.pathname !== '/api/games.php') {
+    return new Response('Nie znaleziono.', { status: 404,
+      headers: { ...securityHeaders, 'Content-Type': 'text/plain; charset=utf-8' } });
+  }
+  let action = '';
+  try {
+    validateTransport(request, url, env);
+    const { method } = request;
+    if (method !== 'GET' && method !== 'POST') {
+      return json(request, 405, { ok: false, error: 'method_not_allowed' }, { Allow: 'GET, POST' });
+    }
+    const body = method === 'POST' ? await postBody(request) : {};
+    action = typeof body.action === 'string' ? body.action : '';
+    const cover = method === 'GET' && url.searchParams.has('cover');
+    const passive = method === 'GET' && url.searchParams.has('session');
+    if (passive && (url.searchParams.get('session') !== '1' || url.searchParams.getAll('session').length !== 1 || cover)) {
+      fail(400, 'invalid_session_request');
+    }
+    const db = env.DB;
+    if (!db) fail(503, 'configuration_incomplete');
+    if (action === 'logout') {
+      const cookie = await logout(db, request);
+      return json(request, 200, { ok: true }, { 'Set-Cookie': cookie });
+    }
+    const ai = aiActions.has(action);
+    const touch = !cover && !passive && !passiveActions.has(action)
+      && (!ai || ['ai-add', 'ai-duplicates-apply'].includes(action));
+    const session = await getSession(db, request, { touch, passive });
+    if (action === 'login') {
+      const result = await login({ db, request, url, env, context, body, listGames, previous: session });
+      return json(request, 200, { ok: true, games: result.games, session: sessionMetadata(result.session) },
+        { 'Set-Cookie': result.cookie });
+    }
+    if (!session) {
+      if (ai) fail(401, 'ai_session_expired', { authRequired: true });
+      fail(401, 'authentication_required', { authRequired: true, ...(cover || passive ? {} : { captcha: challenge(env, url) }) });
+    }
+    const bucket = env.COVERS;
+    if ((cover || passiveActions.has(action)) && !bucket) fail(503, 'configuration_incomplete');
+    if (cover) {
+      const id = url.searchParams.getAll('cover').length === 1 ? url.searchParams.get('cover') : null;
+      return await serveCover(db, bucket, id);
+    }
+    let result;
+    if (passive) result = {};
+    else if (method === 'GET') result = { games: await listGames(db) };
+    else if (action === 'backup-cover') result = await backupCover(db, bucket, body.id, url.hostname);
+    else if (action === 'backup-cover-status') result = await coverStatuses(db, bucket, body.ids);
+    else if (ai) result = await aiAction(db, env, request, session, action, body);
+    else result = await collectionAction(db, session, action, body);
+    return json(request, 200, { ok: true, ...result, session: sessionMetadata(session) });
+  } catch (error) {
+    return protectedError(request, action, error);
+  }
+}

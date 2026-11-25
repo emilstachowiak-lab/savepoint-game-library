@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const source = fs.readFileSync(path.join(__dirname, '..', 'matrix.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'matrix.js'), 'utf8');
 
 function matrixHarness(options = {}) {
   const size = { width: options.width ?? 640, height: options.height ?? 360 };

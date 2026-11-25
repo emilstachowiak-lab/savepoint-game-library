@@ -1,0 +1,16 @@
+{
+  "name": "savepoint-cleanup",
+  "main": "backend/cleanup.mjs",
+  "compatibility_date": "2025-11-25",
+  "workers_dev": false,
+  "preview_urls": false,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "savepoint-db",
+      // Set the production database name and ID in your local copy.
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+  "triggers": { "crons": ["*/15 * * * *"] }
+}

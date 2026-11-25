@@ -8,7 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const {canvasFixture}=require('./frontend-canvas.cjs');
-const root = path.join(__dirname, '..');
+const root = path.join(__dirname, '..', 'public');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const decode = value => value.replace(/&(amp|lt|gt|quot|#39);/g, entity => ({'&amp;':'&','&lt;':'<','&gt;':'>','&quot;':'"','&#39;':"'" }[entity]));
 // Parse controlled application markup, rather than implementing a browser's

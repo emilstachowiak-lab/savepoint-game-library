@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const {harness:domHarness,flush} = require('./frontend-dom.cjs');
-const source = fs.readFileSync(path.join(__dirname,'..','aero-background.js'),'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'public','aero-background.js'),'utf8');
 
 function backgroundHarness(options={}) {
  const events=new Map(), documentEvents=new Map(), pickerEvents=new Map(), mediaEvents=new Map();

@@ -10,7 +10,7 @@ const vm = require('node:vm');
 const { performance } = require('node:perf_hooks');
 if (!process.argv[2]) throw new Error('Pass the pre-change app.js path as the first argument.');
 const before = fs.readFileSync(process.argv[2], 'utf8');
-const after = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const after = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
 const exactMarkup = process.argv.includes('--exact');
 new vm.Script(before);
 new vm.Script(after);

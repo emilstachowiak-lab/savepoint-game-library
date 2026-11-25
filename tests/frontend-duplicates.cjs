@@ -7,7 +7,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { harness, deferred, flush } = require('./frontend-dom.cjs');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'duplicates.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'duplicates.js'), 'utf8');
 const game = (id, fields) => ({ id, title: `Synthetic ${id}`, platform: 'PC', edition: 'Fizyczne',
   coverUrl: '', status: 'W trakcie', createdAt: 1200000000000, ...fields });
 const left = game('left', { title: '<img src=x>', coverUrl: 'https://covers.example.test/left.jpg' });

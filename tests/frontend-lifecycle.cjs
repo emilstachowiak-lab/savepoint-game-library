@@ -7,9 +7,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { harness: browserHarness } = require('./frontend-dom.cjs');
-const source = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
-const sessionSource = fs.readFileSync(path.join(__dirname, '..', 'session-api.js'), 'utf8');
-const transferSource = fs.readFileSync(path.join(__dirname, '..', 'collection-transfer.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
+const sessionSource = fs.readFileSync(path.join(__dirname, '..', 'public', 'session-api.js'), 'utf8');
+const transferSource = fs.readFileSync(path.join(__dirname, '..', 'public', 'collection-transfer.js'), 'utf8');
 new vm.Script(source, { filename: 'app.js' });
 function section(start, end) {
   const first = source.indexOf(start), last = source.indexOf(end, first);

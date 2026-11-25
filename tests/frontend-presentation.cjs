@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const root = path.join(__dirname, '..');
+const root = path.join(__dirname, '..', 'public');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const {deferredScripts,parseMarkup,descendants,hasClass,nodeText,harness,flush}=require('./frontend-dom.cjs');
 const tree = parseMarkup(html), all = descendants(tree);

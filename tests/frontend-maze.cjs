@@ -8,7 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { canvasFixture } = require('./frontend-canvas.cjs');
-const source = fs.readFileSync(path.join(__dirname, '..', 'maze.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'maze.js'), 'utf8');
 
 function mazeHarness(options = {}) {
   const drawing = canvasFixture({

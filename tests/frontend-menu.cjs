@@ -83,7 +83,7 @@ async function main(){
   test.context.Event=class Event{constructor(type){this.type=type;}};
   test.document.dispatchEvent=event=>{test.events[event.type]?.(event);return true;};
   test.document.readyState='complete';
-  vm.runInContext(fs.readFileSync(path.join(__dirname,'..','appearance.js'),'utf8'),test.context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'public','appearance.js'),'utf8'),test.context);
   const cards=nodes.grid.innerHTML;
   nodes.title.value='Unsaved menu draft';
   for(const option of theme.querySelectorAll('option')){

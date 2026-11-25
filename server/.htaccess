@@ -1,3 +1,0 @@
-# Server modules belong outside the document root. Deny direct HTTP access
-# if their source directory is copied into it.
-Require all denied

@@ -7,7 +7,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
 new vm.Script(source, { filename: 'app.js' });
 
 function extract(start, next) {
