@@ -113,7 +113,7 @@ async function wikipedia(titles, signal) {
     const variants = unique(group.flatMap(title => [title, title + ' (video game)']));
     return providerJson('https://en.wikipedia.org/w/api.php', {
       method: 'POST',
-      headers: { 'Api-User-Agent': 'Savepoint/1.0 (cover lookup; https://github.com/emilstachowiak-lab/savepoint-game-library)' },
+      headers: { 'User-Agent': 'Savepoint/1.0 (cover lookup; https://github.com/emilstachowiak-lab/savepoint-game-library)' },
       body: new URLSearchParams({
         action: 'query', format: 'json', formatversion: '2', redirects: '1', prop: 'pageimages|pageprops',
         ppprop: 'disambiguation|wikibase-shortdesc', piprop: 'thumbnail|name', pilicense: 'any',
