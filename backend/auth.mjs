@@ -1,4 +1,5 @@
 import { check, encoder, fail, failedCheck, hex, now, randomId, sha256, sql, validText } from './http.mjs';
+import { sendSmtp, SmtpError } from './smtp.mjs';
 
 const cookieName = 'savepoint_cf_session_v1';
 const idleSeconds = 1800;
@@ -250,19 +251,36 @@ export async function login({ db, request, url, env, context, body, listGames, p
 }
 
 async function notify(env, username, ip, time) {
-  if (!env.MAIL_FROM || !env.MAIL_TO || !env.CF_EMAIL_TOKEN
-    || !/^[0-9a-f]{32}$/i.test(env.CF_EMAIL_ACCOUNT_ID ?? '')) return;
+  const from = env.MAIL_FROM?.trim();
+  const to = env.MAIL_TO?.trim();
+  const host = env.SMTP_HOST?.trim();
+  const configured = host ? Boolean(env.SMTP_PASSWORD)
+    : Boolean(env.CF_EMAIL_TOKEN) && /^[0-9a-f]{32}$/i.test(env.CF_EMAIL_ACCOUNT_ID ?? '');
+  if (!from || !to || !configured) return;
+
   const date = new Intl.DateTimeFormat('pl-PL', {
     timeZone: 'Europe/Warsaw', dateStyle: 'long', timeStyle: 'long',
   }).format(new Date(time * 1000));
+  const message = {
+    from, to, subject: 'Savepoint — udane logowanie',
+    text: `Udane logowanie do Savepoint.\nKonto: ${username}\nCzas: ${date}\nAdres IP: ${ip}`,
+  };
+
+  if (host) {
+    try {
+      const { connect } = await import('cloudflare:sockets');
+      await sendSmtp(connect, { ...message, host, password: env.SMTP_PASSWORD });
+    } catch (error) {
+      console.warn('Savepoint SMTP login notification failed:', error instanceof SmtpError ? error.message : 'connection');
+    }
+    return;
+  }
+
   try {
     const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${env.CF_EMAIL_ACCOUNT_ID}/email/sending/send`, {
       method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(10000),
       headers: { Authorization: `Bearer ${env.CF_EMAIL_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: env.MAIL_FROM, to: env.MAIL_TO, subject: 'Savepoint — udane logowanie',
-        text: `Udane logowanie do Savepoint.\nKonto: ${username}\nCzas: ${date}\nAdres IP: ${ip}`,
-      }),
+      body: JSON.stringify(message),
     });
     if (!response.ok) console.warn('Savepoint login notification unavailable.');
     await response.body?.cancel();

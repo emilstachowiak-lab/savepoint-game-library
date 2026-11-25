@@ -78,7 +78,11 @@ Add these Production variables and secrets for the features you want to enable.
 | Gemini photo recognition, cover selection, and duplicate detection | Set `AI_ENABLED` to `true` and store `GEMINI_API_KEY` as a secret. Optional text settings are `GEMINI_MODEL` (default `gemini-3.5-flash-lite`) and `AI_HOURLY_LIMIT` (default `20`). |
 | IGDB cover search | Set `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` as secrets from your Twitch application. |
 | SteamGridDB cover search | Set `STEAMGRIDDB_API_KEY` as a secret. Wikipedia cover suggestions use a public API. |
-| Login notifications | Set `CF_EMAIL_ACCOUNT_ID`, `MAIL_FROM`, and `MAIL_TO` as text and `CF_EMAIL_TOKEN` as a secret. Use an API token with permission to send email, a sending domain configured in Cloudflare Email Service, and a verified recipient when using the Free plan. [Cloudflare Email Service setup](https://developers.cloudflare.com/email-service/get-started/send-emails/) |
+
+Login notifications require `MAIL_FROM` and `MAIL_TO`. Save either address as a secret if it should be hidden in the dashboard. Choose a sending method.
+
+- **SMTP mailbox.** Set `SMTP_HOST` to your provider's SMTP hostname and save the mailbox password as the `SMTP_PASSWORD` secret. Savepoint connects with implicit TLS on port 465 and uses `MAIL_FROM` as the SMTP username. You can keep the site's `pages.dev` hostname.
+- **Cloudflare Email Service.** Leave `SMTP_HOST` unset. Set `CF_EMAIL_ACCOUNT_ID` as text and `CF_EMAIL_TOKEN` as a secret. Use an API token with permission to send email, a domain onboarded for sending, and a verified recipient on Workers Free. [Cloudflare Email Service setup](https://developers.cloudflare.com/email-service/get-started/send-emails/)
 
 ### 5. Redeploy and verify
 
