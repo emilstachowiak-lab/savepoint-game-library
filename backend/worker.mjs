@@ -19,13 +19,13 @@ function protectedError(request, action, error) {
   const ai = aiActions.has(action);
   if (failedCheck(error)) error = new ApiError(401, ai ? 'ai_session_expired' : 'authentication_required', { authRequired: true });
   if (!(error instanceof ApiError)) {
-    console.warn('Savepoint API operation failed.');
     const databaseError = /\bD1_(?:ERROR|EXEC_ERROR|COLUMN_NOTFOUND)\b/i.test(String(error?.message));
-    const id = action === 'ai-cover-search' ? 'ai_cover_search_unavailable'
-      : ai ? 'ai_service_unavailable' : databaseError ? 'database_unavailable' : 'server_error';
+    console.warn('Savepoint API operation failed.', { source: databaseError ? 'd1' : 'application', ...(ai ? { action } : {}) });
+    const id = databaseError ? 'database_unavailable' : action === 'ai-cover-search' ? 'ai_cover_search_unavailable'
+      : ai ? 'ai_service_unavailable' : 'server_error';
     error = new ApiError(ai || databaseError ? 503 : 500, id);
   }
-  const extra = ai && error.id.startsWith('ai_')
+  const extra = ai && (error.id.startsWith('ai_') || error.id === 'database_unavailable')
     ? { errorId: error.id, authRequired: error.status === 401, ...error.extra }
     : error.extra;
   return json(request, error.status, { ok: false, error: error.id, ...extra },

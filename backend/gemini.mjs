@@ -57,8 +57,7 @@ function responseObject(response) {
   return parseJson(bytes, 'ai_response_invalid', object, 502);
 }
 
-export async function providerJson(url, options, signal) {
-  const response = await fetch(url, { ...options, redirect: 'manual', signal });
+async function readProviderJson(response) {
   if (!response.ok) {
     const retry = Number(response.headers.get('Retry-After'));
     await response.body?.cancel();
@@ -69,23 +68,46 @@ export async function providerJson(url, options, signal) {
     result => object(result) || Array.isArray(result), 502);
 }
 
+export async function providerJson(url, options, signal) {
+  return readProviderJson(await fetch(url, { ...options, redirect: 'manual', signal }));
+}
+
+function retryAfterMs(response) {
+  const value = response.headers.get('Retry-After')?.trim();
+  if (!value) return 0;
+  const wait = /^\d+$/.test(value) ? Number(value) * 1000 : Date.parse(value) - Date.now();
+  return Number.isNaN(wait) ? 0 : Math.max(0, wait);
+}
+
 async function generate(env, instructions, parts, responseJsonSchema, { tokens, timeout, thinking }) {
+  // Backoff and every attempt share the original provider deadline.
+  const deadline = Date.now() + timeout;
   const signal = AbortSignal.timeout(Math.max(1, timeout));
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + (env.GEMINI_MODEL ?? model) + ':generateContent';
+  const options = {
+    method: 'POST', redirect: 'manual', signal,
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: instructions }] },
+      contents: [{ role: 'user', parts }],
+      generationConfig: { maxOutputTokens: tokens, responseMimeType: 'application/json', responseJsonSchema,
+        ...(thinking ? { thinkingConfig: { thinkingLevel: thinking } } : {}) },
+    }),
+  };
   try {
-    const response = await providerJson(
-      'https://generativelanguage.googleapis.com/v1beta/models/' + (env.GEMINI_MODEL ?? model) + ':generateContent',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: instructions }] },
-          contents: [{ role: 'user', parts }],
-          generationConfig: { maxOutputTokens: tokens, responseMimeType: 'application/json', responseJsonSchema,
-            ...(thinking ? { thinkingConfig: { thinkingLevel: thinking } } : {}) },
-        }),
-      }, signal,
-    );
-    return responseObject(response);
+    for (let attempt = 0; ; attempt++) {
+      const response = await fetch(url, options);
+      if (response.status !== 503) return responseObject(await readProviderJson(response));
+
+      const retryAfter = retryAfterMs(response);
+      await response.body?.cancel().catch(() => {});
+      const delay = Math.max(retryAfter, 1000 * 2 ** attempt + Math.floor(Math.random() * 250));
+      if (attempt >= 2 || delay + 1000 >= deadline - Date.now()) {
+        console.warn('Savepoint Gemini unavailable.', { status: 503, attempts: attempt + 1 });
+        fail(503, 'ai_service_unavailable', {}, Math.min(3600, Math.ceil(retryAfter / 1000)));
+      }
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
   } catch (error) {
     if (signal.aborted || error?.name === 'TimeoutError') fail(504, 'ai_provider_timeout');
     if (error instanceof ApiError && error.id !== 'request_too_large') throw error;
@@ -95,6 +117,7 @@ async function generate(env, instructions, parts, responseJsonSchema, { tokens, 
 }
 
 function base64(bytes) {
+  if (typeof bytes.toBase64 === 'function') return bytes.toBase64();
   let binary = '';
   for (let offset = 0; offset < bytes.length; offset += 8192) {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));

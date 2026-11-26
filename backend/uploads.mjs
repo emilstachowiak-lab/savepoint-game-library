@@ -91,9 +91,14 @@ export function decodeChunks(chunks, size, kind) {
   const bytes = new Uint8Array(size);
   let offset = 0;
   for (const { data } of chunks) {
-    const part = atob(data);
+    const part = typeof Uint8Array.fromBase64 === 'function' ? Uint8Array.fromBase64(data) : atob(data);
     if (offset + part.length > size) issue(kind, kind === 'ai' ? 'incomplete' : 'offset');
-    for (let i = 0; i < part.length; i++) bytes[offset++] = part.charCodeAt(i);
+    if (typeof part === 'string') {
+      for (let i = 0; i < part.length; i++) bytes[offset + i] = part.charCodeAt(i);
+    } else {
+      bytes.set(part, offset);
+    }
+    offset += part.length;
   }
   if (offset !== size) issue(kind, kind === 'ai' ? 'incomplete' : 'offset');
   return bytes;
