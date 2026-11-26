@@ -3,7 +3,9 @@
 (() => {
   'use strict';
 
-  const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
+  const MAX_PHOTO_BYTES = 64 * 1024 * 1024;
+  const MAX_PHOTO_PIXELS = 200000000;
+  const MAX_PREPARED_SIDE = 1600;
   const MAX_PREPARED_BYTES = 2 * 1024 * 1024;
   const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
   const MAX_GAMES = 32;
@@ -36,51 +38,120 @@
   }
 
   function base64(bytes) {
+    if (typeof bytes.toBase64 === 'function') return bytes.toBase64();
     let binary = '';
     for (let index = 0; index < bytes.length; index++) binary += String.fromCharCode(bytes[index]);
     return btoa(binary);
   }
 
+  async function photoDimensions(file) {
+    if (typeof file.slice !== 'function') return null;
+    const bytes = new Uint8Array(await file.slice(0, 256 * 1024).arrayBuffer());
+    const view = new DataView(bytes.buffer);
+    const tag = (offset, text) => [...text].every((char, index) => bytes[offset + index] === char.charCodeAt(0));
+    if (bytes.length >= 24 && view.getUint32(0) === 0x89504e47
+        && view.getUint32(4) === 0x0d0a1a0a && tag(12, 'IHDR')) {
+      return { type: 'image/png', width: view.getUint32(16), height: view.getUint32(20) };
+    }
+    if (bytes.length >= 25 && tag(0, 'RIFF') && tag(8, 'WEBP')) {
+      let width, height;
+      if (bytes.length >= 30 && tag(12, 'VP8X')) {
+        const size = offset => 1 + view.getUint16(offset, true) + (bytes[offset + 2] << 16);
+        width = size(24);
+        height = size(27);
+      } else if (tag(12, 'VP8L') && bytes[20] === 47) {
+        const size = view.getUint32(21, true);
+        width = 1 + (size & 0x3fff);
+        height = 1 + ((size >>> 14) & 0x3fff);
+      } else if (bytes.length >= 30 && tag(12, 'VP8 ') && bytes[23] === 0x9d && bytes[24] === 1 && bytes[25] === 0x2a) {
+        width = view.getUint16(26, true) & 0x3fff;
+        height = view.getUint16(28, true) & 0x3fff;
+      }
+      return width && height ? { type: 'image/webp', width, height } : null;
+    }
+    if (bytes.length < 10 || view.getUint16(0) !== 0xffd8) return null;
+    let offset = 2;
+    while (offset + 8 < bytes.length && bytes[offset] === 255) {
+      while (bytes[offset] === 255) offset++;
+      const marker = bytes[offset++];
+      if (marker === 218 || marker === 217 || offset + 2 > bytes.length) break;
+      const size = view.getUint16(offset);
+      if (size < 2) break;
+      if (size >= 8 && offset + 7 <= bytes.length && marker >= 192 && marker <= 207 && ![196, 200, 204].includes(marker)) {
+        return { type: 'image/jpeg', width: view.getUint16(offset + 5), height: view.getUint16(offset + 3) };
+      }
+      offset += size;
+    }
+    return null;
+  }
+
+  function checkPhotoDimensions(width, height) {
+    if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height)
+        || width < 1 || height < 1 || width * height > MAX_PHOTO_PIXELS) {
+      throw failure('Zdjęcie musi mieć prawidłowe wymiary i najwyżej 200 MP.',
+        'The photo must have valid dimensions and be at most 200 megapixels.');
+    }
+  }
+
+  async function decodePhoto(file, dimensions) {
+    const large = dimensions && Math.max(dimensions.width, dimensions.height) > 2 * MAX_PREPARED_SIDE;
+    if (large && typeof ImageDecoder === 'function' && typeof file.stream === 'function') {
+      try {
+        // JPEG decoders may round down to a supported fractional scale.
+        const decodeSide = dimensions.type === 'image/jpeg' ? 2 * MAX_PREPARED_SIDE : MAX_PREPARED_SIDE;
+        const scale = decodeSide / Math.max(dimensions.width, dimensions.height);
+        const decoder = new ImageDecoder({ type: dimensions.type, data: file.stream(), preferAnimation: false,
+          desiredWidth: Math.max(1, Math.round(dimensions.width * scale)),
+          desiredHeight: Math.max(1, Math.round(dimensions.height * scale)) });
+        try { return (await decoder.decode()).image; }
+        finally { decoder.close(); }
+      } catch { /* Some browsers decode a format only through ImageBitmap or Image. */ }
+    }
+    if (typeof createImageBitmap === 'function') {
+      const options = { imageOrientation: 'from-image' };
+      if (large) {
+        const shorter = Math.min(dimensions.width, dimensions.height);
+        const longer = Math.max(dimensions.width, dimensions.height);
+        // One dimension preserves the aspect ratio with either EXIF orientation.
+        options.resizeWidth = Math.max(1, Math.min(shorter, MAX_PREPARED_SIDE,
+          Math.floor(2 * MAX_PREPARED_SIDE * shorter / longer)));
+        options.resizeQuality = 'high';
+      }
+      try { return await createImageBitmap(file, options); }
+      catch { /* Fall back to the browser's image element decoder. */ }
+    }
+    return new Promise((resolve, reject) => {
+      const source = URL.createObjectURL(file);
+      const image = new Image();
+      image.onload = () => { URL.revokeObjectURL(source); resolve(image); };
+      image.onerror = () => { URL.revokeObjectURL(source); reject(new Error('Image could not be decoded')); };
+      image.src = source;
+    });
+  }
+
   // Canvas re-encoding strips source metadata. The original file never leaves
   // the browser, and only the resized JPEG is offered for explicit analysis.
   async function preparePhoto(file) {
-    if (!file || !PHOTO_TYPES.includes(file.type)) {
+    if (!file || file.type && !PHOTO_TYPES.includes(file.type)) {
       throw failure('Wybierz zdjęcie JPEG, PNG lub WebP.', 'Choose a JPEG, PNG or WebP photo.');
     }
     if (!Number.isSafeInteger(file.size) || file.size < 1 || file.size > MAX_PHOTO_BYTES) {
-      throw failure('Zdjęcie może mieć maksymalnie 12 MiB.', 'The photo must be no larger than 12 MiB.');
+      throw failure('Zdjęcie może mieć maksymalnie 64 MiB.', 'The photo must be no larger than 64 MiB.');
     }
     let image;
-    let release = () => {};
     try {
-      if (typeof createImageBitmap === 'function') {
-        image = await createImageBitmap(file, { imageOrientation: 'from-image' });
-        release = () => image.close?.();
-      } else {
-        const source = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = () => reject(failure('Nie udało się odczytać zdjęcia.', 'Could not read the photo.'));
-          reader.readAsDataURL(file);
-        });
-        image = await new Promise((resolve, reject) => {
-          const loader = new Image();
-          loader.onload = () => resolve(loader);
-          loader.onerror = () => reject(failure('Nie udało się otworzyć zdjęcia.', 'Could not open the photo.'));
-          loader.src = source;
-        });
-        release = () => { image.onload = image.onerror = null; image.removeAttribute('src'); };
-      }
-      const width = image.width || image.naturalWidth;
-      const height = image.height || image.naturalHeight;
-      if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1 || width * height > 48000000) {
-        throw failure('Wybierz zdjęcie o rozdzielczości do 48 megapikseli.', 'Choose a photo with a resolution of up to 48 megapixels.');
-      }
+      const dimensions = await photoDimensions(file);
+      if (!dimensions && !file.type) throw failure('Wybierz zdjęcie JPEG, PNG lub WebP.', 'Choose a JPEG, PNG or WebP photo.');
+      if (dimensions) checkPhotoDimensions(dimensions.width, dimensions.height);
+      image = await decodePhoto(file, dimensions);
+      const width = image.displayWidth ?? image.naturalWidth ?? image.width;
+      const height = image.displayHeight ?? image.naturalHeight ?? image.height;
+      checkPhotoDimensions(width, height);
       const canvas = document.createElement('canvas');
       try {
         const context = canvas.getContext('2d', { alpha: false });
         if (!context || typeof canvas.toBlob !== 'function') throw new Error('Canvas unavailable');
-        for (const [side, quality] of [[1600, .85], [1600, .7], [1280, .65], [1000, .6]]) {
+        for (const [side, quality] of [[MAX_PREPARED_SIDE, .85], [MAX_PREPARED_SIDE, .7], [1280, .65], [1000, .6]]) {
           const scale = Math.min(1, side / Math.max(width, height));
           canvas.width = Math.max(1, Math.round(width * scale));
           canvas.height = Math.max(1, Math.round(height * scale));
@@ -99,7 +170,10 @@
       if (error?.englishMessage) throw error;
       throw failure('Nie udało się przygotować zdjęcia. Wybierz poprawny plik JPEG, PNG lub WebP.',
         'Could not prepare the photo. Choose a valid JPEG, PNG or WebP file.');
-    } finally { release(); }
+    } finally {
+      image?.close?.();
+      image?.removeAttribute?.('src');
+    }
   }
 
   function node(tag, className, parent) {
@@ -126,8 +200,8 @@
 
   function buildPhotoControls(body, label) {
     const fileLabel = node('div', 'ai-import-file', body);
-    label(node('p', '', fileLabel), 'Zdjęcie gier: JPEG, PNG lub WebP, do 12 MiB. Możesz wybrać plik lub użyć aparatu.',
-      'Game photo: JPEG, PNG or WebP, up to 12 MiB. Choose a file or use your camera.');
+    label(node('p', '', fileLabel), 'Zdjęcie gier: JPEG, PNG lub WebP, do 200 MP i 64 MiB. Wybierz plik lub użyj aparatu.',
+      'Game photo: JPEG, PNG or WebP, up to 200 MP and 64 MiB. Choose a file or use your camera.');
     const photoActions = node('div', 'ai-import-photo-actions', fileLabel);
     const choose = label(controlButton(photoActions), 'Wybierz zdjęcie', 'Choose photo');
     choose.id = 'aiImportChoose';

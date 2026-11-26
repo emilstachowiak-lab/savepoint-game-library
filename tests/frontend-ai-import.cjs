@@ -12,6 +12,11 @@ const uploadId = 'a'.repeat(32);
 const firstGame = { title: 'Synthetic first game', platform: 'PC', confidence: 'high', note: '' };
 const secondGame = { title: 'Synthetic second game', platform: 'PlayStation 2', confidence: 'low', note: 'Synthetic uncertain platform' };
 
+function jpegHeader(width, height, type = 'image/jpeg') {
+  return new Blob([Uint8Array.of(255, 216, 255, 192, 0, 8, 8,
+    height >> 8, height & 255, width >> 8, width & 255, 3, 255, 217)], { type });
+}
+
 function setup({ existing = [], language = 'pl', camera, bitmap } = {}) {
   const test = harness();
   test.seed(existing);
@@ -156,6 +161,28 @@ async function main() {
     assert(!test.calls.some(call => call.body.action === 'ai-add'));
     test.controller.destroy();
     console.log('PASS: metadata-free resized preview, bounded chunk upload and multi-game recognition never add games automatically');
+  }
+  {
+    const decodeOptions = [];
+    let closed = 0;
+    const test = setup({ bitmap(_file, options) {
+      decodeOptions.push(options);
+      // The browser reports oriented dimensions for a portrait JPEG.
+      return Promise.resolve({ width: 1600, height: 2133, close() { closed++; } });
+    } });
+    await test.open();
+    for (const size of [[8064, 6048], [12000, 9000], [16320, 12240]]) await test.photo(jpegHeader(...size, ''));
+    assert.equal(decodeOptions.length, 3);
+    assert(decodeOptions.every(options => options.imageOrientation === 'from-image'
+      && options.resizeWidth === 1600 && options.resizeQuality === 'high'));
+    assert(test.encoders.every(canvas => canvas.draws[0][3] === 1200 && canvas.draws[0][4] === 1600));
+    assert.equal(closed, 3);
+    assert.equal(test.calls.length, 1, 'Preparation does not upload the source file');
+    await test.photo(jpegHeader(20000, 20000));
+    assert.equal(decodeOptions.length, 3, 'Oversized header is rejected before bitmap decoding');
+    assert.match(test.query('#aiImportStatus').textContent, /200 MP/);
+    test.controller.destroy();
+    console.log('PASS: large JPEG headers request an oriented downsized bitmap and the 200 MP limit is enforced before decoding');
   }
   {
     const test = setup(); await test.open(); await test.photo(); await test.identify();
@@ -603,7 +630,7 @@ async function main() {
     const test = setup(); await test.open();
     await test.photo({ type: 'image/svg+xml', size: 100 }); assert.equal(test.calls.length, 1);
     assert.equal(test.query('#aiImportAnalyze').disabled, true);
-    await test.photo({ type: 'image/jpeg', size: 13 * 1024 * 1024 }); assert.equal(test.calls.length, 1);
+    await test.photo({ type: 'image/jpeg', size: 65 * 1024 * 1024 }); assert.equal(test.calls.length, 1);
     assert.equal(test.query('#aiImportStatus').getAttribute('role'), 'alert');
     test.controller.destroy();
     console.log('PASS: unsupported or oversized source files do not reach an upload request');

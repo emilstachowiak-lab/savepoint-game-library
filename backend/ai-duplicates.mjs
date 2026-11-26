@@ -82,7 +82,7 @@ export async function applyDuplicate(db, session, body) {
   if (mode === 'merge') {
     let platform;
     try {
-      platform = normalizePlatform([...platformList(chosen), ...platformList(other)].join(','));
+      platform = normalizePlatform([...new Set([...platformList(chosen), ...platformList(other)])].join(','));
     } catch { fail(422, 'ai_duplicates_merge_too_large'); }
     const edition = chosen.edition !== other.edition && editions.includes(chosen.edition) && editions.includes(other.edition)
       ? editions[2] : chosen.edition;
@@ -97,7 +97,10 @@ export async function applyDuplicate(db, session, body) {
     return body.delta === true ? { game: publicGame(result.at(-1).results[0]), deletedId: remove[0] }
       : { games: await listGames(db) };
   } catch (error) {
-    if (failedCheck(error)) stale();
+    if (failedCheck(error)) {
+      await sessionGuard(db, session).run();
+      stale();
+    }
     throw error;
   }
 }

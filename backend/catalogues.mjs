@@ -73,24 +73,27 @@ async function igdb(titles, env, signal) {
 async function steamGrid(titles, env, signal) {
   if (!credential(env.STEAMGRIDDB_API_KEY)) return [];
   const headers = { Authorization: 'Bearer ' + env.STEAMGRIDDB_API_KEY };
+  // Leave room within Workers Free's 50 subrequests for IGDB, Wikipedia and Gemini retries.
+  let requestsLeft = 32;
   const fetchData = async route => {
+    if (signal.aborted || requestsLeft <= 0) return [];
+    requestsLeft--;
     const reply = await providerJson('https://www.steamgriddb.com/api/v2' + route, { headers }, signal);
     return reply.success === true ? asList(reply.data) : [];
   };
-  const searched = await boundedParallel(titles, async title => {
+  return (await boundedParallel(titles, async title => {
     const games = await fetchData('/search/autocomplete/' + encodeURIComponent(title));
     const matching = new Map(games.slice(0, 12).filter(game => Number.isSafeInteger(game?.id) && game.id > 0
       && safeLabel(game.name, 320) && key(game.name) === key(title)).map(game => [game.id, game]));
-    return matching.size === 1 ? { ...matching.values().next().value, title } : null;
-  });
-  return (await boundedParallel(searched.filter(Boolean), async game => {
+    if (matching.size !== 1) return null;
+    const game = matching.values().next().value;
     const images = await fetchData(`/grids/game/${game.id}?dimensions=600x900,660x930,342x482&types=static&nsfw=false&humor=false&epilepsy=false&limit=5`);
     const image = images.slice(0, 5).find(item => typeof item?.url === 'string'
       && /^https:\/\/cdn2?\.steamgriddb\.com\/grid\/[a-z0-9_-]{1,120}\.(?:jpe?g|png|webp)$/i.test(item.url)
       && Number.isSafeInteger(item.id) && item.id > 0 && Number.isSafeInteger(item.width) && Number.isSafeInteger(item.height)
       && item.width > 0 && item.width < item.height && item.nsfw === false && item.humor === false && item.epilepsy === false
       && ['image/png', 'image/jpeg', 'image/webp'].includes(item.mime));
-    return image ? { title: game.title, name: game.name, platforms: [], year: year(game.release_date),
+    return image ? { title, name: game.name, platforms: [], year: year(game.release_date),
       url: image.url, source: `https://www.steamgriddb.com/grid/${image.id}`, provider: 'steamgriddb' } : null;
   })).filter(Boolean);
 }
@@ -183,10 +186,15 @@ export async function suggestCovers(db, env, result, deadline, manual = false) {
     .filter(game => game.confidence !== 'low' && game.platform && game.platform !== 'Inna' && key(game.title));
   if (!games.length) return result;
   const titles = unique(games.map(game => game.title));
-  const timeout = ms => AbortSignal.timeout(Math.max(1, Math.min(ms, deadline - Date.now())));
+  const timeout = (ms, until) => AbortSignal.timeout(Math.max(1, Math.min(ms, until - Date.now())));
+  const started = Date.now();
+  // Optional catalogues share time so that Wiki and Gemini still get a turn.
+  const catalogueDeadline = started + Math.min(8000, Math.floor((deadline - started) / 2));
   // Keep the catalogue requests and their credentials limited to fixed hosts.
-  const igdbItems = await igdb(titles, env, timeout(4000)).catch(() => []);
-  const steam = await steamGrid(titles, env, timeout(8000)).catch(() => []);
+  const igdbItems = Date.now() < catalogueDeadline
+    ? await igdb(titles, env, timeout(4000, catalogueDeadline)).catch(() => []) : [];
+  const steam = Date.now() < catalogueDeadline
+    ? await steamGrid(titles, env, timeout(8000, catalogueDeadline)).catch(() => []) : [];
   const options = [];
   const fallback = [];
   for (const game of games) {
@@ -199,13 +207,20 @@ export async function suggestCovers(db, env, result, deadline, manual = false) {
     if (grid) options.push({ gameIndex: game.index, entry: grid });
     fallback.push(game);
   }
+  let primaryTimeout;
   try {
-    if (Date.now() >= deadline) fail(504, 'ai_provider_timeout');
-    await assign(db, env, result, options, deadline);
+    const primaryStart = Date.now();
+    if (primaryStart >= deadline) fail(504, 'ai_provider_timeout');
+    const primaryDeadline = primaryStart + Math.floor((deadline - primaryStart) / 2);
+    try { await assign(db, env, result, options, primaryDeadline); }
+    catch (error) {
+      if (!(error instanceof ApiError) || error.id !== 'ai_provider_timeout') throw error;
+      primaryTimeout = error;
+    }
     if (manual && result.candidates.some(game => game.coverUrl)) return result;
     const missing = fallback.filter(game => !result.candidates[game.index].coverUrl);
     if (missing.length) {
-      const pages = await wikipedia(unique(missing.map(game => game.title)), timeout(4000));
+      const pages = await wikipedia(unique(missing.map(game => game.title)), timeout(4000, deadline - 1000));
       const wikiOptions = missing.flatMap(game => {
         const title = wikiKey(game.title);
         const entries = unique([pages.get(title), pages.get(title + ' (video game)')].filter(Boolean));
@@ -214,6 +229,7 @@ export async function suggestCovers(db, env, result, deadline, manual = false) {
       await assign(db, env, result, wikiOptions, deadline);
       if (Date.now() >= deadline) result.coverSearch = 'unavailable';
     }
+    if (primaryTimeout && missing.some(game => !result.candidates[game.index].coverUrl)) throw primaryTimeout;
   } catch (error) {
     if (manual && error instanceof ApiError && ['ai_provider_rate_limited', 'ai_provider_timeout'].includes(error.id)) throw error;
     result.coverSearch = 'unavailable';

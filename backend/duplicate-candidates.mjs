@@ -52,8 +52,13 @@ function abbreviations(words) {
   return unique(forms.filter(form => form !== literal && countBytes(form) <= 56));
 }
 
+function splitTitle(title) {
+  const separator = titleParts.exec(title);
+  return separator ? [title.slice(0, separator.index), title.slice(separator.index + separator[0].length)] : [title];
+}
+
 function profile(game) {
-  const parts = game.title.split(titleParts, 2);
+  const parts = splitTitle(game.title);
   const words = tokens(game.title);
   const compact = words.join('');
   const titleBase = parts.length === 2 ? tokens(parts[0]).join('') : '';
@@ -63,7 +68,7 @@ function profile(game) {
   const withoutPossessives = game.title.replace(/(?<=\p{L})[’']s\b/giu, '');
   const abbrevWords = tokens(withoutPossessives);
   const expansions = abbreviations(abbrevWords);
-  const segments = withoutPossessives.split(titleParts, 2);
+  const segments = splitTitle(withoutPossessives);
   if (segments.length === 2) {
     for (const segment of segments) expansions.push(...abbreviations(tokens(segment)));
   }
