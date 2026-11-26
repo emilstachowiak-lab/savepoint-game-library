@@ -122,10 +122,8 @@ function notify(message, english) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => $('toast').classList.remove('show'), 2600);
 }
-// Give the batched readiness lookup a short head start. Missing copies fall
-// back to lazy original images without waiting for the backup worker.
+// Start lazy image requests independently of the background backup queue.
 const COVER_LOAD_TIMEOUT = 10000;
-const COVER_STATUS_GRACE = 2500;
 let coverBackupCollection = null;
 let coverBackupQueue = [];
 let coverBackupTimer = null;
@@ -136,7 +134,6 @@ const coverBackupStatusChecked = new Set();
 const coverBackupReady = new Set();
 let coverBackupStatusAvailable = true;
 let coverStatusRetryAt = 0;
-let coverSourceTimer = null;
 let coverSavedById = new Map();
 const coverImageStates = new Map();
 let coverVisibilityObserver = null;
@@ -144,8 +141,6 @@ function localCoverUrl(id) {
   return /^[a-zA-Z0-9-]{1,36}$/.test(String(id)) ? API_URL + '?cover=' + encodeURIComponent(id) : '';
 }
 function clearCoverImageTracking() {
-  clearTimeout(coverSourceTimer);
-  coverSourceTimer = null;
   coverVisibilityObserver?.disconnect();
   coverVisibilityObserver = null;
   for (const state of coverImageStates.values()) { clearTimeout(state.timer); clearCoverProbe(state); }
@@ -197,27 +192,24 @@ function probeLocalCover(image) {
   probe.onerror = () => { if (state.probe === probe) clearCoverProbe(state); };
   probe.src = localCoverUrl(state.id);
 }
-function useLocalCover(image) {
+function useLocalCover(image, retry = false) {
   const state = currentCoverImage(image);
-  if (!state) return;
+  if (!state || (retry ? state.retried : state.local)) return;
   clearTimeout(state.timer);
   state.timer = null;
   clearCoverProbe(state);
-  if (state.local) return;
   state.local = true;
-  image.src = localCoverUrl(state.id);
+  state.localFailed = false;
+  state.localReadyAtStart = coverBackupReady.has(state.key);
+  state.retried ||= retry;
+  image.src = localCoverUrl(state.id) + (retry ? '&ready=1' : '');
 }
 function useOriginalCover(image, state) {
+  clearTimeout(state.timer);
+  state.timer = null;
   state.directTried = true;
   state.local = false;
   image.src = state.url;
-}
-function startCoverIfReady(image, state, allowOriginal = false) {
-  if (image.hasAttribute('src')) return;
-  if (coverBackupReady.has(state.key)) useLocalCover(image);
-  else if (allowOriginal || coverBackupStatusChecked.has(state.key) || !coverBackupStatusAvailable) {
-    useOriginalCover(image, state);
-  }
 }
 function trackCoverImages() {
   const images = new Set($('grid').querySelectorAll('img.cover-image[data-cover-id]'));
@@ -228,8 +220,8 @@ function trackCoverImages() {
     clearCoverProbe(state);
     coverImageStates.delete(image);
   }
-  // A lazy image has no reliable loadstart event. Time a stalled direct
-  // source only after it has become visible.
+  // A lazy image has no reliable loadstart event. Start its watchdog only
+  // after it has become visible.
   if (!coverVisibilityObserver && typeof IntersectionObserver === 'function') {
     coverVisibilityObserver = new IntersectionObserver(entries => {
       for (const entry of entries) {
@@ -255,49 +247,47 @@ function trackCoverImages() {
       url: saved.coverUrl,
       generation: sessionGeneration,
       local,
+      localFailed: false,
+      localReadyAtStart: local && coverBackupReady.has(String(saved.game.coverUrl)),
       directTried: Boolean(src && !local),
       retried: local && src.endsWith('&ready=1'),
       timer: null
     };
     coverImageStates.set(image, state);
-    coverVisibilityObserver?.observe(image);
-    startCoverIfReady(image, state);
-  }
-  if (!coverSourceTimer && [...coverImageStates.keys()].some(image => !image.hasAttribute('src'))) {
-    coverSourceTimer = setTimeout(() => {
-      coverSourceTimer = null;
-      for (const [image, state] of coverImageStates) {
-        if (!currentCoverImage(image)) continue;
-        startCoverIfReady(image, state, true);
-        scheduleCoverProbe(image, state);
+    if (!src) {
+      // Try the private copy immediately when its availability is unknown.
+      // A confirmed miss can go directly to the original.
+      if (coverBackupReady.has(state.key) || (coverBackupStatusAvailable && !coverBackupStatusChecked.has(state.key))) {
+        useLocalCover(image);
+      } else {
+        useOriginalCover(image, state);
       }
-    }, COVER_STATUS_GRACE);
+    }
+    coverVisibilityObserver?.observe(image);
   }
 }
 function scheduleCoverProbe(image, state) {
-  if (state.visible && state.directTried && !state.local && !state.timer && !image.complete) {
-    state.timer = setTimeout(() => probeLocalCover(image), COVER_LOAD_TIMEOUT);
-  }
-}
-function releaseCoverSources() {
-  for (const [image, state] of coverImageStates) {
-    if (currentCoverImage(image)) {
-      startCoverIfReady(image, state);
+  if (!state.visible || state.timer || image.complete) return;
+  if (state.local && !state.directTried) {
+    state.timer = setTimeout(() => {
+      if (currentCoverImage(image) !== state || image.complete) return;
+      state.localFailed = true;
+      useOriginalCover(image, state);
       scheduleCoverProbe(image, state);
-    }
+    }, COVER_LOAD_TIMEOUT);
+  } else if (!state.local && state.directTried) {
+    state.timer = setTimeout(() => probeLocalCover(image), COVER_LOAD_TIMEOUT);
   }
 }
 function markCoverBackupReady(key) {
   coverBackupReady.add(key);
   for (const [image, state] of coverImageStates) {
-    // The first fallback can have raced the initial backup. Retry once when
-    // the server confirms the file exists; repeated image errors never loop.
     if (state.key !== key || state.retried || !currentCoverImage(image)) continue;
-    if (!image.hasAttribute('src')) { useLocalCover(image); continue; }
     if (image.complete && image.naturalWidth) continue;
-    if (!state.local) { useLocalCover(image); continue; }
-    state.retried = true;
-    image.src = localCoverUrl(state.id) + '&ready=1';
+    // Leave an in-flight private request alone. Retry a failed one only
+    // after the server confirms the backup exists.
+    if (state.local && !state.localFailed) continue;
+    useLocalCover(image, state.localFailed);
   }
 }
 function currentCoverBackupCandidate(candidate) {
@@ -351,7 +341,6 @@ function scheduleCoverBackupWorker(delay = 750) {
           coverBackupAttempted.add(candidate.key);
           markCoverBackupReady(candidate.key);
         }
-        releaseCoverSources();
         const requeueItem = !coverBackupAttempted.has(item.key) && currentCoverBackupCandidate(item);
         coverBackupQueue = coverBackupQueue.filter(candidate =>
           !coverBackupAttempted.has(candidate.key) && (!requeueItem || candidate.key !== item.key));
@@ -380,7 +369,6 @@ function scheduleCoverBackupWorker(delay = 750) {
         if (checkingStatus) {
           if ([400, 404, 405, 501].includes(error.status)) coverBackupStatusAvailable = false;
           else if (error.status !== 503) coverStatusRetryAt = Date.now() + 15000;
-          releaseCoverSources();
           if (currentCoverBackupCandidate(item)) {
             coverBackupQueue = coverBackupQueue.filter(candidate => candidate.key !== item.key);
             coverBackupQueue.unshift(item);
@@ -1823,14 +1811,27 @@ $('grid').addEventListener('error', event => {
   const image = event.target;
   const state = currentCoverImage(image);
   if (!state || !image.hasAttribute('src')) return;
-  if (state.local && !state.directTried) {
-    useOriginalCover(image, state);
-    scheduleCoverProbe(image, state);
-  } else if (!state.local && !coverBackupReady.has(state.key)) useLocalCover(image);
+  if (state.local) {
+    state.localFailed = true;
+    if (!state.retried && !state.localReadyAtStart && coverBackupReady.has(state.key)) {
+      useLocalCover(image, true);
+      scheduleCoverProbe(image, state);
+    } else if (!state.directTried) {
+      useOriginalCover(image, state);
+      scheduleCoverProbe(image, state);
+    }
+  } else if (!state.localFailed) useLocalCover(image);
 }, true);
 $('grid').addEventListener('load', event => {
-  const state = coverImageStates.get(event.target);
-  if (state) { clearTimeout(state.timer); state.timer = null; clearCoverProbe(state); }
+  const state = currentCoverImage(event.target);
+  if (!state) return;
+  clearTimeout(state.timer);
+  state.timer = null;
+  clearCoverProbe(state);
+  if (state.local) {
+    coverBackupReady.add(state.key);
+    coverBackupAttempted.add(state.key);
+  }
 }, true);
 $('grid').addEventListener('click', event => {
   const button = event.target.closest('[data-action], [data-game-action]');

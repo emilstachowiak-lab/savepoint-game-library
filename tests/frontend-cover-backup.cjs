@@ -37,12 +37,16 @@ async function main() {
   const fixtures=Array.from({length:19},(_,index)=>({...game,id:'cached-'+index,coverUrl:'https://images.example.invalid/cached-'+index+'.jpg'}));
   test.seed(fixtures);test.context.render();
   assert.equal(test.requests.length,0,'Rendering must not wait on background metadata');
+  const first=image(test);
+  assert.equal(first.src,local(fixtures[0].id),'A private image starts before the background metadata request');
   test.runTimers(750);await flush();
   assert.deepEqual(requestBody(test,0),{action:'backup-cover-status',ids:fixtures.map(game=>game.id)});
   test.context.render();test.runTimers(750);assert.equal(test.requests.length,1,'There can only be one active status worker');
   test.respond(0,200,{ok:true,backups:fixtures.map(game=>({id:game.id,coverUrl:game.coverUrl,ready:true}))});
   await flush();test.runTimers(750);await flush();
   assert.equal(test.requests.length,1,'Nineteen existing copies must require one POST instead of nineteen');
+  assert.equal(test.imageAssignments.filter(assignment=>assignment.element===first).length,1,
+   'A ready status must not restart an in-flight image request');
   for (const cover of test.nodes.grid.querySelectorAll('img.cover-image')) {
    assert.equal(cover.src,local(cover.dataset.coverId),'A known cached image starts with the private URL');
   }
@@ -50,7 +54,35 @@ async function main() {
    'The original host must not be contacted when metadata finds a ready copy');
   assert.equal(vm.runInContext('coverBackupQueue.length',test.context),0);
   assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(games)',test.context)),fixtures,'Metadata must not enter games or JSON export');
-  console.log('PASS: nineteen cached covers use one deferred metadata POST, preserve rendering and leave export records untouched');
+  console.log('PASS: cached covers start immediately, do not restart on readiness and leave export records untouched');
+ }
+ {
+  const test=harness();
+  test.seed([game]);test.context.render();
+  const cover=image(test);
+  cover.complete=true;
+  cover.naturalWidth=200;
+  test.fire(cover,'load');
+  test.runTimers(750);await flush();
+  assert.equal(test.requests.length,0,'A loaded private image already proves its copy exists');
+  console.log('PASS: a loaded private copy needs no background lookup');
+ }
+ {
+  const test=harness();
+  test.seed([game]);test.context.render();
+  const cover=image(test);
+  test.runTimers(750);await flush();
+  test.respond(0,200,{ok:true,backups:[{id:game.id,coverUrl:game.coverUrl,ready:true}]});
+  await flush();
+  assert.equal(cover.src,local(game.id),'A ready reply leaves the in-flight image alone');
+  test.fire(cover,'error');
+  assert.equal(cover.src,local(game.id)+'&ready=1','A late failure can retry a newly confirmed copy once');
+  test.fire(cover,'error');
+  assert.equal(cover.src,game.coverUrl,'A failed retry can still fall back to the original');
+  const assignments=test.imageAssignments.length;
+  test.fire(cover,'error');
+  assert.equal(test.imageAssignments.length,assignments);
+  console.log('PASS: ready metadata arriving before the first request fails allows one retry and no loop');
  }
  {
   const test=harness();
@@ -68,11 +100,12 @@ async function main() {
   test.seed([game,{...game,id:'cover-test-2'},{...game,id:'cover-test-3',coverUrl:'https://images.example.invalid/other.png'}]);
   test.context.render();
   assert.equal(test.requests.length,0,'Rendering must not block on a backup POST');
-  assert.equal(image(test).getAttribute('src'),null,'A valid saved ID gives the cache lookup a short head start');
+  assert.equal(image(test).src,local(game.id),'A valid saved ID starts loading the private copy immediately');
   assert.equal(image(test).getAttribute('loading'),'lazy');
   assert.equal(image(test).getAttribute('referrerpolicy'),'no-referrer');
+  test.fire(image(test),'error');
+  assert.equal(image(test).src,game.coverUrl,'Without a cached copy, use the original URL before the metadata reply');
   await scanMissing(test);
-  assert.equal(image(test).src,game.coverUrl,'Without a cached copy, use the original URL');
   assert.equal(test.requests.length,2);
   assert.deepEqual(requestBody(test,1),{action:'backup-cover',id:game.id},'Only the saved ID is sent, never an arbitrary URL');
   test.context.render();test.runTimers(750);await flush();assert.equal(test.requests.length,2,'One worker only, including during repeated renders');
@@ -89,12 +122,11 @@ async function main() {
   const second={...game,id:'cover-normalized-2',coverUrl:'https://images.example.invalid/cover.jpg'};
   assert.equal(new URL(first.coverUrl).href,new URL(second.coverUrl).href);
   test.seed([first,second]);test.context.render();
-  test.runTimers(2500);
   const images=test.nodes.grid.querySelectorAll('img.cover-image');
   for (const cover of images) test.fire(cover,'error');
   await scanMissing(test);test.respond(1,200,{ok:true,backup:{status:'saved'}});await flush();
   assert.equal(images[0].src,local(first.id)+'&ready=1');
-  assert.equal(images[1].src,local(second.id),'A normalized-equivalent raw URL must not consume the other backup retry');
+  assert.equal(images[1].src,new URL(second.coverUrl).href,'A normalized-equivalent raw URL must not consume the other backup retry');
   test.runTimers(750);assert.equal(test.requests.length,3,'Every distinct raw database URL needs its own cache key');
   assert.equal(requestBody(test,2).id,second.id);
   test.respond(2,200,{ok:true,backup:{status:'saved'}});await flush();
@@ -104,15 +136,14 @@ async function main() {
  }
  {
   const test=harness();test.seed([game]);test.context.render();
-  test.runTimers(2500);
   const cover=image(test);const before=test.imageAssignments.length;
-  test.fire(cover,'error');assert.equal(cover.src,local(game.id));
-  test.fire(cover,'error');test.fire(cover,'error');assert.equal(test.imageAssignments.length,before+1,'Failure of the backup must not create a loop');
+  test.fire(cover,'error');assert.equal(cover.src,game.coverUrl);
+  test.fire(cover,'error');test.fire(cover,'error');assert.equal(test.imageAssignments.length,before+1,'Failure of both sources must not create a loop');
   await scanMissing(test);test.respond(1,200,{ok:true,backup:{status:'saved'}});await flush();
   assert.equal(test.imageAssignments.length,before+2,'A backup created after the first fallback gets one retry');
   test.fire(cover,'error');test.context.markCoverBackupReady(game.coverUrl);assert.equal(test.imageAssignments.length,before+2);
   assert.equal(cover.getAttribute('onerror'),null,'Image handling must comply with the script CSP');
-  console.log('PASS: non-bubbling image error uses one local fallback, handles initial backup race and never loops');
+  console.log('PASS: non-bubbling image error tries the original, handles the backup race and never loops');
  }
  {
   const test=harness();let observer;
@@ -123,9 +154,10 @@ async function main() {
    disconnect(){this.disconnected=true;}
   };
   test.seed([game]);test.context.render();const cover=image(test);
-  test.runTimers(2500);
-  test.runTimers(10000);assert.equal(cover.src,game.coverUrl,'Off-screen lazy covers cannot time out before being requested');
-  observer.callback([{target:cover,isIntersecting:false}]);test.runTimers(10000);assert.equal(cover.src,game.coverUrl);
+  test.runTimers(10000);assert.equal(cover.src,local(game.id),'Off-screen lazy covers cannot time out before being requested');
+  observer.callback([{target:cover,isIntersecting:false}]);test.runTimers(10000);assert.equal(cover.src,local(game.id));
+  observer.callback([{target:cover,isIntersecting:true}]);test.runTimers(10000);
+  assert.equal(cover.src,game.coverUrl,'A visibly stalled private source falls back to the original');
   observer.callback([{target:cover,isIntersecting:true}]);test.runTimers(10000);
   assert.equal(cover.src,game.coverUrl,'The slow original remains pending while its backup is probed');
   const probe=test.images.at(-1);assert.equal(probe.src,local(game.id));loaded(probe);
@@ -141,7 +173,7 @@ async function main() {
   const test=harness();test.seed([game]);test.context.render();await scanMissing(test);
   const old=image(test);const changed={...game,coverUrl:'https://images.example.invalid/new-cover.png'};
   test.seed([changed]);test.context.render();const current=image(test);
-  test.runTimers(2500);
+  test.fire(current,'error');
   test.respond(1,200,{ok:true,backup:{status:'saved'}});await flush();
   assert.equal(current.src,changed.coverUrl,'Completing the old URL cannot overwrite the new image');
   test.fire(old,'error');assert.equal(current.src,changed.coverUrl);
@@ -189,7 +221,7 @@ async function main() {
   const test=harness();let observer;
   test.context.IntersectionObserver=class {constructor(cb){this.callback=cb;observer=this;}observe(){}unobserve(){}disconnect(){}};
   test.seed([game]);test.context.render();const cover=image(test);
-  test.runTimers(2500);
+  test.fire(cover,'error');
   observer.callback([{target:cover,isIntersecting:true}]);test.runTimers(10000);
   const cardProbe=test.images.at(-1);cardProbe.onerror({target:cardProbe});assert.equal(cover.src,game.coverUrl,'An unavailable copy must not cancel a slow but viable original');
   test.context.openModal(game);test.runTimers(200);const original=test.images.at(-1);test.runTimers(10000);
@@ -245,6 +277,7 @@ async function main() {
   const statusRequest={action:'backup-cover-status',ids:fixtures.map(fixture=>fixture.id)};
   test.seed(fixtures);
   test.context.render();
+  for (const cover of test.nodes.grid.querySelectorAll('img.cover-image')) test.fire(cover,'error');
   await advance(750);
   assert.deepEqual(requestBody(test,0),statusRequest);
   test.respond(0,503,null);
@@ -252,11 +285,10 @@ async function main() {
 
   await advance(750);
   assert.equal(test.requests.length,1,'A hosting 503 must pause individual backup requests');
-  await advance(1000);
   const sources=Array.from(test.nodes.grid.querySelectorAll('img.cover-image'),cover=>cover.src);
   assert.deepEqual(sources.sort(),fixtures.map(fixture=>fixture.coverUrl).sort(),
    'Original covers can load during the backup cooldown');
-  await advance(15000-750-1000-1);
+  await advance(15000-750-1);
   assert.equal(test.requests.length,1,'The backup queue must remain idle until the cooldown ends');
   await advance(1);
   assert.equal(test.requests.length,2);
@@ -305,6 +337,7 @@ async function main() {
   test.runTimers(750);await flush();assert.deepEqual(requestBody(test,1),{action:'backup-cover-status',ids:[game.id]});
   test.respond(1,200,{ok:true,backups:[{id:game.id,coverUrl:game.coverUrl,ready:true}]});await flush();test.runTimers(750);await flush();
   assert.deepEqual(requestBody(test,2),{action:'backup-cover',id:game.id},'An old raw URL reported ready cannot suppress the current URL backup');
+  test.fire(image(test),'error');
   assert.equal(image(test).src,changed.coverUrl);
   test.respond(2,200,{ok:true,backup:{status:'saved'}});await flush();
   console.log('PASS: status responses from an old collection or old raw URL cannot mark a changed cover as ready');
