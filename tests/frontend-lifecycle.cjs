@@ -639,6 +639,7 @@ async function main() {
     const waitTimers=[];
     const context=vm.createContext({
       $:id=>nodes[id],
+      document:{documentElement:{dataset:{theme:'aero'}}},
       window:{turnstile:{render:(selector,options)=>{callbacks=options;return 'synthetic-widget';},remove(){removals++;},reset(){resets++;}}},
       setTimeout(handler,delay){const timer={handler,delay,cleared:false};waitTimers.push(timer);return timer;},
       clearTimeout(timer){timer.cleared=true;},
@@ -648,10 +649,12 @@ async function main() {
     vm.runInContext('let captchaGeneration=0;let captchaChallenge=null;let captchaSolution=null;let captchaSolvePromise=null;let turnstileWidgetId=null;let turnstileWaitTimer=null;',context);
     vm.runInContext(
       section('const LANGUAGE_KEY', 'function readLegacyGames()')+
+      section('function is3dTheme()', 'function destroyCoverflow()')+
       section('function stopTurnstileWait()', 'function loadTurnstileApi()')+
       section('function prepareCaptcha(', 'function showLogin()')+
       section('function clearSessionCaptcha()', 'function handleSessionExpired('),context);
     context.prepareCaptcha(challenge);await flush();assert(callbacks);
+    assert.equal(callbacks.theme,'auto');
     assert.equal(waitTimers[0].delay,25000);
     waitTimers[0].handler();
     assert.equal(nodes.retryConnection.hidden,false);
@@ -667,6 +670,11 @@ async function main() {
     assert.equal(nodes.captchaStatus.textContent,'Synthetic logout status');assert.equal(nodes.retryConnection.hidden,true);
     assert.equal(vm.runInContext('captchaSolution',context),null);assert.equal(removals,1);assert.equal(resets,0);
     console.log('PASS: old CAPTCHA callbacks cannot enable login or overwrite logout state');
+    context.document.documentElement.dataset.theme='3d';
+    context.prepareCaptcha(challenge);await flush();
+    assert.equal(callbacks.theme,'dark');
+    context.clearSessionCaptcha();
+    console.log('PASS: Turnstile follows the dark 3D theme and keeps automatic appearance in Aero');
   }
   console.log('All offline frontend lifecycle checks passed.');
 }

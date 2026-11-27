@@ -8,7 +8,7 @@ html[data-theme="3d"] #xmbBackground {
   display: none;
 }
 
-html[data-theme="3d"] #appShell {
+html[data-theme="3d"] :is(#appShell, #authScreen, #modalBackdrop, #aiImportBackdrop, #duplicatesBackdrop) {
   --panel: #271d2b;
   --panel2: #33263a;
   --line: #493750;
@@ -18,6 +18,11 @@ html[data-theme="3d"] #appShell {
   --orange: #ffc299;
   --radius: 10px;
   color-scheme: dark;
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html[data-theme="3d"] #appShell {
   width: calc(100% - 36px);
   max-width: 1180px;
   margin-block: 22px 32px;
@@ -26,8 +31,6 @@ html[data-theme="3d"] #appShell {
   border-radius: 16px;
   background: #1b151e;
   box-shadow: 0 16px 44px #08060bb3;
-  color: var(--text);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 html[data-theme="3d"] #appShell .topbar {
@@ -653,4 +656,287 @@ html[data-theme="3d"] button.theme3d-action[data-game-action="delete"] {
   html[data-theme="3d"] :is(button.theme3d-case, .theme3d-face, .theme3d-halo, .theme3d-object) {
     transition: none;
   }
+}
+
+/* Sign-in and the collection tools sit outside the collection shell. */
+html[data-theme="3d"] #authScreen {
+  background:
+    radial-gradient(ellipse at 17% 28%, #672b3f72, transparent 48%),
+    radial-gradient(ellipse at 86% 20%, #40533465, transparent 45%),
+    #141119;
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop, #duplicatesBackdrop) {
+  background: #100a17c9;
+}
+
+html[data-theme="3d"] #authScreen .auth-card,
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop, #duplicatesBackdrop) .modal {
+  border-color: #65506a;
+  border-radius: 15px;
+  background: #211824;
+  box-shadow: 0 18px 48px #09060bb3, inset 0 1px #ffffff12;
+}
+
+html[data-theme="3d"] #authScreen .auth-brand {
+  border-color: var(--line);
+  background:
+    radial-gradient(ellipse at 28% 28%, #713449 0%, transparent 67%),
+    radial-gradient(ellipse at 100% 6%, #4a6539 0%, transparent 58%),
+    linear-gradient(145deg, #322332, #1a151f 77%);
+  color: var(--text);
+}
+
+html[data-theme="3d"] #authScreen .auth-brand::after,
+html[data-theme="3d"] #authScreen .auth-brand-wave {
+  display: none;
+}
+
+html[data-theme="3d"] #authScreen .auth-brand-logo {
+  filter: drop-shadow(0 3px 6px #110a16b3);
+}
+
+html[data-theme="3d"] #authScreen :is(.auth-brand-title, .auth-brand h2, .auth-card h1) {
+  color: var(--text);
+  font-weight: 650;
+  text-shadow: none;
+}
+
+html[data-theme="3d"] #authScreen :is(.auth-brand-eyebrow, .auth-brand-description) {
+  color: #f1dbe7;
+}
+
+html[data-theme="3d"] #authScreen .auth-body {
+  background: #211824;
+}
+
+html[data-theme="3d"] #authScreen :is(.auth-intro, .auth-help, .filter-label) {
+  color: var(--muted);
+}
+
+html[data-theme="3d"] #authScreen .auth-field label {
+  color: var(--text);
+}
+
+html[data-theme="3d"] #authScreen .captcha-status {
+  color: #b7dea9;
+}
+
+html[data-theme="3d"] #authScreen .auth-message {
+  color: #ffb6c5;
+}
+
+html[data-theme="3d"] #authScreen .auth-password-toggle {
+  border-radius: 5px;
+  color: var(--muted);
+}
+
+html[data-theme="3d"] #authScreen .auth-password-toggle:hover {
+  background: #3e2c43;
+  color: var(--text);
+}
+
+html[data-theme="3d"] :is(#authScreen, #modalBackdrop, #aiImportBackdrop, #duplicatesBackdrop) :is(.primary, .secondary, .close, .danger) {
+  border-color: #826481;
+  border-radius: 8px;
+  background: #33263a;
+  box-shadow: inset 0 1px #ffffff14, 0 2px 4px #110a13;
+  color: var(--text);
+  text-shadow: none;
+}
+
+html[data-theme="3d"] :is(#authScreen, #modalBackdrop, #aiImportBackdrop, #duplicatesBackdrop) .primary {
+  border-color: #c68298;
+  background: #713449;
+  font-weight: 650;
+}
+
+html[data-theme="3d"] :is(#authScreen, #modalBackdrop, #aiImportBackdrop, #duplicatesBackdrop)
+  :is(.primary, .secondary, .close, .danger):hover:not(:disabled) {
+  background: #54384e;
+}
+
+html[data-theme="3d"] :is(#authScreen, #modalBackdrop, #aiImportBackdrop, #duplicatesBackdrop) .primary:hover:not(:disabled) {
+  background: #92475f;
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop, #duplicatesBackdrop) .danger {
+  border-color: #ad6d83;
+  color: #ffc2d1;
+}
+
+html[data-theme="3d"] :is(#authScreen, #modalBackdrop, #aiImportBackdrop, #duplicatesBackdrop)
+  :is(button, input, select, a):focus-visible {
+  outline-color: #ffd2c7;
+}
+
+html[data-theme="3d"] :is(#authScreen, #modalBackdrop, #aiImportBackdrop)
+  :is(.auth-field input, .auth-language select, .field input:not([type="checkbox"]), .field select, .ai-import-field input, .ai-import-field select) {
+  border-color: #826481;
+  border-radius: 6px;
+  background: #1a141f;
+  box-shadow: none;
+  color: var(--text);
+}
+
+html[data-theme="3d"] :is(#authScreen, #modalBackdrop, #aiImportBackdrop)
+  :is(.auth-field input, .field input, .ai-import-field input)::placeholder {
+  color: #c0a8bc;
+  opacity: 1;
+}
+
+html[data-theme="3d"] :is(#authScreen, #modalBackdrop, #aiImportBackdrop) select option {
+  background: #231a28;
+  color: var(--text);
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop, #duplicatesBackdrop) :is(.modal-head, .form-actions) {
+  border-color: var(--line);
+  background: #2b2030;
+  box-shadow: none;
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop, #duplicatesBackdrop) .modal h2 {
+  color: var(--text);
+  font-weight: 650;
+  text-shadow: none;
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop, #duplicatesBackdrop) .modal-sub {
+  color: var(--muted);
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop, #duplicatesBackdrop) .modal-heading > .ui-icon {
+  color: #f2b9cf;
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop) .game-modal .form-grid {
+  background: #211824;
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop) :is(.field > label, .platform-picker > legend, .cover-preview-title) {
+  color: var(--text);
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop)
+  :is(.field-help, .field-optional, .platform-help, .platform-selection-count, .selected-platforms-label, .selected-platforms-empty, .form-required-note, .cover-preview-status) {
+  color: var(--muted);
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop) :is(.cover-preview-frame, .platform-console-box, .platform-options:not(.platform-tabs-ready) > .platform-group) {
+  border-color: var(--line);
+  border-radius: var(--radius);
+  background: #1b151e;
+  box-shadow: none;
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop) :is(.platform-group > legend, .cover-preview-placeholder) {
+  color: var(--muted);
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop) :is(.platform-picker-label .ui-icon, .selected-platform-chip .ui-icon, .cover-search) {
+  color: #f2b9cf;
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop) .cover-search:hover {
+  color: #ffe0eb;
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop) :is(.platform-tabs, .game-modal .platform-help) {
+  border-color: var(--line);
+  background: #2b2030;
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop) .platform-tab {
+  color: var(--muted);
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop) .platform-tab:focus-visible {
+  outline-offset: -2px;
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop) .platform-tab:hover {
+  background: #3e2c43;
+  color: var(--text);
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop) .platform-tab[aria-selected="true"] {
+  border-color: #826481;
+  border-bottom-color: #1b151e;
+  background: #1b151e;
+  color: var(--text);
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop) .platform-option:hover {
+  background: #322338;
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop) .platform-option:has(input:checked) {
+  border-color: #ac7898;
+  background: #50344a;
+  box-shadow: inset 0 0 0 1px #ac7898;
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop, #duplicatesBackdrop) :is(input[type="checkbox"], input[type="radio"]) {
+  accent-color: #ed9fbd;
+}
+
+html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop) .selected-platform-chip {
+  border-color: #826481;
+  background: #33263a;
+  color: var(--text);
+}
+
+html[data-theme="3d"] #aiImportBackdrop .ai-import-file input::file-selector-button {
+  margin-inline-end: 8px;
+  padding: 6px 10px;
+  border: 1px solid #826481;
+  border-radius: 6px;
+  background: #33263a;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+html[data-theme="3d"] #aiImportBackdrop .ai-import-file input::file-selector-button:hover {
+  background: #54384e;
+}
+
+html[data-theme="3d"] #aiImportBackdrop :is(.ai-import-preview, .ai-import-candidate) {
+  border-color: var(--line);
+  border-radius: var(--radius);
+  background: #1b151e;
+}
+
+html[data-theme="3d"] #aiImportBackdrop :is(.ai-import-note, .ai-import-review-help, .ai-import-retry-hint) {
+  color: var(--muted);
+}
+
+html[data-theme="3d"] #aiImportBackdrop .ai-import-warning,
+html[data-theme="3d"] #duplicatesBackdrop .duplicates-limit {
+  color: var(--orange);
+}
+
+html[data-theme="3d"] #aiImportBackdrop .ai-import-status.ai-import-error {
+  border-color: #ad6d83;
+  background: #40232f;
+  color: #ffc2d1;
+}
+
+html[data-theme="3d"] #duplicatesBackdrop :is(.duplicates-pair, .duplicates-record) {
+  border-radius: var(--radius);
+  background: #1b151e;
+}
+
+html[data-theme="3d"] #duplicatesBackdrop .duplicates-record:has(input:checked) {
+  border-color: #ac7898;
+  background: #372638;
+}
+
+html[data-theme="3d"] #duplicatesBackdrop :is(.duplicates-keep small, .duplicates-details dd, .duplicates-help) {
+  color: var(--muted);
+}
+
+html[data-theme="3d"] #duplicatesBackdrop .duplicates-error {
+  color: #ffc2d1;
 }

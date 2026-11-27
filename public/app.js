@@ -968,7 +968,7 @@ function renderGameCard(entry) {
     <div class="card-menu">${editButton}
     ${deleteButton}</div></div></div></article>`;
 }
-function wantsCoverflow() {
+function is3dTheme() {
   return document.documentElement.dataset.theme === '3d';
 }
 
@@ -995,7 +995,7 @@ function renderCoverflow(grid, list, platform, platforms) {
         coverflowUnavailable = true;
       }).finally(() => {
         coverflowLoading = false;
-        if (wantsCoverflow()) refreshCoverflowTheme();
+        if (is3dTheme()) refreshCoverflowTheme();
       });
     }
     if (!grid.firstElementChild) {
@@ -1055,7 +1055,7 @@ function render() {
     list.length === 1 ? 'GAME' : 'GAMES');
   $('count').textContent = `${list.length} ${resultUnit}`;
   const grid = $('grid');
-  if (wantsCoverflow() && renderCoverflow(grid, list, platformFilter, collection.platforms)) {
+  if (is3dTheme() && renderCoverflow(grid, list, platformFilter, collection.platforms)) {
     renderedEmptyState = '';
     return;
   }
@@ -1256,7 +1256,7 @@ function prepareCaptcha(challenge) {
       turnstileWidgetId = window.turnstile.render('#captchaWidget', {
         sitekey: challenge.siteKey,
         action: 'login',
-        theme: 'auto',
+        theme: is3dTheme() ? 'dark' : 'auto',
         language: uiLanguage,
         callback: token => {
           if (generation !== captchaGeneration) return;
@@ -2251,9 +2251,9 @@ function loadCollectionTools() {
 }
 
 // Ignore appearance notifications that do not enter or leave the 3D view.
-let coverflowSelected = wantsCoverflow();
+let coverflowSelected = is3dTheme();
 document.addEventListener('savepoint:themechange', () => {
-  const selected = wantsCoverflow();
+  const selected = is3dTheme();
   if (selected === coverflowSelected) return;
   coverflowSelected = selected;
   if (!selected) destroyCoverflow();
