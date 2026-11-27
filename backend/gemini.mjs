@@ -79,11 +79,27 @@ function retryAfterMs(response) {
   return Number.isNaN(wait) ? 0 : Math.max(0, wait);
 }
 
+const minimalReasoning = new Set(['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.1-flash-lite',
+  'gemini-3-flash-preview', 'gemini-robotics-er-2-preview']);
+const lowReasoning = new Set(['gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-3-pro-preview',
+  'gemini-4-carbon', 'gemini-4-argon', 'gemini-4-neon', 'gemini-4-hydrogen']);
+
+function reasoningLevel(modelName, preferred) {
+  if (!preferred) return undefined;
+  const name = modelName.replace(/-latest$/, '');
+  if (minimalReasoning.has(name)) return preferred;
+  if (lowReasoning.has(name)) return 'low';
+  // Unknown models can use their defaults without receiving unsupported options.
+  return undefined;
+}
+
 async function generate(env, instructions, parts, responseJsonSchema, { tokens, timeout, thinking }) {
   // Backoff and every attempt share the original provider deadline.
   const deadline = Date.now() + timeout;
   const signal = AbortSignal.timeout(Math.max(1, timeout));
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + (env.GEMINI_MODEL ?? model) + ':generateContent';
+  const modelName = env.GEMINI_MODEL ?? model;
+  const level = reasoningLevel(modelName, thinking);
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':generateContent';
   const options = {
     method: 'POST', redirect: 'manual', signal,
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
@@ -91,7 +107,7 @@ async function generate(env, instructions, parts, responseJsonSchema, { tokens, 
       systemInstruction: { parts: [{ text: instructions }] },
       contents: [{ role: 'user', parts }],
       generationConfig: { maxOutputTokens: tokens, responseMimeType: 'application/json', responseJsonSchema,
-        ...(thinking ? { thinkingConfig: { thinkingLevel: thinking } } : {}) },
+        ...(level ? { thinkingConfig: { thinkingLevel: level } } : {}) },
     }),
   };
   try {
@@ -170,7 +186,7 @@ export async function chooseCovers(db, env, options, deadline) {
     + 'platform is known. For Wikipedia, confirm actual cover art based on description and filename. '
     + 'Pick the best option per gameIndex and return its index. Return an empty list if no options are clear.';
   const result = await generate(env, instructions, [{ text: JSON.stringify(options) }], schema({ matches: array(integer) }),
-    { tokens: 512, timeout, thinking: 'minimal' });
+    { tokens: 2048, timeout, thinking: 'minimal' });
   const allowed = new Set(options.map(option => option.index));
   if (Object.keys(result).length !== 1 || !Array.isArray(result.matches) || result.matches.length > allowed.size
     || !result.matches.every(index => allowed.has(index))) invalid();

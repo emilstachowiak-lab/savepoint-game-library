@@ -29,6 +29,48 @@
       && validGame(pair.right) && pair.left.id !== pair.right.id;
   }
 
+  async function createScanner(games) {
+    const input = games.map(({ id, revision, title }) => ({ id, revision, title }));
+    const source = './duplicate-candidates.mjs?v=20261127-scan';
+    let worker;
+    if (typeof Worker === 'function') {
+      try { worker = new Worker(new URL(source, document.baseURI), { type: 'module' }); } catch {}
+    }
+    if (!worker) {
+      const { createCandidateScan, nextCandidatePage } = await import('./duplicate-candidates.mjs?v=20261127-scan');
+      const scan = createCandidateScan(input);
+      return { next: async position => nextCandidatePage(scan, position), close() {} };
+    }
+
+    let request = null;
+    let closed = false;
+    function close() {
+      if (closed) return;
+      closed = true;
+      worker.terminate();
+      request?.reject(new Error('Duplicate scan stopped'));
+      request = null;
+    }
+    worker.onmessage = ({ data }) => {
+      const waiting = request;
+      request = null;
+      waiting?.resolve(data);
+    };
+    worker.onerror = close;
+    worker.onmessageerror = close;
+    worker.postMessage({ games: input });
+    return {
+      next(position) {
+        return new Promise((resolve, reject) => {
+          if (closed || request) { reject(new Error('Duplicate scan unavailable')); return; }
+          request = { resolve, reject };
+          try { worker.postMessage({ position }); } catch { close(); }
+        });
+      },
+      close
+    };
+  }
+
   function create(options) {
     const { button, backdrop } = options;
     if (!button || !backdrop) return null;
@@ -143,8 +185,8 @@
       const details = element(card, 'dl', 'duplicates-details');
       const other = game === panel.pair.left ? panel.pair.right : panel.pair.left;
       const coverLabel = () => {
-        if (!game.coverUrl) return text('Brak', 'None');
-        if (other.coverUrl && game.coverUrl !== other.coverUrl) {
+        if (!(game.hasCover ?? Boolean(game.coverUrl))) return text('Brak', 'None');
+        if ((other.hasCover ?? Boolean(other.coverUrl)) && !(panel.pair.coversMatch ?? game.coverUrl === other.coverUrl)) {
           return text('Inna niż w drugim wpisie', 'Different from the other entry');
         }
         return text('Przypisana', 'Assigned');
@@ -210,9 +252,15 @@
       view.panels.push(panel);
     }
 
-    function clearProposals(view) {
+    function resetScan(view) {
+      view.local?.scanner.close();
+      view.local = null;
       view.cursor = null;
       view.limit.hidden = true;
+    }
+
+    function clearProposals(view) {
+      resetScan(view);
       view.results.replaceChildren();
       view.panels = [];
       view.nextPanel = 0;
@@ -224,7 +272,7 @@
       view.scan = controller;
       // The cursor belongs to the current collection snapshot. A continuation
       // appends to this review, while a new scan starts with an empty list.
-      if (!view.cursor) clearProposals(view);
+      if (!view.cursor && !view.local?.page) clearProposals(view);
       status(view, view.cursor ? 'Sprawdzam kolejne pary…' : 'Sprawdzam kolekcję…',
         view.cursor ? 'Checking more pairs…' : 'Checking the collection…');
       updateControls(view);
@@ -233,11 +281,31 @@
         await options.ensureReady(view.generation);
         if (!current(view)) return;
         const body = { action: 'ai-duplicates-scan' };
-        if (view.cursor) body.cursor = view.cursor;
+        let page;
+        const games = options.getGames?.();
+        if (games) {
+          if (view.local && view.local.games !== games) clearProposals(view);
+          if (!view.local) {
+            const scanner = await createScanner(games);
+            if (!current(view)) { scanner.close(); return; }
+            view.local = { scanner, games, page: null };
+          }
+          const local = view.local;
+          page = local.page ?? await local.scanner.next(view.cursor);
+          if (!current(view)) return;
+          if (games !== options.getGames()) { clearProposals(view); return; }
+          local.page = page;
+          body.pairs = page.pairs;
+        } else if (view.cursor) body.cursor = view.cursor;
         const result = await options.request(body, view.generation, controller.signal);
         if (!current(view)) return;
         if (!Array.isArray(result?.pairs) || !result.pairs.every(validPair)) throw new Error('Invalid duplicate scan response');
-        view.cursor = typeof result.cursor === 'string' && result.cursor ? result.cursor : null;
+        if (page && games !== options.getGames()) { clearProposals(view); return; }
+        view.cursor = page ? page.next : typeof result.cursor === 'string' && result.cursor ? result.cursor : null;
+        if (page) {
+          view.local.page = null;
+          if (!view.cursor) resetScan(view);
+        }
         view.limit.hidden = !view.cursor && result.limited !== true;
         result.pairs.forEach(pair => addPanel(view, pair, view.nextPanel++));
         if (result.pairs.length) {
@@ -247,7 +315,11 @@
         }
       } catch (error) {
         if (!current(view)) return;
-        if (error?.status === 409 && view.cursor) clearProposals(view);
+        if (error?.status === 409 && (view.cursor || view.local)) {
+          clearProposals(view);
+          if (options.getGames && options.reloadCollection) await options.reloadCollection(view.generation).catch(() => {});
+          if (!current(view)) return;
+        } else if (view.local && !view.local.page) resetScan(view);
         showError(view, error, 'Nie udało się sprawdzić powtórzeń.', 'Could not check for duplicates.');
       } finally {
         view.scan = null;
@@ -283,8 +355,7 @@
           return;
         }
         // A merge or removal can invalidate other proposals for either record.
-        view.cursor = null;
-        view.limit.hidden = true;
+        resetScan(view);
         view.panels = view.panels.filter(item => {
           if (!affected.includes(item.pair.left.id) && !affected.includes(item.pair.right.id)) return true;
           item.row.remove();
@@ -376,6 +447,7 @@
     function close(restoreFocus = true) {
       if (!opened) return;
       const { scan: controller } = opened;
+      resetScan(opened);
       opened = null;
       controller?.abort();
       backdrop.classList.remove('open');

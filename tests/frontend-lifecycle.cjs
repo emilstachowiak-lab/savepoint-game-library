@@ -539,11 +539,12 @@ async function main() {
     console.log('PASS: expired session clears collection/cache/form and returns to login');
   }
   {
-    const test=harness();test.seed(); let reads=0;
-    const imported=test.import({size:16*1024*1024+1,text:async()=>{reads++;return '[]';}}); await imported.promise;
-    assert.equal(reads,0);assert.equal(test.requests.length,0);assert.equal(imported.target.value,'');
-    assert.match(test.alerts[0],/16 MiB/);
-    console.log('PASS: oversized file is rejected before reading and input clears');
+    const test=harness();test.seed();
+    const imported=test.import({size:200,text:async()=>JSON.stringify([{...game,platform:[{}]}])});
+    await imported.promise;
+    assert.equal(test.requests.length,0);assert.equal(imported.target.value,'');assert.equal(test.confirms,0);
+    assert.match(test.alerts[0],/JSON/);
+    console.log('PASS: an invalid platform member cannot be stringified into a game');
   }
   {
     const test=harness();test.seed();test.confirmResult=false;
@@ -557,34 +558,45 @@ async function main() {
     const test=harness();test.seed();
     const records=Array.from({length:200},(_,index)=>({...game,id:'synthetic-'+index,title:'ł'.repeat(200)}));
     const data=JSON.stringify(records);
+    vm.runInContext(`
+      const originalStringify = JSON.stringify;
+      JSON.stringify = (value, ...args) => {
+        if (value?.action === 'replace' && value.games.length === 200) {
+          throw new Error('Do not serialize an entire large collection to size an inline request');
+        }
+        return originalStringify(value, ...args);
+      };
+    `,test.context);
     const imported=test.import({size:Buffer.byteLength(data),text:async()=>data});
     await flush();
     const start=JSON.parse(test.requests[0].options.body);
     assert.equal(start.action,'collection-upload-start');
-    assert.equal(start.size,Buffer.byteLength(data));
-    test.respond(0,200,{ok:true,uploadId:'test-upload',offset:0});await flush();
+    assert.equal(start.format,'rows');
+    assert.equal(start.size,records.length);
+    test.respond(0,503,{ok:false,error:'Synthetic start response lost'});await flush();
+    assert.deepEqual(JSON.parse(test.requests[1].options.body),start,'A lost upload start reuses its known upload ID');
+    test.respond(1,200,{ok:true,uploadId:start.uploadId,offset:0});await flush();
     const restored=[];
-    let request=1,replayed=false;
-    while(test.action(request)==='collection-upload-chunk'){
+    let request=2,replayed=false;
+    while(test.action(request)==='collection-upload-group'){
       const body=JSON.parse(test.requests[request].options.body);
-      const chunk=Buffer.from(body.data,'base64');
-      assert(chunk.length<=32768);assert(Buffer.byteLength(test.requests[request].options.body)<65536);
-      assert.equal(body.offset,Buffer.concat(restored).length);
+      assert(body.games.length<=128);assert(Buffer.byteLength(test.requests[request].options.body)<65536);
+      assert.equal(body.offset,restored.length);
       if(!replayed){
         test.respond(request++,503,{ok:false,error:'Synthetic temporary failure'});await flush();
         assert.deepEqual(JSON.parse(test.requests[request].options.body),body);
         replayed=true;
       }
-      restored.push(chunk);
-      test.respond(request++,200,{ok:true,offset:body.offset+chunk.length});await flush();
+      restored.push(...body.games);
+      test.respond(request++,200,{ok:true,offset:restored.length});await flush();
     }
-    assert.equal(Buffer.concat(restored).toString('utf8'),data);
+    assert.deepEqual(restored,records);
     assert.equal(test.action(request),'collection-upload-finish');
     assert.equal(test.state().games.length,1,'Do not replace visible games until atomic finish');
     test.respond(request,200,{ok:true,games:records,inserted:records.length});
     await imported.promise;
     assert.equal(test.state().games.length,records.length);
-    console.log('PASS: a large Unicode collection uses replayable bounded byte chunks and updates only after the final commit');
+    console.log('PASS: a large Unicode collection skips full inline serialization, retries with stable IDs and commits atomically');
   }
   {
     const test=harness();test.seed();const text=' '.repeat(70000)+JSON.stringify([game]);

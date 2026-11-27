@@ -1,20 +1,40 @@
-import { fail, isGameId, now, randomId, readBounded, rows, securityHeaders, sha256, sql } from './http.mjs';
+import { ApiError, fail, isGameId, isRevision, now, randomId, readBounded, rows, securityHeaders, sha256, sql } from './http.mjs';
 import { findGame, publicGame } from './collection.mjs';
-import { imageInfo } from './images.mjs';
+import { MAX_COVER_BYTES, validatedCoverInfo } from './images.mjs';
 
-const maxImage = 5242880;
 const maxStore = 536870912;
 const kinds = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
+const validationVersion = '1';
+const temporaryRetrySeconds = 30;
+const permanentRetrySeconds = 21600;
 export const coverKey = async url => `covers/${await sha256(url)}.img`;
-const ready = value => value && value.size > 0 && value.size <= maxImage && kinds.includes(value.httpMetadata?.contentType);
+const verified = item => item && item.size > 0 && item.size <= MAX_COVER_BYTES
+  && item.customMetadata?.savepointValidation === validationVersion && kinds.includes(item.httpMetadata?.contentType);
+
+class RetryCover extends Error {
+  constructor(seconds = temporaryRetrySeconds) {
+    super('Temporary cover download failure');
+    this.seconds = seconds;
+  }
+}
+
+function retrySeconds(response) {
+  const hint = response.headers.get('Retry-After')?.trim();
+  if (!hint) return temporaryRetrySeconds;
+  const seconds = /^\d+$/.test(hint) ? Number(hint) : (Date.parse(hint) - Date.now()) / 1000;
+  return Number.isNaN(seconds) ? temporaryRetrySeconds : Math.min(86400, Math.max(5, Math.ceil(seconds)));
+}
+
+const temporaryResponse = status => status === 408 || status === 425 || status === 429 || status >= 500;
 
 function target(value, local) {
-  if (value.length > 4096 || /[^\x21-\x7e]|\\/u.test(value)) return null;
+  if (/[\s\x00-\x1f\x7f\\]/u.test(value)) return null;
   let url;
   try { url = new URL(value); } catch { return null; }
   const host = url.hostname;
   if (!['http:', 'https:'].includes(url.protocol) || url.port || url.username || url.password
-    || !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(host)
+    || value.split(/[/?#]/)[2]?.includes('@')
+    || !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/.test(host)
     || /\.(?:localhost|local|internal|onion|test|invalid|example)$/.test(host)
     || [local, 'emilstachowiak.helioho.st'].includes(host)) return null;
   url.hash = '';
@@ -39,14 +59,15 @@ async function publicHost(hostname, signal) {
     const response = await fetch(url, { signal, redirect: 'manual', headers: { Accept: 'application/dns-json' } });
     if (!response.ok) {
       await response.body?.cancel();
-      return null;
+      throw new RetryCover(retrySeconds(response));
     }
     const result = JSON.parse(new TextDecoder().decode(await readBounded(response.body, 32000)));
-    if (result.Status !== 0 || result.TC) return null;
+    if (result.TC || ![0, 3].includes(result.Status)) throw new RetryCover();
+    if (result.Status === 3) return null;
     return (result.Answer ?? []).filter(answer => answer.type === (type === 'A' ? 1 : 28)).map(answer => answer.data);
   }));
   const [ipv4, ipv6] = replies;
-  return ipv4?.length && ipv6 && ipv4.every(publicIPv4) && ipv6.every(address =>
+  return ipv4 && ipv6 && ipv4.length + ipv6.length > 0 && ipv4.every(publicIPv4) && ipv6.every(address =>
     typeof address === 'string' && /^[23][0-9a-f]{3}:[\da-f:]+$/i.test(address) && !/^2001:(?:db8|0000|0):/i.test(address)
     && !/^2002:/i.test(address));
 }
@@ -66,38 +87,78 @@ async function download(value, local) {
       const location = response.headers.get('Location');
       await response.body?.cancel();
       if (!location || location.startsWith('#')) return null;
-      url = target(new URL(location, url).href, local);
+      let redirected;
+      try { redirected = new URL(location, url); } catch { return null; }
+      url = target(redirected.href, local);
       if (!url || url.protocol !== 'https:') return null;
       continue;
     }
-    if (!response.ok || Number(response.headers.get('Content-Length')) > maxImage) {
+    if (!response.ok || Number(response.headers.get('Content-Length')) > MAX_COVER_BYTES) {
       await response.body?.cancel();
+      if (temporaryResponse(response.status)) throw new RetryCover(retrySeconds(response));
       return null;
     }
-    const bytes = await readBounded(response.body, maxImage);
-    const info = imageInfo(bytes);
-    if (!info || info.width > 8192 || info.height > 8192 || info.width * info.height > 40000000) return null;
-    return { bytes, type: info.type };
+    const bytes = await readBounded(response.body, MAX_COVER_BYTES);
+    const info = validatedCoverInfo(bytes);
+    return info && { bytes, type: info.type };
   }
   return null;
 }
 
-async function savedUrl(db, id) {
+async function savedUrl(db, id, revision) {
   if (!isGameId(id)) fail(404, 'cover_not_found');
   const row = await findGame(db, id);
-  if (!row?.cover_url) fail(404, 'cover_not_found');
+  if (!row?.cover_url || revision !== undefined && (!isRevision(revision) || row.revision !== revision)) {
+    fail(404, 'cover_not_found');
+  }
   return row.cover_url;
 }
 
-export async function serveCover(db, bucket, id) {
-  const url = await savedUrl(db, id);
-  const item = await bucket.get(await coverKey(url));
-  if (!ready(item)) {
-    await item?.body.cancel();
-    fail(404, 'cover_backup_unavailable');
+async function legacyCover(item) {
+  if (!item?.body || item.size < 1 || item.size > MAX_COVER_BYTES) {
+    await item?.body?.cancel();
+    return null;
   }
-  return new Response(item.body, { headers: {
-    ...securityHeaders, 'Content-Type': item.httpMetadata.contentType, 'Content-Length': String(item.size),
+  let bytes;
+  try { bytes = await readBounded(item.body, MAX_COVER_BYTES); }
+  catch (error) {
+    if (error instanceof ApiError && error.status === 413) return null;
+    throw error;
+  }
+  if (bytes.length !== item.size) return null;
+  const info = validatedCoverInfo(bytes);
+  return info && { bytes, type: info.type };
+}
+
+function saveVerifiedCover(bucket, key, image, previous) {
+  return bucket.put(key, image.bytes, {
+    httpMetadata: { contentType: image.type },
+    customMetadata: { ...previous?.customMetadata, savepointValidation: validationVersion },
+    ...(previous?.etag ? { onlyIf: { etagMatches: previous.etag } } : {}),
+  });
+}
+
+export async function serveCover(db, bucket, id, { revision, waitUntil } = {}) {
+  const key = await coverKey(await savedUrl(db, id, revision));
+  const item = await bucket.get(key);
+  let body, size, type;
+  if (verified(item)) {
+    body = item.body;
+    size = item.size;
+    type = item.httpMetadata.contentType;
+  } else {
+    const image = await legacyCover(item);
+    if (!image) fail(404, 'cover_backup_unavailable');
+    body = image.bytes;
+    size = image.bytes.length;
+    type = image.type;
+    if (waitUntil && item.etag) {
+      // Keep valid pre-existing copies, including those whose originals have disappeared.
+      waitUntil(saveVerifiedCover(bucket, key, image, item).catch(() => {}));
+    }
+  }
+  return new Response(body, { headers: {
+    ...securityHeaders, 'Content-Type': type, 'Content-Length': String(size),
     'Content-Disposition': 'inline; filename="cover"', 'Cross-Origin-Resource-Policy': 'same-origin',
   } });
 }
@@ -110,7 +171,7 @@ export async function coverStatuses(db, bucket, ids) {
   const backups = [];
   for (const game of games) {
     const { id, coverUrl } = publicGame(game);
-    if (!cache.has(coverUrl)) cache.set(coverUrl, Boolean(coverUrl && ready(await bucket.head(await coverKey(coverUrl)))));
+    if (!cache.has(coverUrl)) cache.set(coverUrl, Boolean(coverUrl && verified(await bucket.head(await coverKey(coverUrl)))));
     backups.push({ id, coverUrl, ready: cache.get(coverUrl) });
   }
   return { backups };
@@ -144,29 +205,47 @@ async function hasSpace(db, bucket, newSize) {
 export async function backupCover(db, bucket, id, local) {
   const url = await savedUrl(db, id);
   const key = await coverKey(url);
-  if (ready(await bucket.head(key))) return { backup: { status: 'cached' } };
-  if (!target(url, local)) return { backup: { status: 'unavailable' } };
+  if (verified(await bucket.head(key))) return { backup: { status: 'cached' } };
   const token = randomId();
   const time = now();
   const result = await db.batch([
     sql(db, 'DELETE FROM cover_claims WHERE expires <= ?', time),
-    sql(db, 'SELECT token FROM cover_claims WHERE key = ?', key),
+    sql(db, "SELECT token, expires FROM cover_claims WHERE key = ? AND token IN ('temporary', 'unavailable')", key),
     sql(db, "INSERT INTO cover_claims(key, token, expires) VALUES ('active', ?, ?) ON CONFLICT(key) DO NOTHING", token, time + 60),
   ]);
   const locked = Boolean(result[2].meta.changes);
   try {
-    if (result[1].results.length) return { backup: { status: 'unavailable' } };
+    const claim = result[1].results[0];
+    if (claim?.token === 'temporary') return { backup: { status: 'retry', retryAfter: Math.max(1, claim.expires - time) } };
+    if (claim) return { backup: { status: 'unavailable' } };
     if (!locked) return { backup: { status: 'busy' } };
-    if (ready(await bucket.head(key))) return { backup: { status: 'cached' } };
-    let image;
-    try { image = await download(url, local); } catch { /* Transient download failure. */ }
-    if (!image) {
-      await sql(db, "INSERT INTO cover_claims(key, token, expires) VALUES (?, 'retry', ?) ON CONFLICT(key) DO NOTHING",
-        key, time + 21600).run();
-      return { backup: { status: 'unavailable' } };
+    const previous = await bucket.get(key);
+    if (verified(previous)) {
+      await previous.body.cancel();
+      return { backup: { status: 'cached' } };
     }
-    if (!await hasSpace(db, bucket, image.bytes.length)) return { backup: { status: 'quota' } };
-    await bucket.put(key, image.bytes, { httpMetadata: { contentType: image.type } });
+    const existing = await legacyCover(previous);
+    if (existing) {
+      await saveVerifiedCover(bucket, key, existing, previous);
+      return { backup: { status: 'cached' } };
+    }
+    if (!target(url, local)) return { backup: { status: 'unavailable' } };
+    let image;
+    let retryAfter = 0;
+    try { image = await download(url, local); }
+    catch (error) {
+      if (error instanceof RetryCover) retryAfter = error.seconds;
+      else if (!(error instanceof ApiError && error.status === 413)) retryAfter = temporaryRetrySeconds;
+    }
+    if (!image) {
+      await sql(db, `INSERT INTO cover_claims(key, token, expires) VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET token = excluded.token, expires = excluded.expires`,
+      key, retryAfter ? 'temporary' : 'unavailable', now() + (retryAfter || permanentRetrySeconds)).run();
+      return { backup: retryAfter ? { status: 'retry', retryAfter } : { status: 'unavailable' } };
+    }
+    const increase = image.bytes.length - (previous?.size ?? 0);
+    if (increase > 0 && !await hasSpace(db, bucket, increase)) return { backup: { status: 'quota' } };
+    if (!await saveVerifiedCover(bucket, key, image, previous)) return { backup: { status: 'busy' } };
     return { backup: { status: 'saved' } };
   } finally {
     if (locked) await sql(db, "DELETE FROM cover_claims WHERE key = 'active' AND token = ?", token).run();

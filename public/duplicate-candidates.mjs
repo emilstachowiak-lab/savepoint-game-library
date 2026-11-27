@@ -1,5 +1,4 @@
-import { encoder } from './http.mjs';
-
+const encoder = new TextEncoder();
 const roman = new Map('i ii iii iv v vi vii viii ix x xi xii xiii xiv xv xvi xvii xviii xix xx'
   .split(' ').map((value, index) => [value, String(index + 1)]));
 const stop = new Set('a an and de for in of the to'.split(' '));
@@ -8,6 +7,12 @@ const countBytes = word => encoder.encode(word).length;
 const unique = items => [...new Set(items)];
 const titleParts = /[:：]|\s[-–—]\s/u;
 const suffix = new RegExp('^([a-z]{2,12}?)(' + [...roman.keys()].join('|') + ')$');
+const regionalNames = [
+  ['resident evil', 'biohazard'],
+  ['mega man', 'rockman'],
+  ['yakuza', 'ryu ga gotoku'],
+  ['fatal frame', 'project zero'],
+];
 
 function tokens(title) {
   const words = title.normalize('NFD').toLowerCase()
@@ -77,8 +82,34 @@ function profile(game) {
   const short = shortForms(abbrevWords);
   const expansion = new Set(expansions);
   const shapes = list => new Set([...list].filter(value => /\d/.test(value)).map(value => value.replace(/\d+/g, '#')));
-  return { game, compact, base, words: relevant, numbers, short, expansion,
+  return { game, compact, base, words: relevant, numbers, short, expansion, regional: regionalKey(words),
+    spelling: spellingKeys(compact),
     shortShapes: shapes(short), expansionShapes: shapes(expansion) };
+}
+
+function regionalKey(words) {
+  const title = words.join(' ');
+  for (const [canonical, regional] of regionalNames) {
+    if (title === canonical || title.startsWith(canonical + ' ')) return title;
+    if (title === regional || title.startsWith(regional + ' ')) return canonical + title.slice(regional.length);
+  }
+  return '';
+}
+
+function spellingKeys(compact) {
+  if (compact.length < 4 || compact.length > 80 || !/^[a-z\d]+$/.test(compact)) return [];
+  // Deletions in a short prefix put neighboring spellings in the same index
+  // even when a typo changes both of the old prefix/suffix keys.
+  const prefix = compact.slice(0, 7);
+  const keys = new Set([prefix]);
+  for (let first = 0; first < prefix.length; first++) {
+    keys.add(prefix.slice(0, first) + prefix.slice(first + 1));
+    if (compact.length < 10) continue;
+    for (let second = first + 1; second < prefix.length; second++) {
+      keys.add(prefix.slice(0, first) + prefix.slice(first + 1, second) + prefix.slice(second + 1));
+    }
+  }
+  return [...keys];
 }
 
 function keys(item, index, phase) {
@@ -99,6 +130,8 @@ function keys(item, index, phase) {
   const base = ['title:' + item.compact];
   if (item.base && item.base !== item.compact) base.push('title:' + item.base);
   if (countBytes(item.compact) >= 5) base.push('start:' + item.compact.slice(0, 3), 'end:' + item.compact.slice(-3));
+  if (item.regional) base.push('regional:' + item.regional);
+  for (const key of item.spelling) base.push('spelling:' + key);
   for (const word of item.words) {
     if (!numbered(word) && countBytes(word) >= 3) base.push('word:' + word);
   }
@@ -129,6 +162,7 @@ function editDistance(a, b) {
 function similar(a, b) {
   if (changedNumber(a, b)) return false;
   if (a.compact === b.compact) return true;
+  if (a.regional && a.regional === b.regional) return true;
   if ([...a.shortShapes].some(shape => b.shortShapes.has(shape) || b.expansionShapes.has(shape))
     || [...b.shortShapes].some(shape => a.expansionShapes.has(shape))) return false;
   if (a.base === b.compact || a.compact === b.base) return true;
@@ -144,13 +178,13 @@ function similar(a, b) {
 
 const compare = (a, b) => a === b ? 0 : a < b ? -1 : 1;
 
-export function candidatePairs(games, position) {
+export function createCandidateScan(games, maxPairs = 32) {
   const profiles = games.map(profile).filter(item => item.compact)
     .sort((a, b) => compare(a.compact, b.compact) || compare(a.game.id, b.game.id));
-  const pairs = [];
-  let compared = 0;
-  let [phase, startLeft, startRight] = position ?? [0, 0, 0];
-  for (; phase < 2; phase++) {
+  let indexPhase = -1;
+  let currentIndex;
+  function indexFor(phase) {
+    if (indexPhase === phase) return currentIndex;
     const index = new Map();
     for (const [i, item] of profiles.entries()) {
       for (const key of keys(item, true, phase)) {
@@ -158,26 +192,55 @@ export function candidatePairs(games, position) {
         index.get(key).push(i);
       }
     }
-    for (let left = startLeft; left < profiles.length; left++, startRight = 0) {
-      const first = profiles[left];
-      const minimum = phase === 0 ? startRight : Math.max(left + 1, startRight);
-      const adjacent = new Set();
-      for (const key of keys(first, false, phase)) {
-        for (const candidate of index.get(key) ?? []) {
-          if (candidate >= minimum && candidate !== left) adjacent.add(candidate);
+    indexPhase = phase;
+    currentIndex = index;
+    return index;
+  }
+
+  return function read(position) {
+    const pairs = [];
+    let compared = 0;
+    let [phase, startLeft, startRight] = position ?? [0, 0, 0];
+    for (; phase < 2; phase++) {
+      const index = indexFor(phase);
+      for (let left = startLeft; left < profiles.length; left++, startRight = 0) {
+        const first = profiles[left];
+        const minimum = phase === 0 ? startRight : Math.max(left + 1, startRight);
+        const adjacent = new Set();
+        for (const key of keys(first, false, phase)) {
+          for (const candidate of index.get(key) ?? []) {
+            if (candidate >= minimum && candidate !== left) adjacent.add(candidate);
+          }
+        }
+        for (const right of [...adjacent].sort((a, b) => a - b)) {
+          if (compared++ >= 15000) return { pairs, next: [phase, left, right] };
+          const second = profiles[right];
+          if (phase === 0) {
+            if (!abbreviates(first, second) || right < left && abbreviates(second, first)) continue;
+          } else if (abbreviates(first, second) || abbreviates(second, first) || !similar(first, second)) continue;
+          if (pairs.length === maxPairs) return { pairs, next: [phase, left, right] };
+          pairs.push(right < left ? [second.game, first.game] : [first.game, second.game]);
         }
       }
-      for (const right of [...adjacent].sort((a, b) => a - b)) {
-        if (compared++ >= 15000) return { pairs, next: [phase, left, right] };
-        const second = profiles[right];
-        if (phase === 0) {
-          if (!abbreviates(first, second) || right < left && abbreviates(second, first)) continue;
-        } else if (abbreviates(first, second) || abbreviates(second, first) || !similar(first, second)) continue;
-        if (pairs.length === 96) return { pairs, next: [phase, left, right] };
-        pairs.push(right < left ? [second.game, first.game] : [first.game, second.game]);
-      }
+      startLeft = startRight = 0;
     }
-    startLeft = startRight = 0;
-  }
-  return { pairs, next: null };
+    return { pairs, next: null };
+  };
+}
+
+export function nextCandidatePage(scan, position) {
+  let page = scan(position);
+  while (!page.pairs.length && page.next) page = scan(page.next);
+  return { pairs: page.pairs.map(pair => pair.map(game => [game.id, game.revision])), next: page.next };
+}
+
+if (typeof WorkerGlobalScope === 'function' && globalThis instanceof WorkerGlobalScope) {
+  let scan;
+  globalThis.onmessage = ({ data }) => {
+    if (data.games) {
+      scan = createCandidateScan(data.games);
+      return;
+    }
+    globalThis.postMessage(nextCandidatePage(scan, data.position));
+  };
 }

@@ -630,6 +630,37 @@ function appearanceHarness(entries = [], reduced = false, storageBlocked = false
   console.log('PASS: initial and runtime maze failures fall back automatically, preserve preference and leave pipes functional');
 })().catch(error => { console.error(error); process.exitCode = 1; });
 
+{
+  const test = harness({ localStorageEntries: [[THEME_KEY, 'classic'], [MAZE_BACKGROUND_KEY, 'maze']] });
+  test.document.currentScript = { dataset: { maze: 'maze.js?v=fixture' } };
+  test.document.readyState = 'loading';
+  test.context.Event = class Event { constructor(type) { this.type = type; } };
+  test.document.dispatchEvent = event => { test.events[event.type]?.(event); };
+  vm.runInContext(source, test.context, { filename: 'appearance.js' });
+  test.events.DOMContentLoaded();
+  const findScript = () => test.queryAll('script').find(script => script.src === 'maze.js?v=fixture');
+  const failedScript = findScript();
+  assert.ok(failedScript);
+  test.fire(failedScript, 'error');
+  assert.equal(findScript(), undefined);
+  assert.equal(test.nodes.mazeBackground.hidden, true);
+  assert.equal(test.query('option[value="maze"]').disabled, false);
+  test.windowEvents.online();
+  const restarted = findScript();
+  assert.ok(restarted && restarted !== failedScript);
+  test.context.window.SavepointMaze = { create: () => ({ resize() {}, setPlaying() {}, destroy() {} }) };
+  test.fire(restarted, 'load');
+  assert.equal(test.nodes.mazeBackground.hidden, false);
+
+  const style = test.queryAll('link[data-theme-style]').find(link => link.dataset.themes.split(' ').includes('classic'));
+  assert.ok(style.hasAttribute('href'));
+  test.fire(style, 'error');
+  assert.equal(style.hasAttribute('href'), false);
+  test.windowEvents.online();
+  assert.equal(style.href, style.dataset.themeStyle);
+  console.log('PASS: theme assets recover after a transient script or stylesheet error');
+}
+
 // DOS preserves its original desktop until Matrix is explicitly selected. The
 // saved desktop choice is independent of every other theme's background.
 {

@@ -4,6 +4,7 @@
 // Images, timers, requests and game records are synthetic. No network or DB.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const vm = require('node:vm');
 const {harness,flush,html,parseMarkup,descendants} = require('./frontend-dom.cjs');
 const all = descendants(parseMarkup(html));
 const productionPlatforms = all.filter(node=>node.tag==='input'&&node.attrs.name==='platform').map(node=>node.attrs.value);
@@ -315,12 +316,38 @@ async function main(){
   await test.nodes.gameForm.onsubmit({preventDefault(){}});
   assert.equal(test.requests.length,1,'A double submission sends one request');
   const original=JSON.parse(test.requests[0].options.body);
-  test.respond(0,503,{ok:false,error:'Synthetic temporary failure'});await before;
+  test.respond(0,503,{ok:false,error:'Synthetic temporary failure'});await flush();
+  assert.equal(test.requests[1].options.method,'GET','Check whether the first save reached the database');
+  test.respond(1,200,{ok:true,games:[]});await before;
   const retry=test.nodes.gameForm.onsubmit({preventDefault(){}});
-  assert.deepEqual(JSON.parse(test.requests[1].options.body),original,'Retry retains ID, timestamp and data');
-  test.respond(1,200,{ok:true,game:{...original.game,revision:'a'.repeat(64)}});await retry;
+  assert.deepEqual(JSON.parse(test.requests[2].options.body),original,'Retry retains ID, timestamp and data');
+  test.respond(2,200,{ok:true,game:{...original.game,revision:'a'.repeat(64)}});await retry;
   assert.equal(test.nodes.appShell.inert,false);assert.equal(test.document.activeElement,test.nodes.addBtn);
   console.log('PASS: keyboard confinement and dirty dismissal, one in-flight save, stable retry ID and focus restoration');
+ }
+ {
+  const test=manualCoverDraft();
+  const pending=test.nodes.gameForm.onsubmit({preventDefault(){}});
+  const {game:saved}=JSON.parse(test.requests[0].options.body);
+  test.requests[0].reject(vm.runInContext('new TypeError("Synthetic lost write response")',test.context));
+  await flush();
+  assert.equal(test.requests[1].options.method,'GET');
+  test.respond(1,200,{ok:true,games:[{...saved,revision:'a'.repeat(64)}]});await pending;
+  assert.equal(test.nodes.modalBackdrop.classList.contains('open'),false,'A confirmed saved draft should close normally');
+  assert.equal(test.requests.length,2,'Reconciliation must not replay the write');
+  console.log('PASS: a lost save response is reconciled without creating another game');
+ }
+ {
+  const test=harness();test.seed([{...game,revision:'b'.repeat(64)}]);test.context.render();
+  const pending=test.context.window.deleteGame(game.id);
+  test.nodes.deleteConfirmButton.onclick();await flush();
+  test.requests[0].reject(vm.runInContext('new TypeError("Synthetic lost delete response")',test.context));
+  await flush();
+  assert.equal(test.requests[1].options.method,'GET');
+  test.respond(1,200,{ok:true,games:[]});await pending;
+  assert.equal(test.nodes.grid.querySelectorAll('.game-card').length,0);
+  assert.equal(test.requests.length,2,'Reconciliation must not replay the deletion');
+  console.log('PASS: a lost delete response removes the stale card after a confirmed refresh');
  }
  {
   const previous={...game,revision:'a'.repeat(64),edition:'Imported custom edition',status:'Imported custom status'};

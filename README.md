@@ -97,6 +97,14 @@ Login notifications require `MAIL_FROM` and `MAIL_TO`. Save either address as a 
 
 If you enable preview deployments, configure preview credentials and storage separately.
 
+### Update an existing deployment
+
+Apply the pending D1 migrations from the updated checkout before pushing it to the production branch. Savepoint uses `0002_collection_revision.sql` to keep collection pages consistent while the library changes.
+
+```bash
+npx wrangler@4 d1 migrations apply DB --remote --config wrangler.cleanup.local.jsonc
+```
+
 ## Run locally
 
 Copy the example variables and generate credentials. Put the username, salt, and hash in `.dev.vars` before starting Pages. The example includes Cloudflare's local test keys, which require internet access to Turnstile.

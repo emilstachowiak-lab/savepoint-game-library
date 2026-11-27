@@ -57,6 +57,37 @@ async function finishLogout(t) {
  assert.equal(t.nodes.loginForm.hidden,false);
 }
 async function main(){
+ {
+  const t=fixture();
+  t.context.render();
+  const changed={...game,title:'Updated while the view is suspended'};
+  const save=t.context.apiRequest('POST',{action:'save',game:changed,delta:true});
+  const checking=t.context.revalidatePrivateSession();
+  t.respond(0,200,{ok:true,game:changed,session:metadata(t)});
+  await save;
+  assertHidden(t);
+  t.respond(1,200,{ok:true,session:metadata(t)});
+  assert.equal(await checking,true);
+  assert.match(t.nodes.grid.innerHTML,/Updated while the view is suspended/);
+  console.log('PASS: session revalidation renders collection changes received while the private view was suspended');
+ }
+ {
+  const t=fixture();
+  t.context.render();
+  const load=t.context.apiRequest('GET',undefined,0,{reloadCollection:true});
+  const replacement={...game,id:'new-id',title:'Stable full replacement'};
+  t.respond(0,200,{ok:true,games:[game],collectionVersion:10,nextGameId:game.id,session:metadata(t)});
+  await flush();
+  assert.match(t.requests[1].url,/after=privacy-game&version=10$/);
+  t.respond(1,409,{ok:false,code:'collection_changed',error:'Collection changed'});
+  await flush();
+  assert.equal(t.requests[2].url,'api/games.php');
+  t.respond(2,200,{ok:true,games:[replacement],collectionVersion:11,nextGameId:null,session:metadata(t)});
+  assert.equal((await load).collectionVersion,11);
+  assert.match(t.nodes.grid.innerHTML,/Stable full replacement/);
+  assert.doesNotMatch(t.nodes.grid.innerHTML,/Synthetic private game/);
+  console.log('PASS: a changed paginated collection restarts without publishing its incomplete snapshot');
+ }
  for(const kind of ['initialize','login']){
   const clock={wall:BASE,mono:0};
   const t=harness({clock,autoSession:false});

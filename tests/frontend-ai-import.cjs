@@ -242,6 +242,39 @@ async function main() {
     console.log('PASS: upload retries replay the exact chunk, cap automatic attempts and can resume manually');
   }
   {
+    const test = setup(); await test.open(); await test.photo();
+    assert.equal(test.nodes.appShell.inert, true);
+    const analyze = test.query('#aiImportAnalyze');
+    analyze.focus();
+    test.fire(analyze, 'click'); await flush();
+    const start = test.calls.at(-1);
+    start.resolve({ uploadId, offset: 0, chunkBytes: 32768, expiresIn: 900 }); await flush();
+    let offset = 0;
+    while (test.calls.at(-1).body.action === 'ai-upload-chunk') {
+      const chunk = test.calls.at(-1);
+      offset += Buffer.from(chunk.body.data, 'base64').length;
+      chunk.resolve({ offset }); await flush();
+    }
+    test.nodes.addBtn.focus();
+    let trapped = false;
+    test.events.keydown({ key: 'Tab', preventDefault() { trapped = true; } });
+    assert.equal(trapped, true, 'Tab must return to the dialog after a focused control becomes disabled');
+    assert.equal(test.backdrop.contains(test.document.activeElement), true);
+    const first = test.calls.at(-1);
+    first.reject(Object.assign(new Error('Synthetic temporary failure'), { status: 503 })); await flush();
+    test.fire(analyze, 'click'); await flush();
+    assert.deepEqual(test.calls.at(-1).body, first.body);
+    assert.equal(test.calls.filter(call => call.body.action === 'ai-upload-start').length, 1);
+    const title = 'x'.repeat(254) + '🎮';
+    test.calls.at(-1).resolve({ candidates: [{ ...firstGame, title }] }); await flush();
+    assert.equal(test.field(0, 'title').value, title);
+    test.confirm(); test.clickSave(); await flush();
+    assert.equal(test.calls.at(-1).body.games[0].title, title);
+    test.calls.at(-1).resolve({ games: [], inserted: 1 }); await flush();
+    assert.equal(test.nodes.appShell.inert, false);
+    console.log('PASS: recognition reuses uploaded bytes, review preserves 255 Unicode characters, and the modal traps Tab');
+  }
+  {
     const test = setup(); await test.open(); await test.photo(); await test.identify([firstGame]);
     test.editCover(0, 'https://okładka.example/gry/Żółć.jpg', true);
     test.confirm(); test.clickSave(); await flush();

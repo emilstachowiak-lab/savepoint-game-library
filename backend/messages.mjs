@@ -215,6 +215,14 @@ export const messages = {
     "pl": "Wpis zmienił się od otwarcia. Odśwież kolekcję i spróbuj ponownie.",
     "en": "This entry has changed. Refresh the collection and try again."
   },
+  "collection_changed": {
+    "pl": "Kolekcja zmieniła się podczas pobierania. Spróbuj ponownie.",
+    "en": "The collection changed during loading. Try again."
+  },
+  "collection_invalid_page": {
+    "pl": "Nieprawidłowa strona kolekcji.",
+    "en": "Invalid collection page."
+  },
   "collection_import_conflict": {
     "pl": "Import zawiera powtórzony identyfikator lub wpis o identyfikatorze używanym już przez inną grę.",
     "en": "The import contains a repeated ID or an ID already used by a different game."
@@ -250,6 +258,14 @@ export const messages = {
   "ai_duplicates_scan_changed": {
     "pl": "Kolekcja zmieniła się podczas sprawdzania. Uruchom wyszukiwanie ponownie.",
     "en": "The collection changed during the scan. Run the scan again."
+  },
+  "ai_duplicates_invalid_scan": {
+    "pl": "Nie udało się sprawdzić listy par. Odśwież stronę i uruchom wyszukiwanie ponownie.",
+    "en": "Could not verify the list of pairs. Reload and run the scan again."
+  },
+  "ai_duplicates_refresh_required": {
+    "pl": "Odśwież stronę, aby użyć nowej wersji wyszukiwania powtórzeń.",
+    "en": "Reload the page to use the current duplicate scanner."
   },
   "ai_provider_rate_limited": {
     "pl": "Osiągnięto limit Gemini. Spróbuj ponownie później.",

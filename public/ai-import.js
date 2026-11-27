@@ -273,6 +273,7 @@
   function buildDialog(backdrop, label) {
     backdrop.replaceChildren();
     const dialog = node('section', 'modal ai-import-modal', backdrop);
+    dialog.tabIndex = -1;
     dialog.setAttribute('role', 'dialog');
     dialog.setAttribute('aria-modal', 'true');
     dialog.setAttribute('aria-labelledby', 'aiImportTitle');
@@ -297,6 +298,7 @@
   function create(options) {
     const { button, backdrop } = options;
     if (!button || !backdrop) return null;
+    const collection = button.closest('#appShell');
     let disposed = false;
     let opened = false;
     let available = false;
@@ -316,6 +318,7 @@
     // another copy. A definitive rejection lets the user edit it again.
     let pendingSave = null;
     let returnFocus = null;
+    let previousInert = null;
     let cameraStream = null;
     let cameraGeneration = 0;
     let fieldSequence = 0;
@@ -424,6 +427,8 @@
       backdrop.classList.remove('open');
       backdrop.hidden = true;
       backdrop.replaceChildren();
+      if (collection && previousInert !== null) collection.inert = previousInert;
+      previousInert = null;
       cancelUpload(previousUpload);
       if (restoreFocus && !disposed && options.isCurrent(generation) && focus?.isConnected) focus.focus();
     }
@@ -806,7 +811,8 @@
       const details = node('div', 'game-details', card);
       const previewFrame = node('aside', 'cover-preview-frame', details);
       const fields = node('div', 'ai-import-fields', details);
-      const title = field(fields, 'Tytuł', 'Title', 'title', typeof candidate.title === 'string' ? candidate.title.slice(0, 255) : '');
+      const title = field(fields, 'Tytuł', 'Title', 'title', typeof candidate.title === 'string'
+        ? Array.from(candidate.title).slice(0, 255).join('') : '');
       title.required = true;
       // HTML length is measured in UTF-16 units. Validate code points at save.
       title.maxLength = 510;
@@ -1013,18 +1019,19 @@
       } catch (error) {
         if (!current(token)) return;
         const recognizing = phase === 'recognizing';
-        const canResume = phase === 'uploading' && upload && upload.expires > Date.now() && retryableChunkError(error);
+        const canResume = upload && upload.expires > Date.now() && (phase === 'uploading'
+          ? retryableChunkError(error) : recognizing && (retryableChunkError(error) || error.status === 429));
         if (!canResume) {
           cancelUpload(upload?.id);
           upload = null;
         }
         phase = 'ready';
-        if (canResume) {
+        if (canResume && recognizing && !error?.status) {
+          status('Przerwano rozpoznawanie. Wybierz „Rozpoznaj gry”, aby ponowić próbę z tym samym zdjęciem.',
+            'Identification was interrupted. Select “Identify games” to retry with the same photo.', true);
+        } else if (canResume && !recognizing) {
           status('Nie udało się przesłać całego zdjęcia. Wybierz „Rozpoznaj gry”, aby wznowić przesyłanie.',
             'Could not finish uploading the photo. Select “Identify games” to resume the upload.', true);
-        } else if (recognizing && !error?.status && !error?.englishMessage) {
-          status('Utracono połączenie w trakcie rozpoznawania zdjęcia. Wybierz „Rozpoznaj gry”, aby zacząć ponownie.',
-            'The connection was lost while identifying games. Select “Identify games” to start again.', true);
         } else showError(error);
       } finally { if (current(token)) updateSummary(); }
     }
@@ -1035,7 +1042,7 @@
         const platform = row.platform.value.trim();
         const cover = row.cover.value.trim();
         const coverUrl = coverAddress(cover, true);
-        const controls = /[\u0000-\u001f\u007f]/;
+        const controls = /[\u0000-\u001f\u007f\ud800-\udfff]/u;
         const invalid = !title || Array.from(title).length > 255 || bytes(title) > 1020 || controls.test(title) ? row.title
           : !platform || Array.from(platform.replace(/,\s*/g, ',')).length > 400 || controls.test(platform) ? row.platform : null;
         if (invalid) {
@@ -1123,6 +1130,10 @@
       bindDialogControls();
       backdrop.hidden = false;
       backdrop.classList.add('open');
+      if (collection) {
+        previousInert = collection.inert === true;
+        collection.inert = true;
+      }
       status('Sprawdzam dostępność rozpoznawania AI…', 'Checking AI identification availability…');
       updateSummary();
       nodes.close.focus();
@@ -1161,8 +1172,10 @@
       const fields = [...nodes.dialog.querySelectorAll('button, input, select, textarea, a[href]')]
         .filter(element => element.tabIndex !== -1 && !element.disabled && !element.hidden && !element.closest('[hidden]'));
       const first = fields[0], last = fields.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      if (!fields.includes(document.activeElement) || document.activeElement === (event.shiftKey ? first : last)) {
+        event.preventDefault();
+        ((event.shiftKey ? last : first) ?? nodes.dialog).focus();
+      }
     }
     const click = () => { void open(); };
     const outside = event => { if (event.target === backdrop && phase !== 'saving') close(); };

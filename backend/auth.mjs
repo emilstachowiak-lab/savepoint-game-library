@@ -1,5 +1,5 @@
 import { check, encoder, fail, failedCheck, hex, now, randomId, sha256, sql, validText } from './http.mjs';
-import { sendSmtp, SmtpError } from './smtp.mjs';
+import { notifyLogin } from './login-notification.mjs';
 
 const cookieName = 'savepoint_cf_session_v1';
 const idleSeconds = 1800;
@@ -55,17 +55,17 @@ export async function getSession(db, request, { touch = false, passive = false }
   const token = await sessionToken(request);
   if (!token) return null;
   const time = now();
-  if (passive) {
-    const key = (await sha256(clientIp(request))).slice(0, 2);
-    const rate = await reserve(db, 'session:' + key, time, 31, 60, 60, 60);
-    if (!rate.accepted) fail(429, 'session_checks_rate_limited', {}, rate.retry);
-  }
   const command = touch
     ? sql(db, `UPDATE sessions SET activity_at = max(activity_at, ?) WHERE ${alive}
         RETURNING token, authenticated_at, activity_at`, time, token, time - idleSeconds, time - maxSeconds)
     : sql(db, `SELECT token, authenticated_at, activity_at FROM sessions WHERE ${alive}`,
       token, time - idleSeconds, time - maxSeconds);
-  return command.first();
+  const session = await command.first();
+  if (passive && session) {
+    const rate = await reserve(db, 'session:' + token, time, 31, 60, 60, 60);
+    if (!rate.accepted) fail(429, 'session_checks_rate_limited', {}, rate.retry);
+  }
+  return session;
 }
 
 export function sessionMetadata(session) {
@@ -246,46 +246,6 @@ export async function login({ db, request, url, env, context, body, listGames, p
     if (failedCheck(error)) fail(409, 'session_unavailable');
     throw error;
   }
-  context.waitUntil(notify(env, env.APP_USERNAME, ip, issued));
+  context.waitUntil(notifyLogin(env, env.APP_USERNAME, ip, issued));
   return { games, session, cookie: `${cookieName}=${value}; ${secureAttributes}` };
-}
-
-async function notify(env, username, ip, time) {
-  const from = env.MAIL_FROM?.trim();
-  const to = env.MAIL_TO?.trim();
-  const host = env.SMTP_HOST?.trim();
-  const configured = host ? Boolean(env.SMTP_PASSWORD)
-    : Boolean(env.CF_EMAIL_TOKEN) && /^[0-9a-f]{32}$/i.test(env.CF_EMAIL_ACCOUNT_ID ?? '');
-  if (!from || !to || !configured) return;
-
-  const date = new Intl.DateTimeFormat('pl-PL', {
-    timeZone: 'Europe/Warsaw', dateStyle: 'long', timeStyle: 'long',
-  }).format(new Date(time * 1000));
-  const message = {
-    from, to, subject: 'Savepoint — udane logowanie',
-    text: `Udane logowanie do Savepoint.\nKonto: ${username}\nCzas: ${date}\nAdres IP: ${ip}`,
-  };
-
-  if (host) {
-    try {
-      const { connect } = await import('cloudflare:sockets');
-      await sendSmtp(connect, { ...message, host, password: env.SMTP_PASSWORD });
-      console.info('Savepoint SMTP login notification accepted.');
-    } catch (error) {
-      console.warn('Savepoint SMTP login notification failed:', error instanceof SmtpError ? error.message : 'connection');
-    }
-    return;
-  }
-
-  try {
-    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${env.CF_EMAIL_ACCOUNT_ID}/email/sending/send`, {
-      method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(10000),
-      headers: { Authorization: `Bearer ${env.CF_EMAIL_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(message),
-    });
-    if (!response.ok) console.warn('Savepoint login notification unavailable.');
-    await response.body?.cancel();
-  } catch {
-    console.warn('Savepoint login notification unavailable.');
-  }
 }

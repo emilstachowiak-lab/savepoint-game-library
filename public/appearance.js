@@ -60,6 +60,10 @@
     for (const link of themeStyles) {
       if (!link.hasAttribute('href') && link.dataset.themes.split(' ').includes(theme)) {
         if (initial) link.setAttribute('blocking', 'render');
+        link.addEventListener('error', () => {
+          link.removeAttribute('href');
+          link.removeAttribute('blocking');
+        }, { once: true });
         link.href = link.dataset.themeStyle;
       }
     }
@@ -105,6 +109,7 @@
       }
     );
     const matrix = createCanvasBackground(matrixStage, matrixCanvas, 'SavepointMatrix', backgroundScripts.matrix);
+    const backgrounds = [maze, pipes, p2Clock, matrix];
 
     function updateAnimation(renderer, active, playing) {
       renderer.setPlaying(active && playing && document.hidden !== true && !pageSuspended);
@@ -115,6 +120,7 @@
       let failed = false;
       let observer = null;
       let script = null;
+      let downloadFailed = false;
       let idleTimer = null;
 
       function onFailure() {
@@ -134,7 +140,7 @@
       // While the script loads, keep the chosen background and hide its canvas.
       // Only an actual failure marks the option unavailable and shows a fallback.
       function prepare(requested) {
-        if (requested && !failed && !window[factoryName] && scriptUrl) {
+        if (requested && !failed && !downloadFailed && !window[factoryName] && scriptUrl) {
           if (!script) {
             script = document.createElement('script');
             script.src = scriptUrl;
@@ -142,12 +148,17 @@
               if (window[factoryName]) refresh();
               else onFailure();
             }, { once: true });
-            script.addEventListener('error', onFailure, { once: true });
+            script.addEventListener('error', () => {
+              script?.remove();
+              script = null;
+              downloadFailed = true;
+              refresh();
+            }, { once: true });
             document.head.append(script);
           }
           return false;
         }
-        const available = requested && !failed;
+        const available = requested && !failed && !downloadFailed;
         if (stage) stage.hidden = !available;
         if (available && !renderer) {
           try {
@@ -192,7 +203,11 @@
         destroyRenderer();
       }
 
-      return { prepare, resize, update, observe, dispose, get failed() { return failed; } };
+      return { prepare, resize, update, observe, dispose,
+        retryDownload() { downloadFailed = false; },
+        get failed() { return failed || downloadFailed; },
+        get rendererFailed() { return failed; },
+      };
     }
 
     function updateThemeControls(playing, displayedClassic, displayedClassic3, displayedDos) {
@@ -212,15 +227,15 @@
       for (const name of consoleNames) name.textContent = consoleThemes[theme] || '';
     }
 
-    function updateBackgroundPicker({ controls, statuses, themeKey, option, saved, displayed, failed }) {
+    function updateBackgroundPicker({ controls, statuses, themeKey, option, saved, displayed, background }) {
       const active = theme === themeKey;
       for (const control of controls) {
         control.value = displayed;
-        control.querySelector(`option[value="${option}"]`).disabled = failed;
+        control.querySelector(`option[value="${option}"]`).disabled = background.rendererFailed;
         const label = control.closest(`.${themeKey}-background-control`);
         if (label) label.hidden = !active;
       }
-      for (const status of statuses) status.hidden = !(active && saved === option && failed);
+      for (const status of statuses) status.hidden = !(active && saved === option && background.failed);
     }
 
     function updateMotionControls(playing, hasAnimatedDesktop) {
@@ -257,11 +272,11 @@
 
       updateThemeControls(playing, displayedClassic, displayedClassic3, displayedDos);
       updateBackgroundPicker({ controls: mazeControls, statuses: mazeStatuses, themeKey: 'classic',
-        option: 'maze', saved: classicBackground, displayed: displayedClassic, failed: maze.failed });
+        option: 'maze', saved: classicBackground, displayed: displayedClassic, background: maze });
       updateBackgroundPicker({ controls: pipesControls, statuses: pipesStatuses, themeKey: 'classic3',
-        option: 'pipes', saved: classic3Background, displayed: displayedClassic3, failed: pipes.failed });
+        option: 'pipes', saved: classic3Background, displayed: displayedClassic3, background: pipes });
       updateBackgroundPicker({ controls: dosControls, statuses: matrixStatuses, themeKey: 'dos',
-        option: 'matrix', saved: dosBackground, displayed: displayedDos, failed: matrix.failed });
+        option: 'matrix', saved: dosBackground, displayed: displayedDos, background: matrix });
       updateMotionControls(playing, activePipes || activeMaze || activeP2 || activeMatrix);
       // This controller owns only Aero's original picker. The shared static
       // desktop color/reset controls are owned by static-background-colors.js.
@@ -279,6 +294,7 @@
       control.addEventListener('change', () => {
         theme = normalizeTheme(control.value);
         savePreference(THEME_KEY, theme);
+        for (const background of backgrounds) background.retryDownload();
         refresh();
       });
     }
@@ -309,6 +325,7 @@
       control.addEventListener('change', () => {
         classicBackground = control.value === 'maze' ? 'maze' : 'classic';
         savePreference(CLASSIC_BACKGROUND_KEY, classicBackground);
+        maze.retryDownload();
         refresh();
       });
     }
@@ -316,6 +333,7 @@
       control.addEventListener('change', () => {
         classic3Background = control.value === 'pipes' ? 'pipes' : 'classic';
         savePreference(CLASSIC3_BACKGROUND_KEY, classic3Background);
+        pipes.retryDownload();
         refresh();
       });
     }
@@ -323,10 +341,15 @@
       control.addEventListener('change', () => {
         dosBackground = control.value === 'matrix' ? 'matrix' : 'classic';
         savePreference(DOS_BACKGROUND_KEY, dosBackground);
+        matrix.retryDownload();
         refresh();
       });
     }
     document.addEventListener('visibilitychange', refresh);
+    addEventListener('online', () => {
+      for (const background of backgrounds) background.retryDownload();
+      refresh();
+    });
     // BFCache keeps paused renderers for pageshow; a final departure releases
     // their observers, animation frames and bitmap memory instead.
     addEventListener('pagehide', event => {
@@ -334,10 +357,7 @@
       refresh();
       if (!event.persisted) {
         disposed = true;
-        maze.dispose();
-        pipes.dispose();
-        p2Clock.dispose();
-        matrix.dispose();
+        for (const background of backgrounds) background.dispose();
       }
     });
     addEventListener('pageshow', () => { pageSuspended = false; refresh(); });

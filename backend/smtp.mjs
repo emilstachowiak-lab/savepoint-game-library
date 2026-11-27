@@ -4,6 +4,8 @@ const mailbox = /^[a-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z0-9-]+$/i;
 export class SmtpError extends Error {
   constructor(stage, code) {
     super(code === undefined ? stage : `${stage} (SMTP ${code})`);
+    this.retryable = code >= 400 && code < 500 || code === undefined && ['timeout', 'connection',
+      'greeting', 'authentication', 'sender', 'recipient', 'message data', 'message acceptance'].includes(stage);
   }
 }
 
@@ -39,7 +41,7 @@ function readReplies(reader) {
   };
 }
 
-async function submit(socket, { from, to, password, subject, text }) {
+async function submit(socket, { from, to, password, subject, text, messageId, date }) {
   await socket.opened;
   const reader = socket.readable.getReader();
   const writer = socket.writable.getWriter();
@@ -82,8 +84,8 @@ async function submit(socket, { from, to, password, subject, text }) {
       `From: Savepoint <${from}>`,
       `To: <${to}>`,
       `Subject: =?UTF-8?B?${base64(subject)}?=`,
-      `Date: ${new Date().toUTCString()}`,
-      `Message-ID: <${crypto.randomUUID()}@${domain}>`,
+      `Date: ${date.toUTCString()}`,
+      `Message-ID: <${messageId}@${domain}>`,
       'MIME-Version: 1.0',
       'Content-Type: text/plain; charset=UTF-8',
       'Content-Transfer-Encoding: base64',
@@ -96,16 +98,17 @@ async function submit(socket, { from, to, password, subject, text }) {
   }
 }
 
-export async function sendSmtp(connect, { host, from, to, password, subject, text }) {
+export async function sendSmtp(connect, { host, from, to, password, subject, text,
+  messageId = crypto.randomUUID(), date = new Date() }) {
   if (!mailbox.test(from) || !mailbox.test(to)) throw new SmtpError('invalid address');
   const socket = connect({ hostname: host, port: 465 }, { secureTransport: 'on' });
   socket.closed.catch(() => {});
   let timer;
   const deadline = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new SmtpError('timeout')), 10000);
+    timer = setTimeout(() => reject(new SmtpError('timeout')), 8000);
   });
   try {
-    await Promise.race([submit(socket, { from, to, password, subject, text }), deadline]);
+    await Promise.race([submit(socket, { from, to, password, subject, text, messageId, date }), deadline]);
   } catch (error) {
     throw error instanceof SmtpError ? error : new SmtpError('connection');
   } finally {

@@ -184,6 +184,59 @@ async function main() {
   console.log('PASS: URL edits isolate old requests, queue a new copy and avoid repeated failures');
  }
  {
+  const test=harness();
+  test.seed([game]);test.context.render();
+  const before=image(test);
+  test.nodes.search.value='no match';test.context.render();
+  assert.equal(image(test),null);
+  before.complete=true;
+  before.naturalWidth=0;
+  test.fire(before,'error');
+  test.nodes.search.value='';test.context.render();
+  assert.equal(image(test),before,'Filtering reuses the original card');
+  assert.equal(before.src,game.coverUrl,'Reattaching a failed private image starts the original');
+  before.complete=true;
+  test.fire(before,'error');
+  const assignments=test.imageAssignments.length;
+  test.nodes.search.value='no match';test.context.render();
+  test.nodes.search.value='';test.context.render();
+  assert.equal(test.imageAssignments.length,assignments,'Reattaching does not retry two already failed sources');
+  console.log('PASS: filtered images recover from errors while detached without restarting failed sources');
+ }
+ {
+  const test=harness();
+  test.seed([game]);test.context.render();
+  const cover=image(test);
+  test.fire(cover,'error');
+  assert.equal(cover.src,game.coverUrl);
+  test.nodes.search.value='no match';test.context.render();
+  await scanMissing(test);
+  test.respond(1,200,{ok:true,backup:{status:'saved'}});await flush();
+  cover.complete=true;
+  cover.naturalWidth=0;
+  test.fire(cover,'error');
+  test.nodes.search.value='';test.context.render();
+  assert.equal(cover.src,local(game.id)+'&ready=1','The recovered card must try a backup created while it was filtered out');
+  console.log('PASS: reattached cards can use a newly completed backup after the original also fails');
+ }
+ {
+  const test=harness();
+  const original={...game,revision:'a'.repeat(64)};
+  const changed={...original,coverUrl:'https://images.example.invalid/replacement.png',revision:'b'.repeat(64)};
+  test.seed([original]);test.context.render();
+  const old=image(test);
+  assert.equal(old.src,local(game.id)+'&v='+original.revision);
+  test.seed([changed]);test.context.render();
+  const current=image(test);
+  assert.equal(current.src,local(game.id)+'&v='+changed.revision,'Different cover versions cannot share an in-flight request');
+  const assignments=test.imageAssignments.length;
+  test.fire(old,'load');test.fire(old,'error');
+  assert.equal(test.imageAssignments.length,assignments);
+  assert.equal(current.getAttribute('loading'),'lazy');
+  assert.equal(current.getAttribute('referrerpolicy'),'no-referrer');
+  console.log('PASS: saved cover revisions isolate overlapping private image requests');
+ }
+ {
   const test=harness();test.seed([game]);test.context.render();test.runTimers(750);await flush();const old=image(test);
   const logout=test.context.performLogout();await flush();
   assert.equal(test.requests.length,1,'Logout waits for the prior POST before clearing the server session');
@@ -239,6 +292,26 @@ async function main() {
   assert.equal(test.requests.length,5,'Lock contention has a bounded retry count');
   test.context.clearPrivateData();assert.equal(vm.runInContext('coverBackupBusyRetries.size',test.context),0);
   console.log('PASS: shared-lock contention retries with backoff and stops after three retries');
+ }
+ {
+  const {test,advance}=timedHarness();
+  const second={...game,id:'next-cover',coverUrl:'https://images.example.invalid/next.png'};
+  test.seed([game,second]);test.context.render();
+  await advance(750);
+  test.respond(0,200,{ok:true,backups:[]});
+  await flush();await advance(750);
+  assert.equal(requestBody(test,1).id,game.id);
+  test.respond(1,200,{ok:true,backup:{status:'retry',retryAfter:30}});
+  await flush();await advance(750);
+  assert.equal(requestBody(test,2).id,second.id,'A temporary origin failure cannot delay unrelated covers');
+  test.respond(2,200,{ok:true,backup:{status:'saved'}});
+  await flush();await advance(750);await advance(28499);
+  assert.equal(test.requests.length,3,'The temporarily failed origin is left alone until its retry time');
+  await advance(1);
+  assert.deepEqual(requestBody(test,3),{action:'backup-cover',id:game.id});
+  test.respond(3,200,{ok:true,backup:{status:'saved'}});
+  await flush();
+  console.log('PASS: transient origin failures retry on their own deadline and do not pause other backups');
  }
  {
   const test=harness();

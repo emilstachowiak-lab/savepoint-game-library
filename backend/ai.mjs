@@ -5,7 +5,7 @@ import { admit, enabled, platforms, recognize } from './gemini.mjs';
 import { suggestCovers } from './catalogues.mjs';
 import { applyDuplicate, scanDuplicates } from './ai-duplicates.mjs';
 import { imageInfo } from './images.mjs';
-import { takePhoto, uploadAppend, uploadCancel, uploadStart } from './uploads.mjs';
+import { claimPhoto, finishPhoto, releasePhoto, uploadAppend, uploadCancel, uploadStart } from './uploads.mjs';
 
 export const aiActions = new Set(['ai-status', 'ai-upload-start', 'ai-upload-chunk', 'ai-upload-cancel', 'ai-recognize',
   'ai-add', 'ai-cover-search', 'ai-duplicates-scan', 'ai-duplicates-apply']);
@@ -71,16 +71,22 @@ export async function aiAction(db, env, request, session, action, body) {
   if (action === 'ai-add') return addConfirmed(db, session, body);
   if (action === 'ai-recognize') {
     const deadline = Date.now() + 32000;
-    const photo = await takePhoto(db, session, body.uploadId);
-    const info = imageInfo(photo);
-    if (info?.type !== 'image/jpeg' || info.width > 1600 || info.height > 1600 || photo.at(-2) !== 255 || photo.at(-1) !== 217) {
-      fail(422, 'ai_image_invalid');
+    const { claim, bytes, result: cached } = await claimPhoto(db, session, body.uploadId);
+    if (cached) return cached;
+    try {
+      const info = imageInfo(bytes);
+      if (info?.type !== 'image/jpeg' || info.width > 1600 || info.height > 1600 || bytes.at(-2) !== 255 || bytes.at(-1) !== 217) {
+        fail(422, 'ai_image_invalid');
+      }
+      const result = await recognize(db, env, bytes, language(request).lang);
+      await sameSession(db, request, session);
+      await suggestCovers(db, env, result, deadline);
+      await finishPhoto(db, session, claim, result);
+      return result;
+    } catch (error) {
+      await releasePhoto(db, session, claim, error instanceof ApiError && [401, 422].includes(error.status)).catch(() => {});
+      throw error;
     }
-    const result = await recognize(db, env, photo, language(request).lang);
-    await sameSession(db, request, session);
-    await suggestCovers(db, env, result, deadline);
-    await sameSession(db, request, session);
-    return result;
   }
   try {
     const result = action === 'ai-cover-search' ? await coverSearch(db, env, body) : await scanDuplicates(db, env, session, body);

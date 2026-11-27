@@ -1,13 +1,13 @@
 // Read and write collection backups using the same game shape as the API.
-// File limits apply separately because import re-serializes the JSON.
-const MAX_IMPORT_FILE_BYTES = 16 * 1024 * 1024;
-const IMPORT_CHUNK_BYTES = 32768;
-const MAX_IMPORT_GAMES = 5000;
 let importPending = null;
+let collectionUpload = null;
+let previousCollectionUpload = null;
 
 function clearCollectionImport() {
   $('importFile').value = '';
   importPending = null;
+  collectionUpload = null;
+  previousCollectionUpload = null;
 }
 
 function backupGame({ id, title, platform, edition, coverUrl, status, createdAt }) {
@@ -21,17 +21,15 @@ function platformListForStorage(platforms) {
 
 function normalizeImportedGames(records) {
   if (!Array.isArray(records) || records.some(game => !game || typeof game.title !== 'string'
-      || !game.title.trim() || Array.from(game.title.trim()).length > 255 || !gamePlatforms(game.platform).length)) {
+      || !game.title.trim() || Array.from(game.title.trim()).length > 255
+      || (typeof game.platform !== 'string' && (!Array.isArray(game.platform)
+        || !game.platform.every(platform => typeof platform === 'string')))
+      || !gamePlatforms(game.platform).length)) {
     throw uiError('Plik JSON nie zawiera poprawnej kolekcji gier.', 'The JSON file does not contain a valid game collection.');
-  }
-  if (records.length > MAX_IMPORT_GAMES) {
-    throw uiError('Plik zawiera ponad 5000 gier.', 'The file contains more than 5,000 games.');
   }
   return records.map(record => ({
     ...backupGame(record),
     platform: Array.isArray(record.platform) ? platformListForStorage(gamePlatforms(record.platform)) : record.platform,
-    id: record.id || crypto.randomUUID(),
-    createdAt: record.createdAt ?? Date.now()
   }));
 }
 
@@ -46,33 +44,58 @@ async function sendCollectionPart(body, generation) {
   }
 }
 
-// Small imports fit in one JSON request. Larger imports use a private staging
-// upload with decoded byte offsets. Its final request applies the collection
-// once, and a lost reply can be retried with the same upload ID.
-async function submitCollectionTransfer(mode, records, generation) {
-  const collection = normalizeImportedGames(records);
+function fitsCollectionRequest({ action, games }, encoder) {
+  if (games.length > 5000) return false;
+  let bytes = encoder.encode(JSON.stringify({ action, games: [] })).byteLength;
+  for (const [index, game] of games.entries()) {
+    bytes += encoder.encode(JSON.stringify(game)).byteLength + (index === 0 ? 0 : 1);
+    if (bytes > MAX_REQUEST_BYTES) return false;
+  }
+  return true;
+}
+
+function* collectionGroups(collection, encoder) {
+  let group = [];
+  let bytes = 0;
+  for (const game of collection) {
+    const size = encoder.encode(JSON.stringify(game)).byteLength + 1;
+    if (group.length && (group.length === 128 || bytes + size > 48000)) {
+      yield group;
+      group = [];
+      bytes = 0;
+    }
+    group.push(game);
+    bytes += size;
+  }
+  if (group.length) yield group;
+}
+
+// Stage large JSON backups in normalized groups for one final transaction.
+async function submitCollectionTransfer(mode, records, generation, normalize = true) {
+  const collection = normalize ? normalizeImportedGames(records) : records;
   const encoder = new TextEncoder();
   const singleRequest = { action: mode, games: collection };
-  if (encoder.encode(JSON.stringify(singleRequest)).byteLength <= MAX_REQUEST_BYTES) {
+  if (fitsCollectionRequest(singleRequest, encoder)) {
     return apiRequest('POST', singleRequest, generation);
   }
-  const bytes = encoder.encode(JSON.stringify(collection));
-  if (bytes.byteLength > MAX_IMPORT_FILE_BYTES) {
-    throw uiError('Kolekcja przekracza limit importu 16 MiB.', 'The collection exceeds the 16 MiB import limit.');
-  }
-  const start = await apiRequest('POST', {
-    action: 'collection-upload-start', mode, size: bytes.byteLength
-  }, generation);
-  if (typeof start.uploadId !== 'string' || !start.uploadId || start.offset !== 0) {
-    throw uiError('Nie udało się rozpocząć przesyłania kolekcji.', 'Could not start the collection upload.');
-  }
-  const uploadId = start.uploadId;
+  const transfer = { id: crypto.randomUUID().replaceAll('-', ''), generation };
+  const previous = previousCollectionUpload;
+  collectionUpload = transfer;
   try {
-    for (let offset = 0; offset < bytes.byteLength; offset += IMPORT_CHUNK_BYTES) {
-      const end = Math.min(offset + IMPORT_CHUNK_BYTES, bytes.byteLength);
-      const data = btoa(String.fromCharCode(...bytes.subarray(offset, end)));
-      const chunk = await sendCollectionPart({ action: 'collection-upload-chunk', uploadId, offset, data }, generation);
-      if (chunk.offset !== end) {
+    const start = await sendCollectionPart({ action: 'collection-upload-start', uploadId: transfer.id, mode,
+      size: collection.length, format: 'rows',
+      ...(previous?.generation === generation && previous.id !== transfer.id ? { supersedes: previous.id } : {}),
+    }, generation);
+    if (typeof start.uploadId !== 'string' || !start.uploadId || start.offset !== 0) {
+      throw uiError('Nie udało się rozpocząć przesyłania kolekcji.', 'Could not start the collection upload.');
+    }
+    if (previousCollectionUpload === previous) previousCollectionUpload = null;
+    const uploadId = transfer.id = start.uploadId;
+    let offset = 0;
+    for (const games of collectionGroups(collection, encoder)) {
+      const group = await sendCollectionPart({ action: 'collection-upload-group', uploadId, offset, games }, generation);
+      offset += games.length;
+      if (group.offset !== offset) {
         throw uiError('Zapis przesyłanej kolekcji został przerwany.', 'The collection upload was interrupted.');
       }
     }
@@ -81,12 +104,15 @@ async function submitCollectionTransfer(mode, records, generation) {
     if (!ignoredSessionError(error) && generation === sessionGeneration) {
       // Cancel unfinished staging and reload the database view if the commit
       // result is unknown.
-      void apiRequest('POST', { action: 'collection-upload-cancel', uploadId }, generation).catch(() => {});
+      previousCollectionUpload = transfer;
+      void apiRequest('POST', { action: 'collection-upload-cancel', uploadId: transfer.id }, generation).catch(() => {});
       if (error.payload?.code === 'collection_upload_uncertain' || error.timeout || error instanceof TypeError) {
         await apiRequest('GET', undefined, generation, { reloadCollection: true }).catch(() => {});
       }
     }
     throw error;
+  } finally {
+    if (collectionUpload === transfer) collectionUpload = null;
   }
 }
 
@@ -101,6 +127,13 @@ function downloadCollectionJson(contents, filename) {
 }
 
 function initializeCollectionTransfer() {
+  addEventListener('pagehide', event => {
+    if (event.persisted || !collectionUpload || collectionUpload.generation !== sessionGeneration) return;
+    void fetch(API_URL, { method: 'POST', credentials: 'same-origin', keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'collection-upload-cancel', uploadId: collectionUpload.id }),
+    }).catch(() => {});
+  });
   $('exportBtn').onclick = () => {
     if (!privateViewUsable()) return;
     downloadCollectionJson(JSON.stringify(games.map(backupGame)), 'savepoint-kolekcja.json');
@@ -128,7 +161,7 @@ function initializeCollectionTransfer() {
     }
   };
   $('importBtn').onclick = () => { if (!importPending && privateViewUsable()) $('importFile').click(); };
-  // Read and validate a bounded JSON file, then require explicit confirmation
+  // Read and validate the JSON file, then require explicit confirmation
   // before asking the server to replace the current collection.
   $('importFile').onchange = async event => {
     const file = event.target.files[0];
@@ -147,9 +180,6 @@ function initializeCollectionTransfer() {
     try {
       await ensurePrivateSessionReady(generation);
       ensureCurrentSession(generation);
-      if (file.size > MAX_IMPORT_FILE_BYTES) {
-        throw uiError('Plik importu przekracza limit 16 MiB.', 'The import file exceeds the 16 MiB limit.');
-      }
       let imported;
       try { imported = JSON.parse(await file.text()); }
       catch {
@@ -164,7 +194,7 @@ function initializeCollectionTransfer() {
       if (confirm(uiText(`Zaimportować ${count} gier? Obecna kolekcja zostanie zastąpiona.`,
         `Import ${count} ${unit}? This will replace your current collection.`))) {
         ensureCurrentSession(generation);
-        await submitCollectionTransfer('replace', collection, generation);
+        await submitCollectionTransfer('replace', collection, generation, false);
         ensureCurrentSession(generation);
         notify('Kolekcja zaimportowana do bazy danych', 'Collection imported into the database');
       }

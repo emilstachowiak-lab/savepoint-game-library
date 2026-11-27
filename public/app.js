@@ -130,21 +130,28 @@ let coverBackupTimer = null;
 let coverBackupWorker = null;
 const coverBackupAttempted = new Set();
 const coverBackupBusyRetries = new Map();
+const coverBackupOriginRetries = new Map();
 const coverBackupStatusChecked = new Set();
 const coverBackupReady = new Set();
 let coverBackupStatusAvailable = true;
 let coverStatusRetryAt = 0;
 let coverSavedById = new Map();
 const coverImageStates = new Map();
+let coverImageHistory = new WeakMap();
 let coverVisibilityObserver = null;
-function localCoverUrl(id) {
-  return /^[a-zA-Z0-9-]{1,36}$/.test(String(id)) ? API_URL + '?cover=' + encodeURIComponent(id) : '';
+function coverRevision(game) {
+  return typeof game.revision === 'string' && /^[a-f0-9]{64}$/.test(game.revision) ? game.revision : '';
+}
+function localCoverUrl(id, revision = '') {
+  if (!/^[a-zA-Z0-9-]{1,36}$/.test(String(id))) return '';
+  return API_URL + '?cover=' + encodeURIComponent(id) + (revision ? '&v=' + revision : '');
 }
 function clearCoverImageTracking() {
   coverVisibilityObserver?.disconnect();
   coverVisibilityObserver = null;
   for (const state of coverImageStates.values()) { clearTimeout(state.timer); clearCoverProbe(state); }
   coverImageStates.clear();
+  coverImageHistory = new WeakMap();
 }
 function clearCoverBackups() {
   clearTimeout(coverBackupTimer);
@@ -153,6 +160,7 @@ function clearCoverBackups() {
   coverBackupQueue = [];
   coverBackupAttempted.clear();
   coverBackupBusyRetries.clear();
+  coverBackupOriginRetries.clear();
   coverBackupStatusChecked.clear();
   coverBackupReady.clear();
   coverBackupStatusAvailable = true;
@@ -166,7 +174,8 @@ function currentCoverImage(image) {
   if (!state || state.generation !== sessionGeneration || !authenticated || logoutPending
       || !$('grid').contains(image)) return null;
   const saved = coverSavedById.get(state.id);
-  const matchesSavedCover = saved && String(saved.game.coverUrl) === state.key && saved.coverUrl === state.url;
+  const matchesSavedCover = saved && String(saved.game.coverUrl) === state.key
+    && saved.coverUrl === state.url && coverRevision(saved.game) === state.revision;
   return matchesSavedCover ? state : null;
 }
 function clearCoverProbe(state) {
@@ -190,7 +199,7 @@ function probeLocalCover(image) {
     if (!originalLoaded) useLocalCover(image);
   };
   probe.onerror = () => { if (state.probe === probe) clearCoverProbe(state); };
-  probe.src = localCoverUrl(state.id);
+  probe.src = state.backupUrl;
 }
 function useLocalCover(image, retry = false) {
   const state = currentCoverImage(image);
@@ -202,7 +211,7 @@ function useLocalCover(image, retry = false) {
   state.localFailed = false;
   state.localReadyAtStart = coverBackupReady.has(state.key);
   state.retried ||= retry;
-  image.src = localCoverUrl(state.id) + (retry ? '&ready=1' : '');
+  image.src = state.backupUrl + (retry ? '&ready=1' : '');
 }
 function useOriginalCover(image, state) {
   clearTimeout(state.timer);
@@ -217,6 +226,8 @@ function trackCoverImages() {
     if (images.has(image)) continue;
     coverVisibilityObserver?.unobserve(image);
     clearTimeout(state.timer);
+    state.timer = null;
+    state.visible = false;
     clearCoverProbe(state);
     coverImageStates.delete(image);
   }
@@ -238,21 +249,28 @@ function trackCoverImages() {
     if (coverImageStates.has(image)) continue;
     const id = image.dataset.coverId;
     const saved = coverSavedById.get(id);
-    if (!saved || !localCoverUrl(id)) continue;
+    if (!saved) continue;
+    const revision = coverRevision(saved.game);
+    const backupUrl = localCoverUrl(id, revision);
+    if (!backupUrl) continue;
     const src = image.getAttribute('src');
-    const local = src === localCoverUrl(id) || src === localCoverUrl(id) + '&ready=1';
-    const state = {
-      id,
-      key: String(saved.game.coverUrl),
-      url: saved.coverUrl,
-      generation: sessionGeneration,
-      local,
-      localFailed: false,
-      localReadyAtStart: local && coverBackupReady.has(String(saved.game.coverUrl)),
-      directTried: Boolean(src && !local),
-      retried: local && src.endsWith('&ready=1'),
-      timer: null
-    };
+    const key = String(saved.game.coverUrl);
+    let state = coverImageHistory.get(image);
+    if (!state || state.generation !== sessionGeneration || state.revision !== revision || state.key !== key) {
+      const local = src === backupUrl || src === backupUrl + '&ready=1';
+      state = {
+        id, key, revision, backupUrl,
+        url: saved.coverUrl,
+        generation: sessionGeneration,
+        local,
+        localFailed: false,
+        localReadyAtStart: local && coverBackupReady.has(key),
+        directTried: Boolean(src && !local),
+        retried: local && src.endsWith('&ready=1'),
+        timer: null
+      };
+      coverImageHistory.set(image, state);
+    }
     coverImageStates.set(image, state);
     if (!src) {
       // Try the private copy immediately when its availability is unknown.
@@ -262,6 +280,10 @@ function trackCoverImages() {
       } else {
         useOriginalCover(image, state);
       }
+    } else if (image.complete) {
+      // The image can settle while its cached card is removed by a filter.
+      if (image.naturalWidth) finishCoverImageLoad(image);
+      else handleCoverImageFailure(image);
     }
     coverVisibilityObserver?.observe(image);
   }
@@ -303,19 +325,27 @@ function scheduleCoverBackupWorker(delay = 750) {
     coverBackupTimer = null;
     if (generation !== sessionGeneration || !authenticated || logoutPending || coverBackupWorker || privacySuspended) return;
     let item;
-    while (coverBackupQueue.length && !item) {
+    let nextRetry = Infinity;
+    for (let remaining = coverBackupQueue.length; remaining > 0 && !item; remaining--) {
       const candidate = coverBackupQueue.shift();
-      if (!coverBackupAttempted.has(candidate.key) && currentCoverBackupCandidate(candidate)) item = candidate;
+      if (coverBackupAttempted.has(candidate.key) || !currentCoverBackupCandidate(candidate)) continue;
+      const retryAt = coverBackupOriginRetries.get(candidate.key)?.at;
+      if (retryAt > Date.now()) {
+        coverBackupQueue.push(candidate);
+        nextRetry = Math.min(nextRetry, retryAt);
+      } else item = candidate;
     }
-    if (!item) return;
+    if (!item) {
+      if (Number.isFinite(nextRetry)) scheduleCoverBackupWorker(Math.max(1, nextRetry - Date.now()));
+      return;
+    }
     const worker = {generation};
     coverBackupWorker = worker;
     let nextDelay = 750;
     const checkingStatus = coverBackupStatusAvailable && Date.now() >= coverStatusRetryAt && !coverBackupStatusChecked.has(item.key);
     try {
       if (checkingStatus) {
-        // One metadata request avoids a separate PHP request and database
-        // lookup for every cover whose private backup already exists.
+        // Check existing copies in a single metadata request.
         const batch = [item];
         const ids = new Set([item.id]);
         for (const candidate of coverBackupQueue) {
@@ -349,8 +379,21 @@ function scheduleCoverBackupWorker(delay = 750) {
         coverBackupAttempted.add(item.key);
         const result = await apiRequest('POST', {action: 'backup-cover', id: item.id}, generation);
         ensureCurrentSession(generation);
-        if (['saved', 'cached'].includes(result.backup?.status)) markCoverBackupReady(item.key);
-        else if (result.backup?.status === 'busy') {
+        if (!currentCoverBackupCandidate(item)) return;
+        if (['saved', 'cached'].includes(result.backup?.status)) {
+          coverBackupOriginRetries.delete(item.key);
+          markCoverBackupReady(item.key);
+        } else if (result.backup?.status === 'retry') {
+          const retries = coverBackupOriginRetries.get(item.key)?.count ?? 0;
+          if (retries < 3) {
+            const seconds = result.backup.retryAfter;
+            const delay = Number.isSafeInteger(seconds) && seconds > 0 && seconds <= 86400 ? seconds * 1000 : 30000;
+            coverBackupOriginRetries.set(item.key, { at: Date.now() + delay, count: retries + 1 });
+            coverBackupAttempted.delete(item.key);
+            coverBackupQueue = coverBackupQueue.filter(candidate => candidate.key !== item.key);
+            coverBackupQueue.push(item);
+          }
+        } else if (result.backup?.status === 'busy') {
           const retries = coverBackupBusyRetries.get(item.key) || 0;
           if (retries < 3) {
             coverBackupBusyRetries.set(item.key, retries + 1);
@@ -770,7 +813,7 @@ function updateCoverPreview(immediate = false) {
     setUiText($('coverPreviewStatus'), 'Nie udało się wczytać okładki', 'Could not load the cover');
   };
   const saved = games.find(game => String(game.id) === $('gameId').value && safeImageUrl(game.coverUrl) === url);
-  const backupUrl = saved ? localCoverUrl(saved.id) : '';
+  const backupUrl = saved ? localCoverUrl(saved.id, coverRevision(saved)) : '';
   const preferBackup = Boolean(backupUrl && coverBackupReady.has(String(saved.coverUrl)));
   let usedBackup = preferBackup;
   let usedOriginal = !preferBackup;
@@ -1535,8 +1578,8 @@ function initialize() {
 // Ask the API whether to resume the session or show the sign-in challenge.
 async function initializeSession(generation) {
   if (location.protocol === 'file:') {
-    showAuthError('Aplikacja została otwarta jako plik. Zalogowanie wymaga strony uruchomionej na hostingu z PHP.', true,
-      'The application was opened as a file. Serve the page from a PHP host to sign in.');
+    showAuthError('Aplikacja została otwarta jako plik. Otwórz adres wdrożenia Cloudflare Pages, aby się zalogować.', true,
+      'The application was opened as a file. Open the Cloudflare Pages deployment URL to sign in.');
     return;
   }
   try {
@@ -1551,8 +1594,8 @@ async function initializeSession(generation) {
     if (ignoredSessionError(error) || generation !== sessionGeneration || logoutPending) return;
     if (error.status === 401 && (error.payload?.authRequired === true || hasCaptchaChallenge(error.payload?.captcha))) {
       if (!hasCaptchaChallenge(error.payload?.captcha)) {
-        showAuthError('Serwer ma starszą wersję API logowania i nie udostępnia CAPTCHA. Wgraj aktualny plik api/games.php z projektu i odśwież stronę.', true,
-          'The server uses an older sign-in API without CAPTCHA. Upload the current api/games.php from the project and reload the page.');
+        showAuthError('Funkcja logowania nie zwróciła weryfikacji Turnstile. Sprawdź konfigurację Turnstile i aktualne wdrożenie Cloudflare Pages.', true,
+          'The sign-in function did not return a Turnstile challenge. Check the Turnstile settings and the current Cloudflare Pages deployment.');
         return;
       }
       showLogin();
@@ -1783,6 +1826,19 @@ window.editGame = id => {
   if (game) openModal(game);
 };
 const pendingGameDeletes = new Set();
+function uncertainCollectionWrite(error) {
+  return error.timeout || error instanceof TypeError || [200, 500, 502, 503, 504].includes(error.status);
+}
+async function reconcileCollectionWrite(error, generation) {
+  const uncertain = uncertainCollectionWrite(error);
+  if (!uncertain && error.payload?.code !== 'collection_conflict') return false;
+  try {
+    await apiRequest('GET', undefined, generation, { reloadCollection: true });
+    return uncertain && generation === sessionGeneration && !logoutPending;
+  } catch {
+    return false;
+  }
+}
 window.deleteGame = async id => {
   const generation = sessionGeneration;
   const game = games.find(item => item.id === id);
@@ -1791,39 +1847,36 @@ window.deleteGame = async id => {
   try {
     if (!await confirmGameDeletion(game)) return;
     ensureCurrentSession(generation);
-    await apiRequest('POST', { action: 'delete', id, revision: game.revision, delta: true }, generation);
+    try {
+      await apiRequest('POST', { action: 'delete', id, revision: game.revision, delta: true }, generation);
+    } catch (error) {
+      if (ignoredSessionError(error) || generation !== sessionGeneration || logoutPending
+          || !await reconcileCollectionWrite(error, generation) || games.some(item => item.id === id)) throw error;
+    }
     ensureCurrentSession(generation);
     if (!document.activeElement?.isConnected) restoreCollectionFocus();
     notify('Gra usunięta z kolekcji', 'Game removed from your collection');
   } catch (error) {
     if (!ignoredSessionError(error) && generation === sessionGeneration && !logoutPending) {
       notify(...uiErrorText(error));
-      if (error.payload?.code === 'collection_conflict') {
-        await apiRequest('GET', undefined, generation, { reloadCollection: true }).catch(() => {});
-      }
     }
   } finally { pendingGameDeletes.delete(game); }
 };
-// Delegate events to the stable grid element. Capture is needed for load and
-// error events from images, which do not bubble from the replacement cards.
-$('grid').addEventListener('error', event => {
-  if (!event.target.matches?.('img.cover-image')) return;
-  const image = event.target;
+function handleCoverImageFailure(image) {
   const state = currentCoverImage(image);
   if (!state || !image.hasAttribute('src')) return;
-  if (state.local) {
-    state.localFailed = true;
-    if (!state.retried && !state.localReadyAtStart && coverBackupReady.has(state.key)) {
-      useLocalCover(image, true);
-      scheduleCoverProbe(image, state);
-    } else if (!state.directTried) {
-      useOriginalCover(image, state);
-      scheduleCoverProbe(image, state);
-    }
-  } else if (!state.localFailed) useLocalCover(image);
-}, true);
-$('grid').addEventListener('load', event => {
-  const state = currentCoverImage(event.target);
+  if (state.local) state.localFailed = true;
+  if (state.localFailed && !state.retried && !state.localReadyAtStart && coverBackupReady.has(state.key)) {
+    // A backup can finish while the original is loading or the card is filtered out.
+    useLocalCover(image, true);
+    scheduleCoverProbe(image, state);
+  } else if (state.local && !state.directTried) {
+    useOriginalCover(image, state);
+    scheduleCoverProbe(image, state);
+  } else if (!state.local && !state.localFailed) useLocalCover(image);
+}
+function finishCoverImageLoad(image) {
+  const state = currentCoverImage(image);
   if (!state) return;
   clearTimeout(state.timer);
   state.timer = null;
@@ -1832,7 +1885,13 @@ $('grid').addEventListener('load', event => {
     coverBackupReady.add(state.key);
     coverBackupAttempted.add(state.key);
   }
+}
+// Delegate events to the stable grid element. Capture is needed for load and
+// error events from images, which do not bubble from the replacement cards.
+$('grid').addEventListener('error', event => {
+  if (event.target.matches?.('img.cover-image')) handleCoverImageFailure(event.target);
 }, true);
+$('grid').addEventListener('load', event => finishCoverImageLoad(event.target), true);
 $('grid').addEventListener('click', event => {
   const button = event.target.closest('[data-action], [data-game-action]');
   if (!button || !$('grid').contains(button)) return;
@@ -1925,7 +1984,16 @@ $('gameForm').onsubmit = async event => {
   $('gameForm').inert = true;
   if (gameSaveButton) gameSaveButton.disabled = true;
   try {
-    await apiRequest('POST', { action: 'save', mode, game, revision: draft.revision, delta: true }, generation);
+    try {
+      await apiRequest('POST', { action: 'save', mode, game, revision: draft.revision, delta: true }, generation);
+    } catch (error) {
+      if (ignoredSessionError(error) || generation !== sessionGeneration || logoutPending
+          || !await reconcileCollectionWrite(error, generation)) throw error;
+      const saved = games.find(item => item.id === id);
+      if (!saved || saved.title !== title || saved.coverUrl !== game.coverUrl || saved.edition !== edition
+          || saved.status !== status || saved.createdAt !== game.createdAt
+          || platformListForStorage(gamePlatforms(saved.platform)) !== platform) throw error;
+    }
     ensureCurrentSession(generation);
     if (gameDraft === draft) closeModal();
     notify(mode === 'edit' ? 'Zmiany zapisane' : 'Gra dodana do kolekcji',
@@ -1933,9 +2001,6 @@ $('gameForm').onsubmit = async event => {
   } catch (error) {
     if (!ignoredSessionError(error) && generation === sessionGeneration && !logoutPending) {
       notify(...uiErrorText(error));
-      if (error.payload?.code === 'collection_conflict') {
-        await apiRequest('GET', undefined, generation, { reloadCollection: true }).catch(() => {});
-      }
     }
   } finally {
     if (gameDraft === draft) {
@@ -2066,6 +2131,7 @@ function initializeDuplicates() {
     getGeneration: () => sessionGeneration,
     isCurrent: generation => authenticated && !logoutPending && !privacySuspended && generation === sessionGeneration,
     getLanguage: () => uiLanguage,
+    getGames: () => games,
     gameLabel,
     errorText: uiErrorText,
     notify,

@@ -201,8 +201,7 @@ export async function suggestCovers(db, env, result, deadline, manual = false) {
     const matches = igdbItems.filter(item => key(item.name) === key(game.title));
     const compatible = matches.filter(item => matchingPlatform(game.platform, item.platforms));
     const covers = new Map(compatible.filter(item => item.url).map(item => [item.url, item]));
-    if (covers.size > 1 || matches.some(item => item.platforms.length) && !compatible.length) continue;
-    if (covers.size) options.push({ gameIndex: game.index, entry: covers.values().next().value });
+    if (covers.size === 1) options.push({ gameIndex: game.index, entry: covers.values().next().value });
     const grid = steam.find(item => item.title === game.title);
     if (grid) options.push({ gameIndex: game.index, entry: grid });
     fallback.push(game);

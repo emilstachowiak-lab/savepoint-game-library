@@ -15,7 +15,7 @@ const right = game('right', { platform: 'PlayStation 2, PC', edition: 'Cyfrowe',
 const alternate = game('alternate');
 const pair = (first, second, ticket, recommendation = 'merge') => ({ left: first, right: second, ticket, recommendation });
 
-function setup() {
+function setup({ games, candidates } = {}) {
   const test = harness();
   const calls = [], saved = [], reloads = [];
   let language = 'pl';
@@ -24,9 +24,29 @@ function setup() {
   const backdrop = test.document.createElement('div');
   test.document.tree.append(button, backdrop);
   test.context.AbortController = AbortController;
+  const workers = [];
+  if (candidates) {
+    test.document.baseURI = 'https://example.test/';
+    test.context.Worker = class {
+      constructor(url, settings) {
+        assert.equal(url.origin, 'https://example.test');
+        assert.match(url.pathname, /duplicate-candidates\.mjs$/);
+        assert.equal(settings.type, 'module');
+        workers.push(this);
+      }
+      postMessage(message) {
+        if (message.games) this.scan = candidates.createCandidateScan(message.games);
+        else Promise.resolve().then(() => {
+          if (!this.stopped) this.onmessage({ data: candidates.nextCandidatePage(this.scan, message.position) });
+        });
+      }
+      terminate() { this.stopped = true; }
+    };
+  }
   vm.runInContext(source, test.context, { filename: 'duplicates.js' });
   const controller = test.context.window.SavepointDuplicates.create({
     button, backdrop, ensureReady: async () => {},
+    ...(games ? { getGames: () => games } : {}),
     getGeneration: () => generation,
     isCurrent: owner => owner === generation,
     getLanguage: () => language,
@@ -58,12 +78,39 @@ function setup() {
     test.fire(radio, 'change');
     click(row.querySelectorAll('.duplicates-actions > button')[action]);
   }
-  return { test, backdrop, button, calls, saved, reloads, controller, query, click, status, rows, scan, choose,
+  return { test, backdrop, button, calls, saved, reloads, workers, controller, query, click, status, rows, scan, choose,
     switchLanguage() { language = 'en'; controller.refreshLanguage(); },
     logout() { generation++; controller.clearPrivateData(); } };
 }
 
 async function run() {
+  {
+    const candidates = await import('../public/duplicate-candidates.mjs');
+    const games = Array.from({ length: 10 }, (_, index) => game('scan-' + index,
+      { title: 'Synthetic shared title', revision: 'a'.repeat(64) }));
+    const ui = setup({ games, candidates });
+    ui.controller.open();
+    const scan = () => ui.click(ui.query('#duplicatesScan'));
+    scan(); await flush();
+    const first = ui.calls.at(-1);
+    assert.deepEqual(Object.keys(first.body), ['action', 'pairs']);
+    assert.equal(first.body.pairs.length, 32);
+    assert(first.body.pairs.every(pair => pair.every(ref => ref.length === 2 && ref[0].startsWith('scan-'))));
+    first.reject(Object.assign(new Error('Synthetic unavailable'), { status: 503 })); await flush();
+    scan(); await flush();
+    assert.deepEqual(ui.calls.at(-1).body, first.body, 'Retry retains the exact candidate batch');
+    ui.calls.at(-1).resolve({ pairs: [], limited: false, cursor: null }); await flush();
+    assert.equal(ui.query('.duplicates-limit').hidden, false);
+    scan(); await flush();
+    const final = ui.calls.at(-1);
+    assert.equal(final.body.pairs.length, 13);
+    assert.equal(ui.workers.length, 1, 'Continuations reuse the index in one Worker');
+    final.resolve({ pairs: [], limited: false, cursor: null }); await flush();
+    assert.equal(ui.query('.duplicates-limit').hidden, true);
+    assert.equal(ui.workers[0].stopped, true);
+    ui.controller.close();
+    console.log('PASS: large scans page locally in one Worker and send only the current bounded batch of references');
+  }
   {
     const ui = setup();
     ui.click(ui.button);

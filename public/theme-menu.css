@@ -239,6 +239,16 @@ html[data-theme="liquidglass"] #appMenu {
   }
 }
 
+@media (max-height: 480px) {
+  #appMenu {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+}
+
 #appMenu :is(.maze-background-status, .pipes-background-status) {
   min-width: 0;
   max-width: 100%;

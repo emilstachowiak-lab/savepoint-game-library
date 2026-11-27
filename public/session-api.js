@@ -183,7 +183,8 @@ async function revalidatePrivateSession(expiredCandidate = false) {
       document.documentElement?.classList.remove('privacy-suspended');
       $('appShell').hidden = false;
       $('authScreen').hidden = true;
-      if (renderedCollectionMetadata && renderedCollectionMetadata.language !== uiLanguage) render();
+      if (renderedCollectionMetadata && (renderedCollectionMetadata.language !== uiLanguage
+        || renderedCollectionMetadata.games !== games)) render();
       armSessionTimers();
       scheduleCoverBackupWorker();
       return true;
@@ -265,6 +266,37 @@ function ensureCurrentSession(generation, allowLogout = false) {
   if (generation !== sessionGeneration || (logoutPending && !allowLogout)) throw staleSessionError();
 }
 function ignoredSessionError(error) { return Boolean(error?.staleSession || error?.sessionExpired); }
+
+async function completeCollectionSnapshot(original, generation) {
+  let initial = original;
+  for (let attempt = 0; ; attempt++) {
+    const collection = [...initial.games];
+    let cursor = initial.nextGameId;
+    let previous = '';
+    try {
+      while (cursor !== null) {
+        if (typeof cursor !== 'string' || !/^[a-z0-9-]{1,36}$/i.test(cursor)
+          || cursor.toLowerCase() <= previous || !Number.isSafeInteger(initial.collectionVersion)) {
+          throw uiError('Serwer zwrócił niepoprawną stronę kolekcji.', 'The server returned an invalid collection page.');
+        }
+        previous = cursor.toLowerCase();
+        const page = await apiRequest('GET', undefined, generation, {
+          collectionPage: true, cursor, collectionVersion: initial.collectionVersion,
+        });
+        if (!Array.isArray(page.games) || page.collectionVersion !== initial.collectionVersion) {
+          throw uiError('Serwer zwrócił niepoprawną stronę kolekcji.', 'The server returned an invalid collection page.');
+        }
+        collection.push(...page.games);
+        cursor = page.nextGameId;
+      }
+      return { ...original, games: collection, collectionVersion: initial.collectionVersion, nextGameId: null };
+    } catch (error) {
+      if (attempt >= 1 || error.payload?.code !== 'collection_changed') throw error;
+      initial = await apiRequest('GET', undefined, generation, { collectionPage: true });
+      if (!Array.isArray(initial.games) || !Object.hasOwn(initial, 'nextGameId')) throw error;
+    }
+  }
+}
 // A full games array replaces the snapshot. Delta replies upsert saved records
 // or remove deletedId. AI batch additions can include records from a replay.
 function applyCollectionReply(result, action) {
@@ -290,7 +322,8 @@ function applyCollectionReply(result, action) {
 
 function apiTimeout(action, isSessionCheck) {
   if (isSessionCheck) return 10000;
-  if (action === 'logout' || action === 'collection-upload-chunk' || action === 'ai-upload-chunk') return 15000;
+  if (action === 'logout' || action === 'collection-upload-chunk' || action === 'collection-upload-group'
+    || action === 'ai-upload-chunk') return 15000;
   if (action === 'collection-upload-finish' || action === 'ai-recognize') return 55000;
   if (action === 'ai-cover-search' || action === 'ai-duplicates-scan') return 35000;
   return 25000;
@@ -337,7 +370,9 @@ async function apiRequest(method = 'GET', body = undefined, generation = session
   }
   // Check encoded bytes to match the server's request limit for Unicode text.
   const requestBody = body ? JSON.stringify(body) : undefined;
-  if (requestBody && new TextEncoder().encode(requestBody).byteLength > MAX_REQUEST_BYTES) {
+  const rowGroup = action === 'collection-upload-group';
+  if (requestBody && new TextEncoder().encode(requestBody).byteLength > (rowGroup ? 196608 : MAX_REQUEST_BYTES)) {
+    if (rowGroup) throw uiError('Wpis kolekcji jest za duży.', 'A collection entry is too large.');
     throw uiError('Dane żądania przekraczają limit 64 KiB.', 'The request exceeds the 64 KiB limit.');
   }
 
@@ -361,11 +396,16 @@ async function apiRequest(method = 'GET', body = undefined, generation = session
     });
     const transport = (async () => {
       const signal = controller?.signal || callerSignal;
-      const response = await fetch(isSessionCheck ? API_URL + '?session=1' : API_URL, {
+      const query = isSessionCheck ? '?session=1' : options.cursor
+        ? '?after=' + encodeURIComponent(options.cursor) + '&version=' + options.collectionVersion : '';
+      const response = await fetch(API_URL + query, {
         method,
-        headers: body
-          ? { 'Content-Type': 'application/json', 'Accept-Language': uiLanguage }
-          : { 'Accept-Language': uiLanguage },
+        headers: {
+          'Accept-Language': uiLanguage,
+          'X-Savepoint-Collection': 'paged',
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+          ...(rowGroup ? { 'X-Savepoint-Upload-Format': 'rows' } : {}),
+        },
         body: requestBody,
         credentials: 'same-origin',
         ...(signal ? { signal } : {})
@@ -410,8 +450,11 @@ async function apiRequest(method = 'GET', body = undefined, generation = session
         void performLogout();
         throw staleSessionError();
       }
-      if (changesCollection || options.reloadCollection === true) applyCollectionReply(result, action);
-      return result;
+      const complete = !options.collectionPage && Array.isArray(result.games) && result.nextGameId != null
+        ? await completeCollectionSnapshot(result, generation) : result;
+      ensureCurrentSession(generation, isLogout);
+      if (changesCollection || options.reloadCollection === true) applyCollectionReply(complete, action);
+      return complete;
     } finally {
       clearTimeout(timer);
       callerSignal?.removeEventListener?.('abort', abort);
