@@ -670,11 +670,13 @@ async function main() {
     assert.equal(nodes.captchaStatus.textContent,'Synthetic logout status');assert.equal(nodes.retryConnection.hidden,true);
     assert.equal(vm.runInContext('captchaSolution',context),null);assert.equal(removals,1);assert.equal(resets,0);
     console.log('PASS: old CAPTCHA callbacks cannot enable login or overwrite logout state');
-    context.document.documentElement.dataset.theme='3d';
-    context.prepareCaptcha(challenge);await flush();
-    assert.equal(callbacks.theme,'dark');
-    context.clearSessionCaptcha();
-    console.log('PASS: Turnstile follows the dark 3D theme and keeps automatic appearance in Aero');
+    for(const theme of ['3d','grid']){
+      context.document.documentElement.dataset.theme=theme;
+      context.prepareCaptcha(challenge);await flush();
+      assert.equal(callbacks.theme,'dark');
+      context.clearSessionCaptcha();
+    }
+    console.log('PASS: Turnstile uses the dark appearance in 3D and Grid and keeps automatic appearance in Aero');
   }
   console.log('All offline frontend lifecycle checks passed.');
 }

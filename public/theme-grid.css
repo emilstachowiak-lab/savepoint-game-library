@@ -1,0 +1,880 @@
+/* Grid keeps its palette, surfaces and layouts separate from the other themes. */
+html[data-theme="grid"] {
+  --grid-bg: #080d13;
+  --grid-panel: #0b1721;
+  --grid-surface: #0c1820;
+  --grid-raised: #142b36;
+  --grid-field: #0a171f;
+  --grid-line: #294d58;
+  --grid-input-line: #4a7480;
+  --grid-ink: #eefcff;
+  --grid-muted: #a5bbc4;
+  --grid-cyan: #7af2fa;
+  --grid-amber: #ffb07d;
+  --grid-danger: #ffab9c;
+  --grid-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  --bg: var(--grid-bg);
+  --panel: var(--grid-panel);
+  --panel2: var(--grid-raised);
+  --line: var(--grid-line);
+  --text: var(--grid-ink);
+  --muted: var(--grid-muted);
+  --lime: var(--grid-cyan);
+  --orange: var(--grid-amber);
+  --radius: 6px;
+  color-scheme: dark;
+}
+
+html[data-theme="grid"] body {
+  background: radial-gradient(ellipse at 73% 0%, #122a36, transparent 55%), #060b11;
+  color: var(--grid-ink);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html[data-theme="grid"] #xmbBackground {
+  display: none;
+}
+
+html[data-theme="grid"] #appShell {
+  --grid-gutter: clamp(14px, 2.8vw, 30px);
+  width: calc(100% - 36px);
+  max-width: 1180px;
+  margin: 22px auto 30px;
+  padding: 0 var(--grid-gutter) 20px;
+  border: 1px solid #315663;
+  border-radius: 11px;
+  background: var(--grid-bg);
+  box-shadow: 0 14px 42px #010509a6;
+}
+
+html[data-theme="grid"] #appShell .topbar {
+  position: relative;
+  z-index: 2;
+  min-height: 59px;
+  margin-inline: calc(-1 * var(--grid-gutter));
+  padding: 8px var(--grid-gutter);
+  border-color: #233d49;
+  border-radius: 10px 10px 0 0;
+  background: #080e15;
+  box-shadow: none;
+}
+
+html[data-theme="grid"] #appShell .brand {
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -.035em;
+}
+
+html[data-theme="grid"] #appShell .brand em {
+  display: none;
+}
+
+html[data-theme="grid"] #appShell .brand::after {
+  content: "Grid";
+  margin-inline-start: 5px;
+  padding-inline-start: 11px;
+  border-inline-start: 1px solid #37535d;
+  color: var(--grid-cyan);
+  font: 500 11px/1.3 var(--grid-mono);
+  letter-spacing: .15em;
+  text-transform: uppercase;
+}
+
+html[data-theme="grid"] #appShell .brand-mark {
+  width: 30px;
+  height: 30px;
+  filter: hue-rotate(-22deg) drop-shadow(0 0 6px #48ddeb5c);
+}
+
+html[data-theme="grid"] #appShell :is(.app-menu-toggle, .local-badge, .primary, .secondary, .icon-btn) {
+  border-color: var(--grid-input-line);
+  border-radius: 5px;
+  background: var(--grid-raised);
+  box-shadow: none;
+  color: var(--grid-ink);
+  text-shadow: none;
+}
+
+html[data-theme="grid"] #appShell .local-badge {
+  color: var(--grid-muted);
+}
+
+html[data-theme="grid"] #connectionStatus[style*="border-color"] {
+  border-color: #ad6b61 !important;
+  color: var(--grid-danger) !important;
+}
+
+html[data-theme="grid"] #appShell .dot {
+  background: var(--grid-cyan);
+  box-shadow: 0 0 8px #61e4f0a0;
+}
+
+html[data-theme="grid"] #appShell :is(.app-menu-toggle[aria-expanded="true"], .app-menu-toggle:hover, .secondary:hover:not(:disabled), .icon-btn:hover) {
+  border-color: #79cbd5;
+  background: #20414e;
+  box-shadow: none;
+}
+
+html[data-theme="grid"] #appShell .primary {
+  border-color: #83cbd5;
+  background: #194453;
+  box-shadow: inset 0 0 10px #8ef5ff1e, 0 0 12px #4dcce118;
+  font-weight: 650;
+}
+
+html[data-theme="grid"] #appShell .primary:hover:not(:disabled) {
+  border-color: var(--grid-cyan);
+  background: #235c6e;
+}
+
+html[data-theme="grid"] #appShell :is(button, input, select, summary, a):focus-visible {
+  outline: 2px solid var(--grid-cyan);
+  outline-offset: 2px;
+}
+
+html[data-theme="grid"] #appShell .app-menu {
+  border-color: #477480;
+  background: var(--grid-panel);
+  box-shadow: 0 12px 35px #01060bc2;
+  color: var(--grid-ink);
+}
+
+html[data-theme="grid"] #appShell :is(.app-menu-title, .app-menu-copy small, .theme-menu-settings) {
+  color: var(--grid-muted);
+}
+
+html[data-theme="grid"] #appShell .app-menu-title {
+  border-color: var(--grid-line);
+  background: var(--grid-surface);
+  box-shadow: none;
+  font-family: var(--grid-mono);
+  text-shadow: none;
+}
+
+html[data-theme="grid"] #appShell .app-menu-item {
+  color: var(--grid-ink);
+}
+
+html[data-theme="grid"] #appShell .app-menu-item:is(:hover, :focus-visible) {
+  border-color: var(--grid-input-line);
+  background: var(--grid-raised);
+  box-shadow: none;
+}
+
+html[data-theme="grid"] #appShell .app-menu-icon {
+  border-color: var(--grid-line);
+  color: var(--grid-cyan);
+}
+
+html[data-theme="grid"] #appShell :is(.app-menu-logout, .app-menu-logout .app-menu-icon) {
+  color: var(--grid-amber);
+}
+
+html[data-theme="grid"] #appShell .app-menu-separator {
+  background: var(--grid-line);
+  box-shadow: none;
+}
+
+html[data-theme="grid"] #appShell .theme-menu-settings {
+  border-color: var(--grid-line);
+}
+
+html[data-theme="grid"] #appShell .hero {
+  position: relative;
+  isolation: isolate;
+  min-height: 124px;
+  overflow: hidden;
+  align-items: flex-end;
+  gap: 14px 18px;
+  margin-inline: calc(-1 * var(--grid-gutter));
+  padding: 24px var(--grid-gutter) 20px;
+  background:
+    radial-gradient(ellipse at 77% 65%, #133545, transparent 60%),
+    linear-gradient(90deg, #0b1621, #071018 70%);
+}
+
+html[data-theme="grid"] #appShell .hero::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 51%;
+  right: -11%;
+  width: 81%;
+  height: 190%;
+  border-top: 1px solid #67e4f29e;
+  transform: perspective(183px) rotateX(57deg);
+  transform-origin: 58% 0;
+  background:
+    linear-gradient(90deg, #56e6f378 1px, transparent 1px) 0 0 / 37px 100%,
+    linear-gradient(.5deg, #56e6f386 1px, transparent 1px) 0 0 / 100% 19px;
+  mask-image: linear-gradient(90deg, transparent 5%, #000 68%);
+  opacity: .55;
+  pointer-events: none;
+}
+
+html[data-theme="grid"] #appShell .hero::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 44%;
+  right: 10%;
+  width: clamp(145px, 24vw, 264px);
+  aspect-ratio: 1;
+  border: 1px solid #7beaf674;
+  border-radius: 50%;
+  transform: translateY(-50%) rotateX(53deg) rotateZ(-19deg);
+  background:
+    radial-gradient(circle, transparent 27%, #79effab8 27.5% 28%, transparent 28.5%),
+    radial-gradient(circle, transparent 40%, #79effa90 40.5% 41%, transparent 41.5%),
+    repeating-radial-gradient(circle, transparent 0 18px, #50c9e049 18.5px 19px);
+  box-shadow: inset 0 0 22px #47dced2a, 0 0 24px #40dbe61a;
+  pointer-events: none;
+}
+
+html[data-theme="grid"] #appShell .hero h1 {
+  font-size: clamp(30px, 4.7vw, 49px);
+  line-height: 1.08;
+  color: var(--grid-ink);
+  font-weight: 690;
+  letter-spacing: -.055em;
+  text-shadow: 0 3px 16px #040a10;
+}
+
+html[data-theme="grid"] #appShell :is(.hero-heading-accent, .eyebrow) {
+  color: var(--grid-cyan);
+}
+
+html[data-theme="grid"] #appShell .eyebrow {
+  font-family: var(--grid-mono);
+}
+
+html[data-theme="grid"] #appShell .hero p:not(.eyebrow) {
+  margin-top: 6px;
+  color: #bdd5dc;
+}
+
+html[data-theme="grid"] #appShell .hero-actions {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+html[data-theme="grid"] #appShell .stats {
+  gap: 12px 16px;
+  margin: 0 calc(-1 * var(--grid-gutter)) 14px;
+  padding: 7px var(--grid-gutter) 12px;
+  border-bottom: 1px solid #315762;
+  background: linear-gradient(90deg, #0b1621, #0a1b25 72%, #09141d);
+}
+
+html[data-theme="grid"] #appShell .stat {
+  padding: 2px 8px 2px 10px;
+  border: 0;
+  border-inline-start: 1px solid #497f89;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-theme="grid"] #appShell .stat::after {
+  content: none;
+}
+
+html[data-theme="grid"] #appShell :is(.stat-label, .stat-label .ui-icon, .stat-value small, .filter-label, .count, .footer) {
+  color: var(--grid-muted);
+}
+
+html[data-theme="grid"] #appShell .stat-label {
+  font: 400 11px/1.3 var(--grid-mono);
+  letter-spacing: .035em;
+}
+
+html[data-theme="grid"] #appShell .stat-value {
+  margin-top: 3px;
+  color: var(--grid-ink);
+  font: 500 19px/1.2 var(--grid-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-theme="grid"] #appShell #statDone {
+  color: var(--grid-amber);
+}
+
+html[data-theme="grid"] #appShell .toolbar {
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-theme="grid"] #appShell :is(.toolbar input, .toolbar select, .appearance-picker select) {
+  min-height: 40px;
+  border: 1px solid var(--grid-input-line);
+  border-radius: 5px;
+  background: var(--grid-field);
+  box-shadow: none;
+  color: var(--grid-ink);
+}
+
+html[data-theme="grid"] #appShell .toolbar input::placeholder {
+  color: var(--grid-muted);
+  opacity: 1;
+}
+
+html[data-theme="grid"] #appShell :is(.toolbar select, .appearance-picker select) option {
+  background: var(--grid-panel);
+  color: var(--grid-ink);
+}
+
+html[data-theme="grid"] #appShell .search .ui-icon {
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--grid-cyan);
+}
+
+html[data-theme="grid"] #appShell .count {
+  margin-block: 3px 8px;
+  font-family: var(--grid-mono);
+}
+
+html[data-theme="grid"] #appShell .game-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 13px;
+}
+
+html[data-theme="grid"] #appShell .game-card {
+  border-color: var(--grid-line);
+  border-radius: 6px;
+  background: var(--grid-surface);
+  box-shadow: none;
+}
+
+html[data-theme="grid"] #appShell .game-card:is(:hover, :focus-within) {
+  border-color: #77cdd8;
+  box-shadow: 0 0 17px #1eafc52d;
+}
+
+html[data-theme="grid"] #appShell .game-card .cover {
+  order: -1;
+  height: auto;
+  aspect-ratio: 1.95;
+  padding: 5px;
+  border-color: #345963;
+  background:
+    radial-gradient(ellipse at 50% 75%, #173848, transparent 68%),
+    repeating-linear-gradient(90deg, #65c9d614 0 1px, transparent 1px 25px),
+    repeating-linear-gradient(0deg, #65c9d618 0 1px, transparent 1px 18px),
+    #0b1b25;
+}
+
+html[data-theme="grid"] #appShell .game-card .cover::after {
+  box-shadow: inset 0 1px #e5fbff14;
+}
+
+html[data-theme="grid"] #appShell .game-card .cover-image {
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px #010509c0);
+}
+
+html[data-theme="grid"] #appShell .cover-title {
+  color: var(--grid-cyan);
+  font-size: clamp(14px, 2.15vw, 24px);
+  font-weight: 650;
+  text-shadow: 0 0 13px #4cdced45;
+}
+
+html[data-theme="grid"] #appShell .game-title {
+  min-height: 0;
+  padding: 10px 11px 3px;
+  border: 0;
+  background: transparent;
+  color: var(--grid-ink);
+  font-size: clamp(14px, 1.6vw, 17px);
+  font-weight: 650;
+  letter-spacing: -.018em;
+  text-shadow: none;
+}
+
+html[data-theme="grid"] #appShell .card-body {
+  gap: 5px;
+  min-height: 0;
+  padding: 5px 11px 10px;
+}
+
+html[data-theme="grid"] #appShell .edition-meta {
+  color: var(--grid-muted);
+  font-family: var(--grid-mono);
+}
+
+html[data-theme="grid"] #appShell .platform-chip {
+  border-color: #325761;
+  background: #0c222c;
+  color: #bdd5dc;
+  font-family: var(--grid-mono);
+}
+
+html[data-theme="grid"] #appShell .status {
+  padding: 2px 4px 2px 0;
+  border: 0;
+  background: transparent;
+  color: #b2c6cf;
+  font-family: var(--grid-mono);
+}
+
+html[data-theme="grid"] #appShell .status.ograna {
+  color: var(--grid-amber);
+}
+
+html[data-theme="grid"] #appShell .status.w-trakcie,
+html[data-theme="grid"] #appShell .icon-btn .ui-icon {
+  color: var(--grid-cyan);
+}
+
+html[data-theme="grid"] #appShell .status .ui-icon {
+  filter: drop-shadow(0 0 3px currentColor);
+}
+
+html[data-theme="grid"] #appShell .icon-btn[data-game-action="delete"]:hover .ui-icon {
+  color: var(--grid-danger);
+}
+
+html[data-theme="grid"] #appShell .empty {
+  border-color: var(--grid-line);
+  background: radial-gradient(ellipse at 50% 10%, #122d3b, var(--grid-panel) 74%);
+}
+
+html[data-theme="grid"] #appShell .empty-icon {
+  color: var(--grid-cyan);
+}
+
+html[data-theme="grid"] #appShell .footer {
+  border-color: var(--grid-line);
+  box-shadow: none;
+  font-family: var(--grid-mono);
+}
+
+@media (max-width: 700px) {
+  html[data-theme="grid"] #appShell {
+    width: calc(100% - 20px);
+    margin-top: 12px;
+  }
+
+  html[data-theme="grid"] #appShell .hero {
+    padding-block: 19px 12px;
+  }
+
+  html[data-theme="grid"] #appShell .hero::after {
+    right: 4%;
+    opacity: .65;
+  }
+
+  html[data-theme="grid"] #appShell .hero > .hero-actions {
+    justify-content: flex-start;
+    margin-top: 13px;
+  }
+
+  html[data-theme="grid"] #appShell .stats {
+    gap: 8px;
+  }
+
+  html[data-theme="grid"] #appShell .game-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  html[data-theme="grid"] #appShell .game-title {
+    padding-inline: 8px;
+  }
+
+  html[data-theme="grid"] #appShell .card-body {
+    padding-inline: 8px;
+  }
+}
+
+@media (max-width: 360px) {
+  html[data-theme="grid"] #appShell {
+    --grid-gutter: 10px;
+  }
+
+  html[data-theme="grid"] #appShell .brand::after {
+    margin-inline-start: 0;
+    padding-inline-start: 6px;
+  }
+
+  html[data-theme="grid"] #appShell .stat-label {
+    letter-spacing: 0;
+  }
+
+  html[data-theme="grid"] #appShell .card-bottom {
+    gap: 4px;
+  }
+}
+
+@media (pointer: coarse) {
+  html[data-theme="grid"] #appShell :is(.toolbar input, .toolbar select) {
+    min-height: 44px;
+  }
+
+  html[data-theme="grid"] #appShell .icon-btn {
+    width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="grid"] #appShell .game-card {
+    transition: none;
+  }
+}
+
+/* Authentication has its own backdrop; its grid is purely decorative. */
+html[data-theme="grid"] #authScreen {
+  background: radial-gradient(ellipse at 20% 46%, #103746 0%, transparent 61%), var(--grid-bg);
+}
+
+html[data-theme="grid"] #authScreen .auth-card {
+  border-color: var(--grid-input-line);
+  border-radius: 8px;
+  background: var(--grid-panel);
+  color: var(--grid-ink);
+  box-shadow: 0 18px 45px #02060bb0;
+}
+
+html[data-theme="grid"] #authScreen .auth-brand {
+  border-color: var(--grid-line);
+  background:
+    linear-gradient(105deg, #0a1823ee 3%, transparent 65%),
+    linear-gradient(0deg, transparent calc(49% - 1px), #73deed66 49%, transparent calc(49% + 1px)),
+    radial-gradient(ellipse at 80% 76%, #174457, transparent 70%),
+    #0a1823;
+  color: var(--grid-ink);
+}
+
+html[data-theme="grid"] #authScreen .auth-brand::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 51% -45% -47%;
+  background:
+    repeating-linear-gradient(90deg, #7af2fa3b 0 1px, transparent 1px 32px),
+    repeating-linear-gradient(0deg, #7af2fa38 0 1px, transparent 1px 29px);
+  transform-origin: top;
+  transform: perspective(125px) rotateX(37deg);
+  mask-image: linear-gradient(100deg, transparent 24%, #000 69%);
+  pointer-events: none;
+}
+
+html[data-theme="grid"] #authScreen .auth-brand::after {
+  inset: auto -7% 9% auto;
+  width: min(84%, 236px);
+  aspect-ratio: 1;
+  border: 1px solid #79eaf57a;
+  border-top-color: #7af2fa12;
+  border-right-color: #ffb07d91;
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle, #7af2fa42 0 1px, transparent 1px 18px);
+  transform: perspective(360px) rotateX(53deg) rotate(-25deg);
+  opacity: .7;
+}
+
+html[data-theme="grid"] #authScreen .auth-brand-wave {
+  display: none;
+}
+
+html[data-theme="grid"] #authScreen .auth-brand-logo {
+  filter: drop-shadow(0 0 11px #68eaf62e);
+}
+
+html[data-theme="grid"] #authScreen :is(.auth-brand-title, .auth-brand h2, .auth-card h1) {
+  color: var(--grid-ink);
+  font-weight: 650;
+  text-shadow: none;
+}
+
+html[data-theme="grid"] #authScreen :is(.auth-brand-eyebrow, .auth-brand h2 span:last-child) {
+  color: var(--grid-cyan);
+}
+
+html[data-theme="grid"] #authScreen .auth-brand-eyebrow {
+  font-family: var(--grid-mono);
+}
+
+html[data-theme="grid"] #authScreen .auth-brand-description {
+  color: #c5dae1;
+}
+
+html[data-theme="grid"] #authScreen .auth-body {
+  background: var(--grid-panel);
+}
+
+html[data-theme="grid"] #authScreen :is(.auth-intro, .auth-help, .filter-label, .captcha-status) {
+  color: var(--grid-muted);
+}
+
+html[data-theme="grid"] #authScreen .auth-field label {
+  color: var(--grid-ink);
+}
+
+html[data-theme="grid"] #authScreen .auth-message {
+  color: var(--grid-danger);
+}
+
+html[data-theme="grid"] #authScreen .auth-password-toggle {
+  color: var(--grid-muted);
+}
+
+html[data-theme="grid"] #authScreen .auth-password-toggle:hover {
+  background: var(--grid-raised);
+  color: var(--grid-cyan);
+}
+
+@media (max-width: 640px) {
+  html[data-theme="grid"] #authScreen .auth-brand::after {
+    inset: auto -5% -53% auto;
+    width: min(55%, 220px);
+  }
+}
+
+/* Shared dialog chrome also applies to the lazily mounted collection tools. */
+html[data-theme="grid"] .modal-backdrop {
+  background: #03090cce;
+}
+
+html[data-theme="grid"] .modal-backdrop .modal {
+  --line: var(--grid-line);
+  --panel: var(--grid-panel);
+  border-color: var(--grid-input-line);
+  border-radius: 7px;
+  background: var(--grid-panel);
+  color: var(--grid-ink);
+  box-shadow: 0 18px 50px #01060abb;
+}
+
+html[data-theme="grid"] .modal-backdrop :is(.modal-head, .form-actions) {
+  border-color: var(--grid-line);
+  background: var(--grid-surface);
+  box-shadow: none;
+}
+
+html[data-theme="grid"] .modal-backdrop .modal-head {
+  background: linear-gradient(105deg, #102a36, var(--grid-surface) 62%);
+}
+
+html[data-theme="grid"] .modal-backdrop .modal h2 {
+  color: var(--grid-ink);
+  font-weight: 650;
+  text-shadow: none;
+}
+
+html[data-theme="grid"] .modal-backdrop .modal-sub {
+  color: var(--grid-muted);
+}
+
+html[data-theme="grid"] .modal-backdrop .modal-heading > .ui-icon {
+  color: var(--grid-cyan);
+}
+
+html[data-theme="grid"] :is(#authScreen, .modal-backdrop) :is(.primary, .secondary, .close, .danger) {
+  border-color: var(--grid-input-line);
+  border-radius: 5px;
+  background: var(--grid-raised);
+  color: var(--grid-ink);
+  box-shadow: none;
+  text-shadow: none;
+}
+
+html[data-theme="grid"] .modal-backdrop .close {
+  color: var(--grid-cyan);
+}
+
+html[data-theme="grid"] :is(#authScreen, .modal-backdrop) :is(.secondary, .close):hover:not(:disabled) {
+  border-color: var(--grid-cyan);
+  background: #234d59;
+  box-shadow: none;
+}
+
+html[data-theme="grid"] :is(#authScreen, .modal-backdrop) .primary {
+  border-color: #83cbd5;
+  background: #194453;
+  box-shadow: inset 0 0 10px #8ef5ff1e, 0 0 13px #4dcce121;
+  font-weight: 650;
+}
+
+html[data-theme="grid"] :is(#authScreen, .modal-backdrop) .primary:hover:not(:disabled) {
+  background: #235c6e;
+}
+
+html[data-theme="grid"] .modal-backdrop .danger {
+  border-color: #ab685d;
+  background: #34201f;
+  color: var(--grid-danger);
+}
+
+html[data-theme="grid"] .modal-backdrop .danger:hover:not(:disabled) {
+  border-color: var(--grid-danger);
+  background: #4c2926;
+}
+
+html[data-theme="grid"] :is(#authScreen, .modal-backdrop) :is(button, input, select, a):focus-visible {
+  outline-color: var(--grid-cyan);
+}
+
+html[data-theme="grid"] :is(#authScreen, .modal-backdrop)
+  :is(.auth-field input, .auth-language select, .field input:not([type="checkbox"]), .field select, .ai-import-field input, .ai-import-field select) {
+  border-color: var(--grid-input-line);
+  border-radius: 5px;
+  background: var(--grid-field);
+  color: var(--grid-ink);
+  box-shadow: none;
+}
+
+html[data-theme="grid"] :is(#authScreen, .modal-backdrop)
+  :is(.auth-field input, .field input, .ai-import-field input)::placeholder {
+  color: var(--grid-muted);
+  opacity: 1;
+}
+
+html[data-theme="grid"] :is(#authScreen, .modal-backdrop) select option {
+  background: var(--grid-panel);
+  color: var(--grid-ink);
+}
+
+html[data-theme="grid"] .modal-backdrop :is(input[type="checkbox"], input[type="radio"]) {
+  accent-color: var(--grid-cyan);
+}
+
+/* The editor and AI candidate review share the platform picker and cover pane. */
+html[data-theme="grid"] .modal-backdrop .game-modal .form-grid {
+  background: var(--grid-panel);
+}
+
+html[data-theme="grid"] .modal-backdrop :is(.field > label, .platform-picker > legend, .cover-preview-title) {
+  color: var(--grid-ink);
+}
+
+html[data-theme="grid"] .modal-backdrop
+  :is(.field-help, .field-optional, .platform-help, .platform-selection-count, .selected-platforms-label, .selected-platforms-empty, .form-required-note, .cover-preview-status, .platform-group > legend, .cover-preview-placeholder) {
+  color: var(--grid-muted);
+}
+
+html[data-theme="grid"] .modal-backdrop
+  :is(.cover-preview-frame, .platform-console-box, .platform-options:not(.platform-tabs-ready) > .platform-group) {
+  border-color: var(--grid-line);
+  border-radius: 6px;
+  background: var(--grid-field);
+  box-shadow: none;
+}
+
+html[data-theme="grid"] .modal-backdrop
+  :is(.platform-picker-label .ui-icon, .selected-platform-chip .ui-icon, .cover-search) {
+  color: var(--grid-cyan);
+}
+
+html[data-theme="grid"] .modal-backdrop .cover-search:hover {
+  color: var(--grid-ink);
+}
+
+html[data-theme="grid"] .modal-backdrop :is(.platform-tabs, .game-modal .platform-help) {
+  border-color: var(--grid-line);
+  background: var(--grid-surface);
+}
+
+html[data-theme="grid"] .modal-backdrop .platform-tab {
+  color: var(--grid-muted);
+}
+
+html[data-theme="grid"] .modal-backdrop .platform-tab:focus-visible {
+  outline-offset: -2px;
+}
+
+html[data-theme="grid"] .modal-backdrop .platform-tab:hover {
+  background: var(--grid-raised);
+  color: var(--grid-ink);
+}
+
+html[data-theme="grid"] .modal-backdrop .platform-tab[aria-selected="true"] {
+  border-color: var(--grid-line);
+  border-bottom-color: var(--grid-field);
+  background: var(--grid-field);
+  color: var(--grid-cyan);
+}
+
+html[data-theme="grid"] .modal-backdrop .platform-option:hover {
+  background: var(--grid-raised);
+}
+
+html[data-theme="grid"] .modal-backdrop .platform-option:has(input:checked) {
+  border-color: var(--grid-input-line);
+  background: #163544;
+  box-shadow: none;
+}
+
+html[data-theme="grid"] .modal-backdrop .selected-platform-chip {
+  border-color: var(--grid-input-line);
+  background: var(--grid-raised);
+  color: var(--grid-ink);
+}
+
+html[data-theme="grid"] #aiImportBackdrop .ai-import-file input::file-selector-button {
+  margin-inline-end: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--grid-input-line);
+  border-radius: 5px;
+  background: var(--grid-raised);
+  color: var(--grid-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+html[data-theme="grid"] #aiImportBackdrop .ai-import-file input::file-selector-button:hover {
+  background: #234d59;
+}
+
+html[data-theme="grid"] #aiImportBackdrop :is(.ai-import-preview, .ai-import-candidate),
+html[data-theme="grid"] #duplicatesBackdrop :is(.duplicates-pair, .duplicates-record) {
+  border-color: var(--grid-line);
+  border-radius: 6px;
+  background: var(--grid-field);
+}
+
+html[data-theme="grid"] #aiImportBackdrop :is(.ai-import-note, .ai-import-review-help, .ai-import-retry-hint),
+html[data-theme="grid"] #duplicatesBackdrop :is(.duplicates-keep small, .duplicates-details dd, .duplicates-help),
+html[data-theme="grid"] #deleteModalBackdrop .delete-platforms {
+  color: var(--grid-muted);
+}
+
+html[data-theme="grid"] #aiImportBackdrop .ai-import-warning,
+html[data-theme="grid"] #duplicatesBackdrop .duplicates-limit,
+html[data-theme="grid"] #deleteModalBackdrop :is(.delete-body > .ui-icon, .delete-note) {
+  color: var(--grid-amber);
+}
+
+html[data-theme="grid"] #aiImportBackdrop .ai-import-status.ai-import-error {
+  border-color: #ab685d;
+  background: #34201f;
+  color: var(--grid-danger);
+}
+
+html[data-theme="grid"] #duplicatesBackdrop .duplicates-record:has(input:checked) {
+  border-color: var(--grid-input-line);
+  background: var(--grid-raised);
+}
+
+html[data-theme="grid"] #duplicatesBackdrop .duplicates-error {
+  color: var(--grid-danger);
+}
+
+html[data-theme="grid"] #toast,
+html[data-theme="grid"] #sessionWarning {
+  border-color: var(--grid-input-line);
+  background: var(--grid-panel);
+  color: var(--grid-ink);
+  box-shadow: 0 4px 17px #02060bb0;
+}
+
+html[data-theme="grid"] #sessionWarning {
+  border-color: #ab795d;
+  color: var(--grid-amber);
+}

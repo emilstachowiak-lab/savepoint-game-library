@@ -1256,7 +1256,7 @@ function prepareCaptcha(challenge) {
       turnstileWidgetId = window.turnstile.render('#captchaWidget', {
         sitekey: challenge.siteKey,
         action: 'login',
-        theme: is3dTheme() ? 'dark' : 'auto',
+        theme: is3dTheme() || document.documentElement.dataset.theme === 'grid' ? 'dark' : 'auto',
         language: uiLanguage,
         callback: token => {
           if (generation !== captchaGeneration) return;

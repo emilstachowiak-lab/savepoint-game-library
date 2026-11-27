@@ -16,7 +16,7 @@
     play: 'Like to Play', x: 'X', x360: 'X360'
   };
   const consoleThemeKeys = Object.keys(consoleThemes);
-  const themes = ['aero', 'luna', 'classic', 'classic2', 'classic3', ...macThemes, ...additionalThemes, ...consoleThemeKeys, '3d'];
+  const themes = ['aero', 'luna', 'classic', 'classic2', 'classic3', ...macThemes, ...additionalThemes, ...consoleThemeKeys, '3d', 'grid'];
   const normalizeTheme = value => themes.includes(value) ? value : 'aero';
   // Blocked browser storage must not prevent appearance changes in this page.
   function readPreference(key) {

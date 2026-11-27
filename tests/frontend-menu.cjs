@@ -84,15 +84,16 @@ async function main(){
   test.document.dispatchEvent=event=>{test.events[event.type]?.(event);return true;};
   test.document.readyState='complete';
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'public','appearance.js'),'utf8'),test.context);
+  test.context.render();
   const cards=nodes.grid.innerHTML;
+  assert.match(cards,/Synthetic menu game/);
   nodes.title.value='Unsaved menu draft';
   for(const option of theme.querySelectorAll('option')){
    theme.value=option.value;test.fire(theme,'change');
    assert.equal(test.document.documentElement.dataset.theme,option.value);
    assert.equal(nodes.appMenu.hidden,false,'Changing a theme must keep its category usable');
    assert(nodes.appMenuTheme.hasAttribute('open'));
-   if(option.value==='3d') assert.match(nodes.grid.innerHTML,/Wczytuję widok 3D/);
-   else assert.equal(nodes.grid.innerHTML,cards);
+   assert.equal(nodes.grid.innerHTML,cards,'Switching themes keeps the loaded cards until the active view is ready');
    assert.equal(nodes.title.value,'Unsaved menu draft');
   }
   theme.value='aero';test.fire(theme,'change');

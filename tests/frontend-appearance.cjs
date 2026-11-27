@@ -223,7 +223,7 @@ function appearanceHarness(entries = [], reduced = false, storageBlocked = false
     ['liquidglass', 'Liquid Glass'], ['oldlinux', 'Old Linux'], ['ulinux', 'U Linux'],
     ['flinux', 'F Linux'], ['bee', 'Bee'], ['dos', 'DOS'], ['longhorn', 'Longhorn'],
     ['p1', 'P1'], ['p2', 'P2'], ['dream', 'Dream'], ['gc', 'GC'],
-    ['play', 'Like to Play'], ['x', 'X'], ['x360', 'X360'], ['3d', '3D']
+    ['play', 'Like to Play'], ['x', 'X'], ['x360', 'X360'], ['3d', '3D'], ['grid', 'Grid']
   ];
   for (const name of ['classic', 'classic2', 'classic3']) {
     const test = appearanceHarness([[THEME_KEY, name], [MOTION_KEY, 'on']]);
