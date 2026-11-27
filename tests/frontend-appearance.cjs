@@ -1152,3 +1152,81 @@ function appearanceHarness(entries = [], reduced = false, storageBlocked = false
   assert.equal(failedLater.requests.length, 0);
   console.log('PASS: P2 initial/runtime failures keep the theme and static fallback without affecting other renderers');
 })().catch(error => { console.error(error); process.exitCode = 1; });
+
+function attachLightCycleFixture(test) {
+  const state = { created: 0, destroyed: 0, playing: false };
+  test.context.window.SavepointLightCycle = {
+    create(canvas) {
+      assert.equal(canvas, test.nodes.lightCycleCanvas);
+      state.created++;
+      return {
+        resize() {},
+        setPlaying(value) { state.playing = value; },
+        destroy() { state.destroyed++; state.playing = false; }
+      };
+    }
+  };
+  return state;
+}
+
+{
+  const gridMotion = 'savepoint-grid-background-motion-v1';
+  const test = appearanceHarness([[MOTION_KEY, 'off']]);
+  const state = attachLightCycleFixture(test);
+  const stage = test.nodes.lightCycleBackground;
+  const control = test.motions[0];
+  assert.equal(stage.hidden, true);
+  test.choose('luna');
+  assert.equal(state.created, 0);
+  assert.equal(test.root.dataset.backgroundMotion, 'off');
+  test.choose('grid');
+  assert.equal(state.created, 1);
+  assert.equal(stage.hidden, false);
+  assert.equal(state.playing, true);
+  assert.equal(control.checked, true);
+  assert.equal(control.closest('.background-motion-control').hidden, false);
+
+  control.checked = false;
+  test.fire(control, 'change');
+  assert.equal(state.playing, false);
+  assert.equal(stage.hidden, false);
+  assert.equal(test.context.localStorage.getItem(gridMotion), 'off');
+  test.choose('aero');
+  assert.equal(stage.hidden, true);
+  assert.equal(control.checked, false);
+  test.choose('grid');
+  assert.equal(state.created, 1);
+  assert.equal(control.checked, false);
+
+  control.checked = true;
+  test.fire(control, 'change');
+  assert.equal(state.playing, true);
+  assert.equal(test.context.localStorage.getItem(gridMotion), 'on');
+  assert.equal(test.context.localStorage.getItem(MOTION_KEY), 'off');
+  test.document.hidden = true;
+  test.events.visibilitychange();
+  assert.equal(state.playing, false);
+  test.document.hidden = false;
+  test.events.visibilitychange();
+  assert.equal(state.playing, true);
+  test.windowEvents.pagehide({ persisted: true });
+  assert.equal(state.playing, false);
+  test.windowEvents.pageshow({ persisted: true });
+  assert.equal(state.playing, true);
+  test.windowEvents.pagehide({ persisted: false });
+  assert.equal(state.destroyed, 1);
+  assert.equal(state.playing, false);
+  console.log('PASS: Grid motion is isolated, stops in hidden views, and releases the Light Cycle renderer');
+}
+
+{
+  const test = appearanceHarness([], true);
+  const state = attachLightCycleFixture(test);
+  test.choose('grid');
+  assert.equal(state.created, 1);
+  assert.equal(test.nodes.lightCycleBackground.hidden, false);
+  assert.equal(state.playing, false);
+  assert.equal(test.motions[0].checked, false);
+  test.windowEvents.pagehide({ persisted: false });
+  console.log('PASS: Grid opens on a still Light Cycle frame when reduced motion is preferred');
+}

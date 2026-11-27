@@ -4,6 +4,7 @@
   'use strict';
   const THEME_KEY = 'savepoint-theme-v1';
   const MOTION_KEY = 'savepoint-background-motion-v1';
+  const GRID_MOTION_KEY = 'savepoint-grid-background-motion-v1';
   const CLASSIC_BACKGROUND_KEY = 'savepoint-classic-background-v1';
   const CLASSIC3_BACKGROUND_KEY = 'savepoint-classic3-background-v1';
   const DOS_BACKGROUND_KEY = 'savepoint-dos-background-v1';
@@ -32,11 +33,14 @@
   const savedMotion = readPreference(MOTION_KEY);
   // Follow the system motion setting until the user saves an explicit choice.
   let motionPreference = ['on', 'off'].includes(savedMotion) ? savedMotion : null;
+  const savedGridMotion = readPreference(GRID_MOTION_KEY);
+  let gridMotionPreference = ['on', 'off'].includes(savedGridMotion) ? savedGridMotion : null;
   let reducedMotion = null;
   try { reducedMotion = matchMedia('(prefers-reduced-motion: reduce)'); } catch {}
-  const motionEnabled = () => motionPreference === null
+  const motionEnabled = (preference = motionPreference) => preference === null
     ? reducedMotion?.matches !== true
-    : motionPreference === 'on';
+    : preference === 'on';
+  const gridMotionEnabled = () => motionEnabled(gridMotionPreference);
   function setThemeAttributes() {
     root.dataset.theme = theme;
     // The two families share component styles. Their palettes still match
@@ -47,7 +51,7 @@
   }
 
   setThemeAttributes();
-  root.dataset.backgroundMotion = motionEnabled() ? 'on' : 'off';
+  root.dataset.backgroundMotion = (theme === 'grid' ? gridMotionEnabled() : motionEnabled()) ? 'on' : 'off';
   root.dataset.classicBackground = classicBackground;
   root.dataset.classic3Background = classic3Background;
   root.dataset.dosBackground = dosBackground;
@@ -97,6 +101,7 @@
     const matrixCanvas = document.getElementById('matrixCanvas');
     let pageSuspended = false;
     let disposed = false;
+    let lightCycleWatchingViewport = false;
 
     const maze = createCanvasBackground(mazeStage, mazeCanvas, 'SavepointMaze', backgroundScripts.maze);
     const pipes = createCanvasBackground(pipesStage, pipesCanvas, 'SavepointPipes', backgroundScripts.pipes);
@@ -109,7 +114,20 @@
       }
     );
     const matrix = createCanvasBackground(matrixStage, matrixCanvas, 'SavepointMatrix', backgroundScripts.matrix);
-    const backgrounds = [maze, pipes, p2Clock, matrix];
+    const lightCycle = createCanvasBackground(
+      document.getElementById('lightCycleBackground'),
+      document.getElementById('lightCycleCanvas'),
+      'SavepointLightCycle', backgroundScripts.lightCycle
+    );
+    const backgrounds = [maze, pipes, p2Clock, matrix, lightCycle];
+
+    function watchLightCycleViewport(active) {
+      if (lightCycleWatchingViewport === active) return;
+      lightCycleWatchingViewport = active;
+      lightCycle.observe(active);
+      if (active) addEventListener('resize', lightCycle.resize);
+      else removeEventListener('resize', lightCycle.resize);
+    }
 
     function updateAnimation(renderer, active, playing) {
       renderer.setPlaying(active && playing && document.hidden !== true && !pageSuspended);
@@ -191,15 +209,18 @@
         }
       }
 
-      function observe() {
-        if (stage && typeof ResizeObserver === 'function') {
+      function observe(active = true) {
+        if (!active) {
+          observer?.disconnect();
+          observer = null;
+        } else if (!observer && stage && typeof ResizeObserver === 'function') {
           observer = new ResizeObserver(resize);
           observer.observe(stage);
         }
       }
 
       function dispose() {
-        observer?.disconnect();
+        observe(false);
         destroyRenderer();
       }
 
@@ -269,15 +290,18 @@
       const displayedClassic = maze.failed ? 'classic' : classicBackground;
       const activePipes = pipes.prepare(theme === 'classic3' && classic3Background === 'pipes');
       const displayedClassic3 = pipes.failed ? 'classic' : classic3Background;
+      const activeLightCycle = lightCycle.prepare(theme === 'grid');
+      const gridPlaying = gridMotionEnabled();
+      const currentMotion = theme === 'grid' ? gridPlaying : playing;
 
-      updateThemeControls(playing, displayedClassic, displayedClassic3, displayedDos);
+      updateThemeControls(currentMotion, displayedClassic, displayedClassic3, displayedDos);
       updateBackgroundPicker({ controls: mazeControls, statuses: mazeStatuses, themeKey: 'classic',
         option: 'maze', saved: classicBackground, displayed: displayedClassic, background: maze });
       updateBackgroundPicker({ controls: pipesControls, statuses: pipesStatuses, themeKey: 'classic3',
         option: 'pipes', saved: classic3Background, displayed: displayedClassic3, background: pipes });
       updateBackgroundPicker({ controls: dosControls, statuses: matrixStatuses, themeKey: 'dos',
         option: 'matrix', saved: dosBackground, displayed: displayedDos, background: matrix });
-      updateMotionControls(playing, activePipes || activeMaze || activeP2 || activeMatrix);
+      updateMotionControls(currentMotion, activePipes || activeMaze || activeP2 || activeMatrix || activeLightCycle);
       // This controller owns only Aero's original picker. The shared static
       // desktop color/reset controls are owned by static-background-colors.js.
       if (colorControl) colorControl.hidden = theme !== 'aero';
@@ -287,6 +311,8 @@
       pipes.update(activePipes, playing);
       p2Clock.update(activeP2, playing);
       matrix.update(activeMatrix, playing);
+      lightCycle.update(activeLightCycle, gridPlaying);
+      watchLightCycleViewport(activeLightCycle);
       document.dispatchEvent(new Event('savepoint:themechange'));
     }
 
@@ -316,8 +342,14 @@
     }
     for (const control of motionControls) {
       control.addEventListener('change', () => {
-        motionPreference = control.checked ? 'on' : 'off';
-        savePreference(MOTION_KEY, motionPreference);
+        const selection = control.checked ? 'on' : 'off';
+        if (theme === 'grid') {
+          gridMotionPreference = selection;
+          savePreference(GRID_MOTION_KEY, selection);
+        } else {
+          motionPreference = selection;
+          savePreference(MOTION_KEY, selection);
+        }
         refresh();
       });
     }
@@ -357,6 +389,7 @@
       refresh();
       if (!event.persisted) {
         disposed = true;
+        watchLightCycleViewport(false);
         for (const background of backgrounds) background.dispose();
       }
     });

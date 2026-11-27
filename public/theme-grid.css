@@ -878,3 +878,46 @@ html[data-theme="grid"] #sessionWarning {
   border-color: #ab795d;
   color: var(--grid-amber);
 }
+
+/* Light Cycle is a shared desktop layer for the Grid library and sign-in.
+   Open up the surrounding panels only after its canvas becomes available. */
+html[data-theme="grid"] #lightCycleBackground {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  contain: paint;
+  pointer-events: none;
+  background: var(--grid-bg);
+}
+
+html[data-theme="grid"] #lightCycleCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+html[data-theme="grid"]:has(#lightCycleBackground:not([hidden])) #appShell {
+  background: linear-gradient(#080d13df, #080d1375 min(68vh, 610px), #080d139e);
+}
+
+html[data-theme="grid"]:has(#lightCycleBackground:not([hidden])) #appShell .hero {
+  min-height: 161px;
+  background: linear-gradient(100deg, #0b1824ed, #0a162076 62%, #0c1e291c);
+}
+
+html[data-theme="grid"]:has(#lightCycleBackground:not([hidden])) #appShell .hero::before {
+  display: none;
+}
+
+html[data-theme="grid"]:has(#lightCycleBackground:not([hidden])) #appShell .hero::after {
+  opacity: .42;
+}
+
+html[data-theme="grid"]:has(#lightCycleBackground:not([hidden])) #appShell .stats {
+  background: linear-gradient(90deg, #0b1621ed, #0a1b25aa 72%, #09141d99);
+}
+
+html[data-theme="grid"]:has(#lightCycleBackground:not([hidden])) #authScreen {
+  background: radial-gradient(ellipse at 50% 50%, #0b192b79, #040a1120 72%, #04081078);
+}

@@ -47,12 +47,13 @@
     <link rel="stylesheet" href="theme-menu.css?v=20261127-audit-fixes">
     <link rel="stylesheet" href="static-background-colors.css?v=20261114-platinum-bee-colors-1">
     <link rel="stylesheet" data-theme-style="theme-3d.css?v=20261127-dialogs" data-themes="3d">
-    <link rel="stylesheet" data-theme-style="theme-grid.css?v=20261127-grid" data-themes="grid">
+    <link rel="stylesheet" data-theme-style="theme-grid.css?v=20261128-light-cycle" data-themes="grid">
     <!-- Restore the saved appearance before rendering. The data-* script URLs
          let appearance.js load each canvas renderer only when it is needed. -->
-    <script src="appearance.js?v=20261127-grid"
+    <script src="appearance.js?v=20261128-light-cycle"
       data-matrix="matrix.js?v=20261114-readability-1" data-p2="p2-clock.js?v=20261122-readability-1"
-      data-pipes="pipes.js?v=20261111-pipes-1" data-maze="maze.js?v=20261111-maze-1"></script>
+      data-pipes="pipes.js?v=20261111-pipes-1" data-maze="maze.js?v=20261111-maze-1"
+      data-light-cycle="light-cycle.js?v=20261128-light-cycle"></script>
     <script src="static-background-colors.js?v=20261114-platinum-bee-colors-1"></script>
   </head>
   <body>
@@ -92,6 +93,10 @@
          retains the original desktop; neither background intercepts input. -->
     <div id="matrixBackground" aria-hidden="true" hidden>
       <canvas id="matrixCanvas" width="1" height="1"></canvas>
+    </div>
+    <!-- Grid's Light Cycle scene sits behind both sign-in and the collection. -->
+    <div id="lightCycleBackground" aria-hidden="true" hidden>
+      <canvas id="lightCycleCanvas" width="1" height="1"></canvas>
     </div>
     <!-- Lucide 0.468.0, https://lucide.dev/license
 ISC License
