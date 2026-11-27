@@ -91,7 +91,8 @@ async function main(){
    assert.equal(test.document.documentElement.dataset.theme,option.value);
    assert.equal(nodes.appMenu.hidden,false,'Changing a theme must keep its category usable');
    assert(nodes.appMenuTheme.hasAttribute('open'));
-   assert.equal(nodes.grid.innerHTML,cards);
+   if(option.value==='3d') assert.match(nodes.grid.innerHTML,/Wczytuję widok 3D/);
+   else assert.equal(nodes.grid.innerHTML,cards);
    assert.equal(nodes.title.value,'Unsaved menu draft');
   }
   theme.value='aero';test.fire(theme,'change');
@@ -106,7 +107,7 @@ async function main(){
   assert.equal(test.requests.length,0);
   assert(key(test,'Escape'));assertClosed(test);
   assert.equal(test.document.activeElement,nodes.appMenuToggle);
-  console.log('PASS: all theme settings live only in the authenticated category; native keys/popups and all 22 theme changes preserve menu, draft and collection');
+  console.log('PASS: all theme settings live only in the authenticated category; native keys/popups and every theme change preserves the menu and draft');
  }
  {
   const test=ready();let picked=0;

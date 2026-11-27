@@ -223,7 +223,7 @@ function appearanceHarness(entries = [], reduced = false, storageBlocked = false
     ['liquidglass', 'Liquid Glass'], ['oldlinux', 'Old Linux'], ['ulinux', 'U Linux'],
     ['flinux', 'F Linux'], ['bee', 'Bee'], ['dos', 'DOS'], ['longhorn', 'Longhorn'],
     ['p1', 'P1'], ['p2', 'P2'], ['dream', 'Dream'], ['gc', 'GC'],
-    ['play', 'Like to Play'], ['x', 'X'], ['x360', 'X360']
+    ['play', 'Like to Play'], ['x', 'X'], ['x360', 'X360'], ['3d', '3D']
   ];
   for (const name of ['classic', 'classic2', 'classic3']) {
     const test = appearanceHarness([[THEME_KEY, name], [MOTION_KEY, 'on']]);
@@ -250,7 +250,7 @@ function appearanceHarness(entries = [], reduced = false, storageBlocked = false
     assert(test.motions.every(control => !control.closest('.background-motion-control').hidden));
     assert.equal(test.context.localStorage.getItem(MOTION_KEY), 'on');
   }
-  console.log('PASS: all twenty-two names, restored Classic variants and return to unchanged Aero/Luna preferences');
+  console.log('PASS: all theme names, restored Classic variants and return to unchanged Aero/Luna preferences');
 }
 
 {

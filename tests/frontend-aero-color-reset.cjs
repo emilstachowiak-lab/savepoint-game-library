@@ -149,7 +149,7 @@ function aeroHarness(entries = [], { fallback = false, blocked = false } = {}) {
   test.clickReset();
   assert.equal(test.picker.value, DEFAULT_COLOR);
   assert.equal(test.requests.length, 0);
-  console.log('PASS: all twenty-one other themes and hidden/stale events preserve Aero and independent desktop preferences');
+  console.log('PASS: all other themes and hidden/stale events preserve Aero and independent desktop preferences');
 }
 
 {

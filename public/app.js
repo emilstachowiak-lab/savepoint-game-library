@@ -449,6 +449,10 @@ function gamePlatforms(value) {
 let collectionMetadataCache = null;
 let renderedCollectionMetadata = null;
 let renderedEmptyState = '';
+let coverflow;
+let coverflowModule;
+let coverflowLoading = false;
+let coverflowUnavailable = false;
 let titleCollator;
 function compareGameTitles(a, b) {
   if (titleCollator === undefined) {
@@ -919,18 +923,24 @@ function initializeGameFormPresentation() {
   $('coverUrl').addEventListener('input', () => updateCoverPreview());
   $('coverUrl').addEventListener('change', () => updateCoverPreview(true));
 }
+// Both collection layouts use the same private-cover and origin fallback.
+function renderGameCover({ game, coverUrl }, title = esc(game.title), id = esc(game.id)) {
+  return coverUrl
+    ? `<img class="cover-image" data-cover-id="${id}"${localCoverUrl(game.id) ? '' : ` src="${esc(coverUrl)}"`}` +
+      ` alt="${uiText('Okładka gry', 'Game cover for')} ${title}" loading="lazy" referrerpolicy="no-referrer">`
+    : `<div class="cover-title">${title}</div>`;
+}
+
 // Escape record values in both text and attributes. Card actions use data
 // attributes so the grid can handle them after replacing its contents.
-function renderGameCard({ game, platforms, coverUrl }) {
+function renderGameCard(entry) {
+  const { game, platforms } = entry;
   const title = esc(game.title);
   const id = esc(game.id);
   const editionIcon = game.edition === 'Fizyczne i cyfrowe'
     ? `<span class="edition-icons" aria-hidden="true">${aeroIcon('disc-3')}${aeroIcon('download')}</span>`
     : aeroIcon(game.edition === 'Cyfrowe' ? 'download' : 'disc-3');
-  const cover = coverUrl
-    ? `<img class="cover-image" data-cover-id="${id}"${localCoverUrl(game.id) ? '' : ` src="${esc(coverUrl)}"`}` +
-      ` alt="${uiText('Okładka gry', 'Game cover for')} ${title}" loading="lazy" referrerpolicy="no-referrer">`
-    : `<div class="cover-title">${title}</div>`;
+  const cover = renderGameCover(entry, title, id);
   const completed = game.status === 'Ograna';
   const inProgress = game.status === 'W trakcie';
   const statusClass = completed ? 'ograna' : inProgress ? 'w-trakcie' : '';
@@ -958,6 +968,53 @@ function renderGameCard({ game, platforms, coverUrl }) {
     <div class="card-menu">${editButton}
     ${deleteButton}</div></div></div></article>`;
 }
+function wantsCoverflow() {
+  return document.documentElement.dataset.theme === '3d';
+}
+
+function destroyCoverflow() {
+  coverflow?.destroy();
+  coverflow = null;
+}
+
+function refreshCoverflowTheme() {
+  if (!$('appShell').hidden && privateViewUsable()) render();
+}
+
+function renderCoverflow(grid, list, platform, platforms) {
+  if (!list.length || coverflowUnavailable) {
+    destroyCoverflow();
+    return false;
+  }
+  if (!coverflowModule) {
+    if (!coverflowLoading) {
+      coverflowLoading = true;
+      import('./theme-3d.mjs?v=20261127-coverflow').then(module => {
+        coverflowModule = module;
+      }, () => {
+        coverflowUnavailable = true;
+      }).finally(() => {
+        coverflowLoading = false;
+        if (wantsCoverflow()) refreshCoverflowTheme();
+      });
+    }
+    if (!grid.firstElementChild) {
+      grid.innerHTML = `<div class="empty" role="status">${uiText('Wczytuję widok 3D…', 'Loading 3D view…')}</div>`;
+    }
+    return true;
+  }
+  coverflow ??= coverflowModule.createCoverflow({
+    grid, renderCover: renderGameCover, uiText, gameLabel, icon: aeroIcon,
+    getPlatformGroups, trackCoverImages, privateViewUsable,
+    setPlatformFilter(platform) {
+      $('platformFilter').value = platform;
+      render();
+    }
+  });
+  coverflow.update(list, platform, platforms);
+  return true;
+}
+
 // Refresh summaries and filter options when the collection or language
 // changes. Build the visible grid from the current query and cached cards.
 function render() {
@@ -998,6 +1055,10 @@ function render() {
     list.length === 1 ? 'GAME' : 'GAMES');
   $('count').textContent = `${list.length} ${resultUnit}`;
   const grid = $('grid');
+  if (wantsCoverflow() && renderCoverflow(grid, list, platformFilter, collection.platforms)) {
+    renderedEmptyState = '';
+    return;
+  }
   if (!list.length) {
     const isEmpty = !games.length;
     const emptyState = `${uiLanguage}:${isEmpty}`;
@@ -1385,6 +1446,7 @@ function showAuthError(message, connectionError = false, english) {
 function clearPrivateData() {
   aiImportController?.clearPrivateData();
   duplicatesController?.clearPrivateData();
+  destroyCoverflow();
   clearSessionPolicy();
   closeAppMenu();
   showLegacyArchiveControls(false);
@@ -2187,6 +2249,17 @@ function loadCollectionTools() {
   loadCollectionTool('addAiBtn', 'SavepointAiImport', initializeAiImport);
   loadCollectionTool('findDuplicatesBtn', 'SavepointDuplicates', initializeDuplicates);
 }
+
+// Ignore appearance notifications that do not enter or leave the 3D view.
+let coverflowSelected = wantsCoverflow();
+document.addEventListener('savepoint:themechange', () => {
+  const selected = wantsCoverflow();
+  if (selected === coverflowSelected) return;
+  coverflowSelected = selected;
+  if (!selected) destroyCoverflow();
+  else coverflowUnavailable = false;
+  refreshCoverflowTheme();
+});
 
 // Install page controls before the first session request updates the UI.
 initializeUiLanguage();

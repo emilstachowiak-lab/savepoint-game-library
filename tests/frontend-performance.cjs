@@ -116,6 +116,7 @@ function renderHarness(source) {
   }));
   class CountingURL extends URL { constructor(...args) { counts.urls++; super(...args); } }
   const document = {
+    documentElement: { dataset: { theme: 'aero' } },
     createElement() {
       return {
         set innerHTML(html) { this.firstElementChild = { html, remove() {} }; }
@@ -123,10 +124,11 @@ function renderHarness(source) {
     }
   };
   const context = vm.createContext({ $: id => nodes[id], document, games: [], URL: CountingURL, authenticated: true, logoutPending: false, privacySuspended: false, sessionGeneration: 0, API_URL: 'api/games.php', setTimeout(){return 1;}, clearTimeout(){} });
+  const cardStart = source.includes('function renderGameCover(') ? 'function renderGameCover(' : 'function renderGameCard(';
   vm.runInContext(
     section(source, 'const safeImageUrl', 'function readLegacyGames') +
     section(source, source.includes('const COVER_LOAD_TIMEOUT') ? 'const COVER_LOAD_TIMEOUT' : 'function gamePlatforms', 'function platformCheckboxes') +
-    (source.includes('function renderGameCard(') ? section(source, 'function renderGameCard(', 'function render()') : '') +
+    (source.includes('function renderGameCard(') ? section(source, cardStart, 'function render()') : '') +
     section(source, 'function render()', '\nlet captchaChallenge'), context);
   return {
     context, nodes, counts,

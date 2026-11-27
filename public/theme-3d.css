@@ -1,0 +1,656 @@
+/* This sheet can stay loaded after changing the appearance. Every rule
+   belongs to 3D and the shared controls retain their existing behavior. */
+html[data-theme="3d"] body {
+  background: radial-gradient(ellipse at 50% 0%, #2d1b2a, #151118 64%, #0f0d13);
+}
+
+html[data-theme="3d"] #xmbBackground {
+  display: none;
+}
+
+html[data-theme="3d"] #appShell {
+  --panel: #271d2b;
+  --panel2: #33263a;
+  --line: #493750;
+  --text: #fbf4f8;
+  --muted: #d1bbc9;
+  --lime: #ffcdc9;
+  --orange: #ffc299;
+  --radius: 10px;
+  color-scheme: dark;
+  width: calc(100% - 36px);
+  max-width: 1180px;
+  margin-block: 22px 32px;
+  padding: 0 clamp(13px, 2.3vw, 27px) 19px;
+  border: 1px solid #40303c;
+  border-radius: 16px;
+  background: #1b151e;
+  box-shadow: 0 16px 44px #08060bb3;
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html[data-theme="3d"] #appShell .topbar {
+  min-height: 57px;
+  padding-block: 8px;
+  border-color: #ffffff19;
+  box-shadow: none;
+}
+
+html[data-theme="3d"] #appShell .brand {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -.035em;
+}
+
+html[data-theme="3d"] #appShell .brand-mark {
+  width: 31px;
+  height: 31px;
+  filter: drop-shadow(0 2px 4px #09061bbf);
+}
+
+html[data-theme="3d"] #appShell :is(.brand em, .eyebrow, .stat-label, .stat-label .ui-icon, .stat-value small, .filter-label, .search .ui-icon, .count, .empty-icon, .footer) {
+  color: var(--muted);
+}
+
+html[data-theme="3d"] #appShell :is(.app-menu-toggle, .local-badge, .hero-actions .secondary, .hero-actions .primary, .empty .primary) {
+  border-color: #514057;
+  border-radius: 8px;
+  background: #312538;
+  box-shadow: inset 0 1px #ffffff14, 0 2px 4px #110a13;
+  color: var(--text);
+  text-shadow: none;
+}
+
+html[data-theme="3d"] #appShell :is(.hero-actions .primary, .empty .primary) {
+  border-color: #a46076;
+  background: #713449;
+  font-weight: 650;
+}
+
+html[data-theme="3d"] #appShell :is(.app-menu-toggle, .hero-actions button, .empty .primary):hover:not(:disabled) {
+  border-color: #ae7c96;
+  background: #54384e;
+}
+
+html[data-theme="3d"] #appShell :is(button, input, select, summary, a):focus-visible {
+  outline-color: #ffd2c7;
+}
+
+html[data-theme="3d"] #appShell #appMenu {
+  border-color: var(--line);
+  background: #241b29;
+  box-shadow: 0 10px 32px #0a070fbb;
+}
+
+html[data-theme="3d"] #appShell :is(.app-menu-title, .app-menu-copy small, .app-menu-icon, .app-menu-logout small) {
+  color: var(--muted);
+}
+
+html[data-theme="3d"] #appShell .app-menu-title {
+  border-color: var(--line);
+  background: #33263a;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+html[data-theme="3d"] #appShell .app-menu-item {
+  color: var(--text);
+}
+
+html[data-theme="3d"] #appShell .app-menu-item:is(:hover, :focus-visible) {
+  border-color: #65506a;
+  background: #3d2c41;
+  box-shadow: none;
+}
+
+html[data-theme="3d"] #appShell :is(.app-menu-icon, .theme-menu-settings) {
+  border-color: var(--line);
+}
+
+html[data-theme="3d"] #appShell .app-menu-separator {
+  background: var(--line);
+  box-shadow: none;
+}
+
+html[data-theme="3d"] #appShell .hero {
+  align-items: center;
+  gap: 12px 18px;
+  padding: 14px 0 12px;
+}
+
+html[data-theme="3d"] #appShell .hero h1 {
+  font-size: clamp(22px, 3vw, 29px);
+  font-weight: 700;
+  letter-spacing: -.035em;
+  text-shadow: none;
+}
+
+html[data-theme="3d"] #appShell .hero h1 .hero-heading-accent {
+  color: #f0bacb;
+}
+
+html[data-theme="3d"] #appShell .hero p:not(.eyebrow) {
+  margin-top: 4px;
+}
+
+html[data-theme="3d"] #appShell .hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+html[data-theme="3d"] #appShell .stats {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+html[data-theme="3d"] #appShell .stat {
+  padding: 7px 12px;
+  border-color: var(--line);
+  background: #271d2b;
+  box-shadow: none;
+}
+
+html[data-theme="3d"] #appShell .stat::after {
+  content: none;
+}
+
+html[data-theme="3d"] #appShell .stat-value {
+  margin-top: 3px;
+  color: var(--text);
+  font-size: 19px;
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-theme="3d"] #appShell .toolbar {
+  gap: 6px;
+  padding: 7px;
+  margin-bottom: 4px;
+  border-color: var(--line);
+  background: #241b29;
+  box-shadow: none;
+}
+
+html[data-theme="3d"] #appShell :is(.toolbar input, .toolbar select, #appMenu select) {
+  border: 1px solid #594460;
+  border-radius: 6px;
+  background: #1a141f;
+  box-shadow: none;
+  color: var(--text);
+  color-scheme: dark;
+}
+
+html[data-theme="3d"] #appShell :is(.toolbar select, #appMenu select) option {
+  background: #231a28;
+  color: var(--text);
+}
+
+html[data-theme="3d"] #appShell .toolbar input::placeholder {
+  color: #c0a8bc;
+}
+
+html[data-theme="3d"] #appShell .count {
+  margin-block: 2px 5px;
+}
+
+html[data-theme="3d"] #appShell .empty {
+  border-color: var(--line);
+  background: radial-gradient(ellipse at 55% 18%, #38253b, #201824 70%);
+  color: var(--text);
+}
+
+html[data-theme="3d"] #appShell :is(.footer, .footer-actions) {
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+html[data-theme="3d"] #appShell .footer :is(a, button) {
+  color: #f2c7df;
+  text-shadow: none;
+}
+
+html[data-theme="3d"] #grid:has(.theme3d-library) {
+  display: block;
+}
+
+html[data-theme="3d"] .theme3d-library {
+  container: theme3d / inline-size;
+  grid-column: 1 / -1;
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #40303c;
+  border-radius: 15px;
+  background: #141119;
+  color: #faf5f7;
+  --case-w: clamp(104px, 20.2cqw, 184px);
+  --case-h: calc(var(--case-w) * 1.53);
+  --case-top: clamp(29px, 5.7cqw, 56px);
+  --case-depth: clamp(9px, 1.45cqw, 14px);
+}
+
+html[data-theme="3d"] .theme3d-platforms {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  width: fit-content;
+  max-width: calc(100% - 18px);
+  max-height: 110px;
+  overflow: auto;
+  scrollbar-color: #926578 #572637;
+  margin: 12px auto 0;
+  padding: 4px;
+  border: 1px solid #f4b1bd2e;
+  border-radius: 22px;
+  background: #562332;
+  box-shadow: inset 0 1px #ffffff14, 0 6px 26px #0b060931;
+}
+
+html[data-theme="3d"] .theme3d-platforms button[data-theme3d-platform] {
+  min-height: 32px;
+  max-width: 100%;
+  padding: 4px clamp(8px, 2cqw, 19px);
+  border: 0;
+  border-radius: 20px;
+  background: transparent;
+  color: #f8e1e6;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+html[data-theme="3d"] .theme3d-platforms button[data-theme3d-platform]:hover {
+  background: #ffffff16;
+}
+
+html[data-theme="3d"] .theme3d-platforms button[data-theme3d-platform][aria-pressed="true"] {
+  background: #fff3ef;
+  color: #360d1b;
+  box-shadow: 0 1px 6px #27071660;
+}
+
+html[data-theme="3d"] .theme3d-platforms button[data-theme3d-platform]:focus-visible {
+  outline-offset: -2px;
+  outline-color: #faacbd;
+}
+
+html[data-theme="3d"] .theme3d-stage {
+  position: relative;
+  isolation: isolate;
+  margin-top: -4px;
+  padding: calc(var(--case-top) + var(--case-h) + 35px) 16px clamp(28px, 4.3cqw, 45px);
+  overflow: hidden;
+  background: linear-gradient(180deg, #17121a, #211827 50%, #121019 94%);
+}
+
+html[data-theme="3d"] .theme3d-stage::before {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  inset: 0 -5%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 44% 13% at 77% 21%, #66be4a8c, transparent 98%),
+    radial-gradient(ellipse 41% 13% at 24% 26%, #d233498f, transparent 98%),
+    radial-gradient(ellipse 51% 24% at 42% 36%, #9d3b1d7d, transparent 98%),
+    radial-gradient(ellipse 47% 26% at 82% 43%, #77802363, transparent 98%),
+    radial-gradient(ellipse 47% 41% at 20% 47%, #592435, transparent 98%),
+    radial-gradient(ellipse 42% 32% at 66% 51%, #3e3653, transparent 98%);
+  filter: blur(22px);
+  transform: rotate(-4deg);
+}
+
+html[data-theme="3d"] .theme3d-stage::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: calc(var(--case-top) + var(--case-h) - 9px) 0 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 56% 46% at 50% 0%, #7c526e54, transparent),
+    linear-gradient(180deg, #3b283629, #131019 82%);
+}
+
+html[data-theme="3d"] .theme3d-shelf {
+  position: absolute;
+  inset: 0;
+  touch-action: pan-y;
+  user-select: none;
+  perspective: 950px;
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+
+html[data-theme="3d"] button.theme3d-case {
+  position: absolute;
+  left: calc(50% - var(--case-w) / 2);
+  top: var(--case-top);
+  width: var(--case-w);
+  height: var(--case-h);
+  padding: 0;
+  border: 0;
+  border-radius: 4px 7px 7px 4px;
+  background: transparent;
+  touch-action: pan-y;
+  transform-style: preserve-3d;
+  transform: translate3d(var(--case-offset, 0%), var(--case-drop, 0px), 0) scale(var(--case-scale, 1));
+  transition: transform 420ms cubic-bezier(.22,.71,.19,1), opacity 210ms ease;
+}
+
+html[data-theme="3d"] button.theme3d-case:focus-visible {
+  outline: 2px solid #ffd2c7;
+  outline-offset: 4px;
+}
+
+html[data-theme="3d"] .theme3d-case[aria-current="true"] .theme3d-halo {
+  opacity: .85;
+}
+
+html[data-theme="3d"] .theme3d-halo {
+  position: absolute;
+  inset: -30%;
+  transform: translateZ(-20px);
+  background: radial-gradient(ellipse,
+    color-mix(in srgb, var(--case-shell) 48%, transparent),
+    color-mix(in srgb, var(--case-shell) 25%, transparent) 45%, transparent 70%);
+  opacity: 0;
+  transition: opacity 300ms ease;
+  pointer-events: none;
+}
+
+html[data-theme="3d"] .theme3d-object {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  transform: rotateY(var(--case-angle, 0deg));
+  transform-style: preserve-3d;
+  transition: transform 420ms cubic-bezier(.22,.71,.19,1);
+  pointer-events: none;
+}
+
+html[data-theme="3d"] .theme3d-face {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  inset: 0;
+  padding: 3% 3.1% 3.4%;
+  border-radius: 3% 4% 4% 3% / 2% 3% 3% 2%;
+  background-color: var(--case-shell);
+  background-image: linear-gradient(110deg, #ffffff4d, transparent 16%, transparent 68%, #0000004d);
+  box-shadow: inset 0 0 0 1px #ffffff38, inset 0 -2px 4px #00000072, 0 10px 22px #0c050977;
+  transform: translateZ(calc(var(--case-depth) / 2));
+  filter: brightness(var(--case-light, 1));
+  transition: filter 300ms ease;
+}
+
+html[data-theme="3d"] .theme3d-face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(115deg, #ffffff33, transparent 17%, #ffffff0d 41%, transparent 60%, #00000024);
+  pointer-events: none;
+}
+
+html[data-theme="3d"] .theme3d-band {
+  display: block;
+  flex: 0 0 12%;
+  align-content: center;
+  padding-inline: 4px;
+  overflow: hidden;
+  color: var(--case-ink, #fff6ee);
+  font-size: clamp(8px, 1.15cqw, 12px);
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+html[data-theme="3d"] .theme3d-print {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  align-items: end;
+  padding: 7%;
+  overflow: hidden;
+  border: 1px solid #000000a8;
+  border-radius: 1px 1px 3px 3px;
+  background: linear-gradient(157deg, #4c344e, #21192d 59%, #161120);
+  box-shadow: inset 0 0 0 1px #ffffff25;
+}
+
+html[data-theme="3d"] .cover-image.theme3d-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  visibility: hidden;
+  object-fit: contain;
+  filter: none;
+}
+
+html[data-theme="3d"] .cover-image.theme3d-image[data-ready="true"] {
+  visibility: visible;
+}
+
+html[data-theme="3d"] .theme3d-cover-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  color: #fff7e6;
+  font-size: clamp(11px, 1.82cqw, 19px);
+  font-weight: 800;
+  line-height: 1.06;
+  letter-spacing: -.03em;
+  overflow-wrap: anywhere;
+  text-align: left;
+  text-shadow: 0 2px 5px #130a19;
+  text-transform: uppercase;
+}
+
+html[data-theme="3d"] .theme3d-print:has(.theme3d-image[data-ready="true"]) .theme3d-cover-title {
+  visibility: hidden;
+}
+
+html[data-theme="3d"] .theme3d-side {
+  position: absolute;
+  top: .9%;
+  left: 0;
+  height: 98.2%;
+  width: var(--case-depth);
+  border-radius: 2px;
+  background-color: var(--case-shell);
+  background-image: linear-gradient(90deg, #00000055, transparent 46%, #ffffff2e 82%, #00000055);
+  box-shadow: inset 0 0 0 1px #ffffff35;
+  backface-visibility: hidden;
+  transform: translateX(-50%) rotateY(-90deg);
+}
+
+html[data-theme="3d"] .theme3d-side::before {
+  content: attr(data-spine);
+  position: absolute;
+  inset: 11% 0 15%;
+  align-content: center;
+  overflow: hidden;
+  writing-mode: vertical-rl;
+  color: var(--case-ink, #fff6ee);
+  font-size: 8px;
+  font-weight: 800;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+html[data-theme="3d"] .theme3d-side-right {
+  left: 100%;
+  background-image: linear-gradient(90deg, #00000040, transparent 53%, #00000066);
+  transform: translateX(-50%) rotateY(90deg);
+}
+
+html[data-theme="3d"] .theme3d-top {
+  position: absolute;
+  left: 2%;
+  right: 2%;
+  height: var(--case-depth);
+  border-radius: 2px;
+  background-color: var(--case-shell);
+  background-image: linear-gradient(0deg, #ffffff40, transparent 48%, #00000060);
+  transform: translateY(-50%) rotateX(90deg);
+}
+
+html[data-theme="3d"] .theme3d-reflection {
+  position: absolute;
+  inset: calc(100% + 3px) 1% auto;
+  height: 100%;
+  overflow: hidden;
+  border: 4px solid var(--case-shell);
+  border-radius: 4px;
+  background: #322238;
+  opacity: .29;
+  transform: translateZ(calc(var(--case-depth) / 2)) scaleY(-1);
+  mask-image: linear-gradient(to top, #000 0%, #0005 13%, transparent 35%);
+  filter: blur(1.3px);
+}
+
+html[data-theme="3d"] .theme3d-reflection-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+html[data-theme="3d"] .theme3d-selection {
+  position: relative;
+  z-index: 10;
+  pointer-events: none;
+  text-align: center;
+  text-shadow: 0 2px 8px #140d179c;
+}
+
+html[data-theme="3d"] .theme3d-title {
+  margin: 0;
+  color: #fff9f5;
+  font-size: clamp(22px, 3.55cqw, 36px);
+  font-weight: 730;
+  line-height: 1.1;
+  letter-spacing: -.04em;
+  overflow-wrap: anywhere;
+}
+
+html[data-theme="3d"] .theme3d-meta {
+  margin: 6px 0 0;
+  color: #ead1de;
+  font-size: 13px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+html[data-theme="3d"] .theme3d-footer {
+  min-height: 60px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+  padding: 6px clamp(8px, 2.65cqw, 28px);
+  border-top: 1px solid #ffffff17;
+  background: #1a151f;
+}
+
+html[data-theme="3d"] :is(.theme3d-navigation, .theme3d-actions) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+html[data-theme="3d"] .theme3d-position {
+  min-width: 41px;
+  color: #ead4e2;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+html[data-theme="3d"] :is(button.theme3d-arrow, button.theme3d-action) {
+  min-height: 42px;
+  min-width: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid #ffffff27;
+  border-radius: 9px;
+  background: #302334;
+  box-shadow: inset 0 1px #ffffff15, 0 2px 4px #110a13;
+  color: #faebf2;
+  font-size: 13px;
+  font-weight: 650;
+  text-shadow: none;
+}
+
+html[data-theme="3d"] button.theme3d-arrow {
+  font-size: 19px;
+  line-height: 1;
+}
+
+html[data-theme="3d"] :is(button.theme3d-arrow, button.theme3d-action):hover:not(:disabled) {
+  border-color: #ad789d;
+  background: #453047;
+}
+
+html[data-theme="3d"] button.theme3d-arrow:disabled {
+  opacity: .42;
+}
+
+html[data-theme="3d"] button.theme3d-action[data-game-action="delete"] {
+  color: #ffbed2;
+}
+
+@container theme3d (width < 520px) {
+  html[data-theme="3d"] .theme3d-case:is([data-distance="3"], [data-distance="4"]) {
+    visibility: hidden;
+  }
+}
+
+@media (max-width: 700px) {
+  html[data-theme="3d"] #appShell {
+    width: calc(100% - 18px);
+    margin-top: 12px;
+    padding-inline: 10px;
+  }
+
+  html[data-theme="3d"] #appShell .hero > .hero-actions {
+    margin-top: 8px;
+  }
+
+  html[data-theme="3d"] #appShell .stat {
+    padding-inline: 7px;
+  }
+}
+
+@media (pointer: coarse) {
+  html[data-theme="3d"] :is(.theme3d-platforms button[data-theme3d-platform], button.theme3d-arrow, button.theme3d-action) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="3d"] :is(button.theme3d-case, .theme3d-face, .theme3d-halo, .theme3d-object) {
+    transition: none;
+  }
+}
