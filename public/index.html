@@ -32,7 +32,7 @@
     <link rel="stylesheet" href="base.css?v=20261127-audit-fixes">
     <!-- Optional sheets use data-themes to list their theme keys. Keep the
          shared rules before their overrides because appearance.js only sets href. -->
-    <link rel="stylesheet" data-theme-style="luna.css?v=20261120-readability-2" data-themes="luna">
+    <link rel="stylesheet" data-theme-style="luna.css?v=20261128-3d-backgrounds" data-themes="luna" data-3d-background-style="aquarium">
     <link rel="stylesheet" href="ai-import.css?v=20261120-ai-cover-search-1">
     <link rel="stylesheet" href="duplicates.css?v=20261121-duplicates">
     <link rel="stylesheet" data-theme-style="retro.css?v=20261111-classic-1" data-themes="classic classic2 classic3">
@@ -46,11 +46,11 @@
     <link rel="stylesheet" data-theme-style="matrix-background.css?v=20261114-dos-matrix-1" data-themes="dos">
     <link rel="stylesheet" href="theme-menu.css?v=20261127-audit-fixes">
     <link rel="stylesheet" href="static-background-colors.css?v=20261114-platinum-bee-colors-1">
-    <link rel="stylesheet" data-theme-style="theme-3d.css?v=20261127-dialogs" data-themes="3d">
+    <link rel="stylesheet" data-theme-style="theme-3d.css?v=20261128-backgrounds" data-themes="3d">
     <link rel="stylesheet" data-theme-style="theme-grid.css?v=20261128-light-cycle" data-themes="grid">
     <!-- Restore the saved appearance before rendering. The data-* script URLs
          let appearance.js load each canvas renderer only when it is needed. -->
-    <script src="appearance.js?v=20261128-light-cycle"
+    <script src="appearance.js?v=20261128-3d-backgrounds"
       data-matrix="matrix.js?v=20261114-readability-1" data-p2="p2-clock.js?v=20261122-readability-1"
       data-pipes="pipes.js?v=20261111-pipes-1" data-maze="maze.js?v=20261111-maze-1"
       data-light-cycle="light-cycle.js?v=20261128-light-cycle"></script>
@@ -98,6 +98,8 @@
     <div id="lightCycleBackground" aria-hidden="true" hidden>
       <canvas id="lightCycleCanvas" width="1" height="1"></canvas>
     </div>
+    <!-- The 3D picker reuses renderer code with an independent scene. -->
+    <div id="threeDBackground" aria-hidden="true" hidden></div>
     <!-- Lucide 0.468.0, https://lucide.dev/license
 ISC License
 
@@ -437,6 +439,20 @@ SOFTWARE.
                           <option value="grid">Grid</option>
                         </select>
                       </label>
+                      <label class="appearance-picker three-d-background-control" hidden>
+                        <span data-en="Background">Tło</span>
+                        <select data-3d-background aria-label="Tło motywu 3D" data-en-aria-label="3D theme background">
+                          <option value="original" data-en="Original 3D background">Oryginalne tło 3D</option>
+                          <option value="aero" data-en="Aero ribbons">Wstęgi Aero</option>
+                          <option value="aquarium" data-en="Aquarium (Luna)">Akwarium (Luna)</option>
+                          <option value="maze" data-en="3D Maze (Classic)">Labirynt 3D (Classic)</option>
+                          <option value="pipes" data-en="3D Pipes (Classic 3)">Rury 3D (Classic 3)</option>
+                          <option value="clock" data-en="Clock (P2)">Zegar (P2)</option>
+                          <option value="matrix">Matrix (DOS)</option>
+                          <option value="light-cycle">Light Cycle (Grid)</option>
+                        </select>
+                      </label>
+                      <span class="three-d-background-status" data-3d-background-status role="status" hidden data-en="The selected background could not start. The original 3D background is displayed.">Nie udało się uruchomić wybranego tła. Wyświetlono oryginalne tło 3D.</span>
                       <label class="appearance-picker classic-background-control" hidden>
                         <span data-en="Background">Tło</span>
                         <select data-classic-background aria-label="Tło motywu Classic" data-en-aria-label="Classic background">

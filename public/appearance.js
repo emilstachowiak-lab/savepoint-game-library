@@ -5,6 +5,8 @@
   const THEME_KEY = 'savepoint-theme-v1';
   const MOTION_KEY = 'savepoint-background-motion-v1';
   const GRID_MOTION_KEY = 'savepoint-grid-background-motion-v1';
+  const THREE_D_BACKGROUND_KEY = 'savepoint-3d-background-v1';
+  const THREE_D_MOTION_KEY = 'savepoint-3d-background-motion-v1';
   const CLASSIC_BACKGROUND_KEY = 'savepoint-classic-background-v1';
   const CLASSIC3_BACKGROUND_KEY = 'savepoint-classic3-background-v1';
   const DOS_BACKGROUND_KEY = 'savepoint-dos-background-v1';
@@ -19,6 +21,8 @@
   const consoleThemeKeys = Object.keys(consoleThemes);
   const themes = ['aero', 'luna', 'classic', 'classic2', 'classic3', ...macThemes, ...additionalThemes, ...consoleThemeKeys, '3d', 'grid'];
   const normalizeTheme = value => themes.includes(value) ? value : 'aero';
+  const threeDBackgrounds = ['original', 'aero', 'aquarium', 'maze', 'pipes', 'clock', 'matrix', 'light-cycle'];
+  const normalizeThreeDBackground = value => threeDBackgrounds.includes(value) ? value : 'original';
   // Blocked browser storage must not prevent appearance changes in this page.
   function readPreference(key) {
     try { return localStorage.getItem(key); } catch { return null; }
@@ -35,12 +39,22 @@
   let motionPreference = ['on', 'off'].includes(savedMotion) ? savedMotion : null;
   const savedGridMotion = readPreference(GRID_MOTION_KEY);
   let gridMotionPreference = ['on', 'off'].includes(savedGridMotion) ? savedGridMotion : null;
+  let threeDBackground = normalizeThreeDBackground(readPreference(THREE_D_BACKGROUND_KEY));
+  const savedThreeDMotion = readPreference(THREE_D_MOTION_KEY);
+  let threeDMotionPreference = ['on', 'off'].includes(savedThreeDMotion) ? savedThreeDMotion : null;
+  let aquariumStyleFailed = false;
   let reducedMotion = null;
   try { reducedMotion = matchMedia('(prefers-reduced-motion: reduce)'); } catch {}
   const motionEnabled = (preference = motionPreference) => preference === null
     ? reducedMotion?.matches !== true
     : preference === 'on';
   const gridMotionEnabled = () => motionEnabled(gridMotionPreference);
+  const usesThreeDBackground = () => theme === '3d' && threeDBackground !== 'original';
+  function currentMotionEnabled() {
+    if (theme === 'grid') return gridMotionEnabled();
+    if (usesThreeDBackground()) return motionEnabled(threeDMotionPreference);
+    return motionEnabled();
+  }
   function setThemeAttributes() {
     root.dataset.theme = theme;
     // The two families share component styles. Their palettes still match
@@ -51,18 +65,21 @@
   }
 
   setThemeAttributes();
-  root.dataset.backgroundMotion = (theme === 'grid' ? gridMotionEnabled() : motionEnabled()) ? 'on' : 'off';
+  root.dataset.backgroundMotion = currentMotionEnabled() ? 'on' : 'off';
   root.dataset.classicBackground = classicBackground;
   root.dataset.classic3Background = classic3Background;
   root.dataset.dosBackground = dosBackground;
   // The script element supplies the versioned URLs for optional backgrounds.
   const backgroundScripts = document.currentScript?.dataset ?? {};
   const themeStyles = Array.from(document.querySelectorAll('link[data-theme-style]'));
+  const aquariumStyle = themeStyles.find(link => link.getAttribute('data-3d-background-style') === 'aquarium');
+  const usesThreeDAquarium = () => theme === '3d' && threeDBackground === 'aquarium';
 
   function loadThemeStyles(initial = false) {
     // Leave the links in document order so theme overrides use the same cascade.
     for (const link of themeStyles) {
-      if (!link.hasAttribute('href') && link.dataset.themes.split(' ').includes(theme)) {
+      const neededForThreeD = link === aquariumStyle && usesThreeDAquarium() && !aquariumStyleFailed;
+      if (!link.hasAttribute('href') && (link.dataset.themes.split(' ').includes(theme) || neededForThreeD)) {
         if (initial) link.setAttribute('blocking', 'render');
         link.addEventListener('error', () => {
           link.removeAttribute('href');
@@ -82,6 +99,8 @@
     const consoleElements = document.querySelectorAll('.console-atmosphere, .console-window-caption, .console-navigation');
     const consoleNames = document.querySelectorAll('[data-console-theme-name]');
     const motionControls = document.querySelectorAll('input[data-background-motion]');
+    const threeDControls = document.querySelectorAll('select[data-3d-background]');
+    const threeDStatuses = document.querySelectorAll('[data-3d-background-status]');
     const mazeControls = document.querySelectorAll('select[data-classic-background]');
     const mazeStatuses = document.querySelectorAll('[data-maze-status]');
     const pipesControls = document.querySelectorAll('select[data-classic3-background]');
@@ -102,6 +121,10 @@
     let pageSuspended = false;
     let disposed = false;
     let lightCycleWatchingViewport = false;
+    let threeDScene = null;
+    let threeDLoading = false;
+    let threeDModuleFailed = false;
+    let failedThreeDSelection = '';
 
     const maze = createCanvasBackground(mazeStage, mazeCanvas, 'SavepointMaze', backgroundScripts.maze);
     const pipes = createCanvasBackground(pipesStage, pipesCanvas, 'SavepointPipes', backgroundScripts.pipes);
@@ -127,6 +150,53 @@
       lightCycle.observe(active);
       if (active) addEventListener('resize', lightCycle.resize);
       else removeEventListener('resize', lightCycle.resize);
+    }
+
+    function updateThreeDStatus() {
+      for (const status of threeDStatuses) {
+        status.hidden = !usesThreeDBackground() || failedThreeDSelection !== threeDBackground;
+      }
+    }
+
+    function reportThreeDFailure(selection) {
+      if (!usesThreeDBackground() || selection !== threeDBackground) return;
+      failedThreeDSelection = selection;
+      updateThreeDStatus();
+    }
+
+    function retryThreeDBackground() {
+      failedThreeDSelection = '';
+      threeDModuleFailed = false;
+      aquariumStyleFailed = false;
+      threeDScene?.retry();
+    }
+
+    function updateThreeDBackground(playing) {
+      const selection = usesThreeDBackground() ? threeDBackground : 'original';
+      if (selection !== 'original' && !threeDScene && !threeDLoading && !threeDModuleFailed) {
+        threeDLoading = true;
+        import('./theme-3d-backgrounds.mjs?v=20261128-3d-backgrounds').then(module => {
+          if (disposed) return;
+          threeDScene = module.createThreeDBackground({
+            stage: document.getElementById('threeDBackground'),
+            aquarium,
+            scripts: backgroundScripts,
+            getAeroColor: () => document.getElementById('backgroundColor')?.value,
+            onFailure: reportThreeDFailure
+          });
+        }).catch(() => {
+          threeDModuleFailed = true;
+          if (!disposed) reportThreeDFailure(threeDBackground);
+        }).finally(() => {
+          threeDLoading = false;
+          if (!disposed && usesThreeDBackground()) refresh();
+        });
+      }
+      threeDScene?.setState({
+        selection: selection === 'aquarium' && !aquariumStyle?.sheet ? 'original' : selection,
+        visible: document.hidden !== true && !pageSuspended,
+        playing
+      });
     }
 
     function updateAnimation(renderer, active, playing) {
@@ -292,7 +362,7 @@
       const displayedClassic3 = pipes.failed ? 'classic' : classic3Background;
       const activeLightCycle = lightCycle.prepare(theme === 'grid');
       const gridPlaying = gridMotionEnabled();
-      const currentMotion = theme === 'grid' ? gridPlaying : playing;
+      const currentMotion = currentMotionEnabled();
 
       updateThemeControls(currentMotion, displayedClassic, displayedClassic3, displayedDos);
       updateBackgroundPicker({ controls: mazeControls, statuses: mazeStatuses, themeKey: 'classic',
@@ -301,7 +371,14 @@
         option: 'pipes', saved: classic3Background, displayed: displayedClassic3, background: pipes });
       updateBackgroundPicker({ controls: dosControls, statuses: matrixStatuses, themeKey: 'dos',
         option: 'matrix', saved: dosBackground, displayed: displayedDos, background: matrix });
-      updateMotionControls(currentMotion, activePipes || activeMaze || activeP2 || activeMatrix || activeLightCycle);
+      for (const control of threeDControls) {
+        control.value = threeDBackground;
+        const label = control.closest('.three-d-background-control');
+        if (label) label.hidden = theme !== '3d';
+      }
+      updateThreeDStatus();
+      updateMotionControls(currentMotion,
+        activePipes || activeMaze || activeP2 || activeMatrix || activeLightCycle || usesThreeDBackground());
       // This controller owns only Aero's original picker. The shared static
       // desktop color/reset controls are owned by static-background-colors.js.
       if (colorControl) colorControl.hidden = theme !== 'aero';
@@ -313,6 +390,7 @@
       matrix.update(activeMatrix, playing);
       lightCycle.update(activeLightCycle, gridPlaying);
       watchLightCycleViewport(activeLightCycle);
+      updateThreeDBackground(currentMotion);
       document.dispatchEvent(new Event('savepoint:themechange'));
     }
 
@@ -321,9 +399,31 @@
         theme = normalizeTheme(control.value);
         savePreference(THEME_KEY, theme);
         for (const background of backgrounds) background.retryDownload();
+        if (theme === '3d') retryThreeDBackground();
         refresh();
       });
     }
+    for (const control of threeDControls) {
+      control.addEventListener('change', () => {
+        if (theme !== '3d') return;
+        threeDBackground = normalizeThreeDBackground(control.value);
+        savePreference(THREE_D_BACKGROUND_KEY, threeDBackground);
+        retryThreeDBackground();
+        refresh();
+      });
+    }
+    aquariumStyle?.addEventListener('load', () => {
+      aquariumStyleFailed = false;
+      if (usesThreeDAquarium()) {
+        failedThreeDSelection = '';
+        refresh();
+      }
+    });
+    aquariumStyle?.addEventListener('error', () => {
+      if (!usesThreeDAquarium()) return;
+      aquariumStyleFailed = true;
+      reportThreeDFailure('aquarium');
+    });
     // These console-style controls reuse the collection's existing actions.
     // They neither submit data nor change authentication or saved game records.
     for (const control of document.querySelectorAll('[data-console-action]')) {
@@ -346,6 +446,9 @@
         if (theme === 'grid') {
           gridMotionPreference = selection;
           savePreference(GRID_MOTION_KEY, selection);
+        } else if (theme === '3d') {
+          threeDMotionPreference = selection;
+          savePreference(THREE_D_MOTION_KEY, selection);
         } else {
           motionPreference = selection;
           savePreference(MOTION_KEY, selection);
@@ -380,6 +483,7 @@
     document.addEventListener('visibilitychange', refresh);
     addEventListener('online', () => {
       for (const background of backgrounds) background.retryDownload();
+      if (theme === '3d') retryThreeDBackground();
       refresh();
     });
     // BFCache keeps paused renderers for pageshow; a final departure releases
@@ -391,6 +495,7 @@
         disposed = true;
         watchLightCycleViewport(false);
         for (const background of backgrounds) background.dispose();
+        threeDScene?.destroy();
       }
     });
     addEventListener('pageshow', () => { pageSuspended = false; refresh(); });

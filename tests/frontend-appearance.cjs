@@ -1230,3 +1230,59 @@ function attachLightCycleFixture(test) {
   test.windowEvents.pagehide({ persisted: false });
   console.log('PASS: Grid opens on a still Light Cycle frame when reduced motion is preferred');
 }
+
+{
+  const backgroundKey = 'savepoint-3d-background-v1';
+  const motionKey = 'savepoint-3d-background-motion-v1';
+  const gridMotionKey = 'savepoint-grid-background-motion-v1';
+  const test = appearanceHarness([
+    [THEME_KEY, '3d'], [backgroundKey, '<invalid scene>'], [MOTION_KEY, 'off'],
+    [gridMotionKey, 'on'], [MAZE_BACKGROUND_KEY, 'classic'], [DOS_BACKGROUND_KEY, 'classic']
+  ]);
+  const chooser = test.query('select[data-3d-background]');
+  const label = chooser.closest('.three-d-background-control');
+  const motion = test.motions[0];
+  const lunaStyle = test.queryAll('link[data-theme-style]').find(link => link.dataset.themes === 'luna');
+  const stage = test.nodes.threeDBackground;
+  assert.deepEqual(chooser.querySelectorAll('option').map(option => option.value),
+    ['original', 'aero', 'aquarium', 'maze', 'pipes', 'clock', 'matrix', 'light-cycle']);
+  assert.equal(chooser.value, 'original');
+  assert.equal(label.hidden, false);
+  assert.equal(stage.hidden, true);
+  assert.equal(motion.closest('.background-motion-control').hidden, true);
+  assert.equal(lunaStyle.hasAttribute('href'), false);
+
+  chooser.value = 'aquarium';
+  test.fire(chooser, 'change');
+  assert.equal(test.context.localStorage.getItem(backgroundKey), 'aquarium');
+  assert.equal(lunaStyle.href, lunaStyle.dataset.themeStyle);
+  assert.equal(test.aquarium.hidden, true, '3D never opens the Luna-owned aquarium');
+  assert.equal(motion.checked, true);
+  assert.equal(motion.closest('.background-motion-control').hidden, false);
+  motion.checked = false;
+  test.fire(motion, 'change');
+  assert.equal(test.context.localStorage.getItem(motionKey), 'off');
+  assert.equal(test.context.localStorage.getItem(MOTION_KEY), 'off');
+  assert.equal(test.context.localStorage.getItem(gridMotionKey), 'on');
+
+  test.choose('classic');
+  assert.equal(label.hidden, true);
+  chooser.value = 'maze';
+  test.fire(chooser, 'change');
+  assert.equal(test.context.localStorage.getItem(backgroundKey), 'aquarium', 'Inactive controls cannot switch the 3D background');
+  assert.equal(test.root.dataset.classicBackground, 'classic');
+  assert.equal(test.root.dataset.dosBackground, 'classic');
+  assert.equal(test.context.localStorage.getItem(MAZE_BACKGROUND_KEY), 'classic');
+  assert.equal(test.context.localStorage.getItem(DOS_BACKGROUND_KEY), 'classic');
+
+  test.choose('3d');
+  assert.equal(chooser.value, 'aquarium');
+  assert.equal(motion.checked, false);
+  chooser.value = 'original';
+  test.fire(chooser, 'change');
+  assert.equal(test.context.localStorage.getItem(backgroundKey), 'original');
+  assert.equal(stage.hidden, true);
+  assert.equal(motion.closest('.background-motion-control').hidden, true);
+  test.windowEvents.pagehide({ persisted: false });
+  console.log('PASS: 3D defaults to its original background and stores imported scene and motion choices separately');
+}

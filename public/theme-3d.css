@@ -940,3 +940,82 @@ html[data-theme="3d"] #duplicatesBackdrop :is(.duplicates-keep small, .duplicate
 html[data-theme="3d"] #duplicatesBackdrop .duplicates-error {
   color: #ffc2d1;
 }
+
+
+/* Animated scenes share one decoration layer. Native 3D surfaces stay
+   untouched until the requested renderer is available. */
+html[data-theme="3d"] #threeDBackground {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  contain: paint;
+  pointer-events: none;
+  background-color: #110d17;
+}
+
+html[data-theme="3d"] #threeDBackground[data-scene="aero"] {
+  background: linear-gradient(155deg, #031c52, #0759a4 48%, #062352);
+}
+
+html[data-theme="3d"] #threeDBackground[data-scene="maze"] {
+  background-color: #008080;
+}
+
+html[data-theme="3d"] #threeDBackground:is([data-scene="pipes"], [data-scene="matrix"]) {
+  background-color: #000;
+}
+
+html[data-theme="3d"] #threeDBackground[data-scene="clock"] {
+  background-color: #100e1c;
+}
+
+html[data-theme="3d"] #threeDBackground[data-scene="light-cycle"] {
+  background-color: #080d13;
+}
+
+html[data-theme="3d"] #threeDBackground .three-d-aero {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+html[data-theme="3d"] #threeDBackground .three-d-background-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+html[data-theme="3d"] #threeDBackground[data-scene="maze"] .three-d-background-canvas {
+  image-rendering: pixelated;
+}
+
+html[data-theme="3d"]:has(#threeDBackground:not([hidden])) #appShell {
+  background: linear-gradient(180deg, #1b151eeb, #17121bdb 30%, #17121b8c 66%, #17121be0);
+}
+
+html[data-theme="3d"]:has(#threeDBackground:not([hidden])) .theme3d-library {
+  background: transparent;
+}
+
+html[data-theme="3d"]:has(#threeDBackground:not([hidden])) .theme3d-stage {
+  background: linear-gradient(180deg, #17121a22, #21182730 50%, #1210199c 100%);
+}
+
+html[data-theme="3d"]:has(#threeDBackground:not([hidden])) .theme3d-stage::before {
+  opacity: .46;
+}
+
+html[data-theme="3d"]:has(#threeDBackground:not([hidden])) .theme3d-stage::after {
+  background: linear-gradient(180deg, #3b283624, #131019b8 82%);
+}
+
+html[data-theme="3d"]:has(#threeDBackground:not([hidden])) #authScreen {
+  background: linear-gradient(140deg, #100c1763, #100c1730 48%, #100c1766);
+}
+
+html[data-theme="3d"] #appMenu .three-d-background-status {
+  margin: 0;
+  color: var(--orange);
+  font-size: 11px;
+}

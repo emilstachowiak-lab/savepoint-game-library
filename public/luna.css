@@ -574,6 +574,7 @@ html[data-theme="luna"] #xmbBackground {
   visibility: hidden;
 }
 
+html[data-theme="3d"] #threeDBackground[data-scene="aquarium"],
 html[data-theme="luna"] #aquariumBackground {
   position: fixed;
   inset: 0;
@@ -590,6 +591,7 @@ html[data-theme="luna"] #aquariumBackground {
     linear-gradient(180deg, #1965a6, #0e487e 46%, #0b3563 71%, #0a2546);
 }
 
+html[data-theme="3d"] :where(#threeDBackground[data-scene="aquarium"]) .luna-reef,
 html[data-theme="luna"] .luna-reef {
   position: absolute;
   inset: 0;
@@ -600,6 +602,7 @@ html[data-theme="luna"] .luna-reef {
   mix-blend-mode: screen;
 }
 
+html[data-theme="3d"] :where(#threeDBackground[data-scene="aquarium"]) .luna-bubbles,
 html[data-theme="luna"] .luna-bubbles {
   position: absolute;
   inset: 0 clamp(2px, 2.1vw, 24px) 13% auto;
@@ -608,6 +611,7 @@ html[data-theme="luna"] .luna-bubbles {
   mask-image: linear-gradient(transparent, #000 12% 85%, transparent);
 }
 
+html[data-theme="3d"] :where(#threeDBackground[data-scene="aquarium"]) .luna-bubbles::before,
 html[data-theme="luna"] .luna-bubbles::before {
   position: absolute;
   inset: 0 0 -112px;
@@ -625,6 +629,7 @@ html[data-theme="luna"] .luna-bubbles::before {
   content: "";
 }
 
+html[data-theme="3d"] :where(#threeDBackground[data-scene="aquarium"]) .luna-fish,
 html[data-theme="luna"] .luna-fish {
   --fish-body: radial-gradient(circle at 82% 40%, #080d1a 0 4%, #e6f3fb 4.5% 6%, transparent 7%),
     radial-gradient(ellipse at 54% 40%, #142948 0 24%, transparent 26%),
@@ -639,11 +644,13 @@ html[data-theme="luna"] .luna-fish {
   animation: luna-fish-swim 22s -15s linear infinite;
 }
 
+html[data-theme="3d"] :where(#threeDBackground[data-scene="aquarium"]) .luna-fish span,
 html[data-theme="luna"] .luna-fish span {
   position: absolute;
   inset: 0;
 }
 
+html[data-theme="3d"] :where(#threeDBackground[data-scene="aquarium"]) .luna-fish span::before,
 html[data-theme="luna"] .luna-fish span::before {
   position: absolute;
   z-index: 1;
@@ -654,6 +661,7 @@ html[data-theme="luna"] .luna-fish span::before {
   content: "";
 }
 
+html[data-theme="3d"] :where(#threeDBackground[data-scene="aquarium"]) .luna-fish span::after,
 html[data-theme="luna"] .luna-fish span::after {
   position: absolute;
   inset: 13% 66% 12% 0;
@@ -664,6 +672,7 @@ html[data-theme="luna"] .luna-fish span::after {
   content: "";
 }
 
+html[data-theme="3d"] :where(#threeDBackground[data-scene="aquarium"]) .luna-clown,
 html[data-theme="luna"] .luna-clown {
   --fish-body: radial-gradient(circle at 83% 41%, #160f13 0 4%, #fff1d9 5% 6%, transparent 7%),
     linear-gradient(105deg, #d64d22 8%, #f1853a 23%, #251723 26%, #fff2e0 28% 37%, #291a20 39%, #f17631 43% 59%, #23151a 62%, #fff4e5 65% 75%, #211820 77%, #e75d27 80%);
@@ -676,10 +685,12 @@ html[data-theme="luna"] .luna-clown {
   animation-direction: reverse;
 }
 
+html[data-theme="3d"] :where(#threeDBackground[data-scene="aquarium"]) .luna-clown span,
 html[data-theme="luna"] .luna-clown span {
   transform: scaleX(-1);
 }
 
+html[data-theme="3d"] :where(#threeDBackground[data-scene="aquarium"]) .luna-yellow,
 html[data-theme="luna"] .luna-yellow {
   --fish-body: radial-gradient(circle at 84% 40%, #261e13 0 4%, #fff4b4 4.5% 6%, transparent 7%),
     linear-gradient(157deg, #fef6a0, #e9c137 54%, #9e7125 92%);
@@ -693,8 +704,11 @@ html[data-theme="luna"] .luna-yellow {
 
 /* One shared data flag pauses compositor animations for hidden tabs, user
    motion preferences and lifecycle suspension without losing their phase. */
+html[data-theme="3d"] #threeDBackground[data-scene="aquarium"][data-playing="false"] .luna-fish,
 html[data-theme="luna"] #aquariumBackground[data-playing="false"] .luna-fish,
+html[data-theme="3d"] #threeDBackground[data-scene="aquarium"][data-playing="false"] .luna-bubbles::before,
 html[data-theme="luna"] #aquariumBackground[data-playing="false"] .luna-bubbles::before,
+html[data-theme="3d"] #threeDBackground[data-scene="aquarium"][data-playing="false"] .luna-fish span::after,
 html[data-theme="luna"] #aquariumBackground[data-playing="false"] .luna-fish span::after {
   animation-play-state: paused;
 }
@@ -741,6 +755,7 @@ html[data-theme="luna"] #aquariumBackground[data-playing="false"] .luna-fish spa
 
 @media (max-width: 430px) {
   html[data-theme="luna"] { --luna-auth-padding: 16px; }
+  html[data-theme="3d"] :where(#threeDBackground[data-scene="aquarium"]) .luna-reef,
   html[data-theme="luna"] .luna-reef { object-position: 82% bottom; }
 }
 
@@ -757,8 +772,11 @@ html[data-theme="luna"] #aquariumBackground[data-playing="false"] .luna-fish spa
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html[data-theme="3d"]:not([data-background-motion="on"]) #threeDBackground[data-scene="aquarium"] .luna-fish,
   html[data-theme="luna"]:not([data-background-motion="on"]) #aquariumBackground .luna-fish,
+  html[data-theme="3d"]:not([data-background-motion="on"]) #threeDBackground[data-scene="aquarium"] .luna-bubbles::before,
   html[data-theme="luna"]:not([data-background-motion="on"]) #aquariumBackground .luna-bubbles::before,
+  html[data-theme="3d"]:not([data-background-motion="on"]) #threeDBackground[data-scene="aquarium"] .luna-fish span::after,
   html[data-theme="luna"]:not([data-background-motion="on"]) #aquariumBackground .luna-fish span::after {
     animation-play-state: paused;
   }
