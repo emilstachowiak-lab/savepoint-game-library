@@ -57,6 +57,7 @@
   }
   function setThemeAttributes() {
     root.dataset.theme = theme;
+    root.dataset.threeDBackground = threeDBackground;
     // The two families share component styles. Their palettes still match
     // individual theme keys and override the common styles in document order.
     if (additionalThemes.includes(theme)) root.dataset.themeFamily = 'additional';

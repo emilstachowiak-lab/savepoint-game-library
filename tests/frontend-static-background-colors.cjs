@@ -18,7 +18,8 @@ const configurations = [
   { theme: 'classic', backgroundKey: 'savepoint-classic-background-v1', animated: 'maze', key: 'savepoint-classic-desktop-color-v1', property: '--classic-desktop-color', defaultColor: '#008080' },
   { theme: 'classic3', backgroundKey: 'savepoint-classic3-background-v1', animated: 'pipes', key: 'savepoint-classic3-desktop-color-v1', property: '--classic3-desktop-color', defaultColor: '#3a6ea5' },
   { theme: 'platinum', key: 'savepoint-platinum-desktop-color-v1', property: '--platinum-desktop-color', defaultColor: '#858da8' },
-  { theme: 'bee', key: 'savepoint-bee-desktop-color-v1', property: '--bee-desktop-color', defaultColor: '#07486d' }
+  { theme: 'bee', key: 'savepoint-bee-desktop-color-v1', property: '--bee-desktop-color', defaultColor: '#07486d' },
+  { theme: '3d', key: 'savepoint-3d-background-color-v1', property: '--three-d-background-color', defaultColor: '#2d1b2a' }
 ];
 const game = { id: 'static-color-demo', title: 'Synthetic color game', platform: 'PC', edition: 'Fizyczne', status: 'Do ogrania', coverUrl: '', createdAt: 1 };
 
@@ -77,7 +78,7 @@ function colorHarness(entries = [], { blocked = false, renderers = true } = {}) 
   assert(script, 'The static color module must be included in the application');
   assert(html.indexOf(script[0]) < html.indexOf('</head>'), 'Saved colors must restore before the page paints');
   assert(!/\b(?:defer|async)\b/.test(script[0]), 'Pre-paint color restoration must not wait for deferred scripts');
-  const restoredColors = ['#A1B2C3', '#00AaBB', '#EEDDCC', '#789AbC', '#BC9A78'];
+  const restoredColors = ['#A1B2C3', '#00AaBB', '#EEDDCC', '#789AbC', '#BC9A78', '#2569AE'];
   const test = colorHarness(configurations.map((config, index) => [config.key, restoredColors[index]]));
   assert.equal(test.earlyBeeCustom, 'true', 'A saved custom Bee palette must be available before painting');
   for (const [index, config] of configurations.entries()) {
@@ -105,7 +106,7 @@ function colorHarness(entries = [], { blocked = false, renderers = true } = {}) 
     assert.equal(test.earlyBeeCustom, 'false', 'Malformed Bee colors must preserve the original patterned desktop');
     assert.equal(test.requests.length, 0);
   }
-  console.log('PASS: malformed saved values fall back independently to all five original desktop colors');
+  console.log('PASS: malformed saved values fall back independently to the original background colors');
 }
 
 {
@@ -141,7 +142,7 @@ function colorHarness(entries = [], { blocked = false, renderers = true } = {}) 
 }
 
 {
-  const selected = ['#123456', '#abcdef', '#987654', '#456789', '#654321'];
+  const selected = ['#123456', '#abcdef', '#987654', '#456789', '#654321', '#2060ac'];
   const test = colorHarness(configurations.map((config, index) => [config.key, selected[index]]));
   test.choose('classic');
   test.fire(test.reset, 'click');
@@ -153,7 +154,7 @@ function colorHarness(entries = [], { blocked = false, renderers = true } = {}) 
   assert.equal(test.color.value, selected[0]);
   test.choose('classic3');
   assert.equal(test.color.value, selected[2]);
-  console.log('PASS: resetting one saved desktop leaves the other four saved colors intact');
+  console.log('PASS: resetting one saved background leaves other saved colors intact');
 }
 
 {
@@ -161,7 +162,7 @@ function colorHarness(entries = [], { blocked = false, renderers = true } = {}) 
   const allowed = new Set(configurations.map(config => config.theme));
   for (const option of test.query('[data-ui-theme]').querySelectorAll('option')) {
     test.choose(option.value);
-    assert.equal(test.wrapper.hidden, !allowed.has(option.value), 'The shared picker belongs only to the five supported static desktops');
+    assert.equal(test.wrapper.hidden, !allowed.has(option.value), 'The shared picker belongs only to supported static backgrounds');
     if (!allowed.has(option.value)) {
       test.setColor('#224466');
       test.fire(test.reset, 'click');
@@ -209,6 +210,49 @@ function colorHarness(entries = [], { blocked = false, renderers = true } = {}) 
 }
 
 {
+  const config = configurations.find(config => config.theme === '3d');
+  const backgroundKey = 'savepoint-3d-background-v1';
+  const theme = [THEME_KEY, '3d'];
+  const test = colorHarness([theme, [backgroundKey, 'original'], [config.key, '#2AaBe4']]);
+  const chooser = test.query('select[data-3d-background]');
+  const colorOption = chooser.querySelector('option[value="original"]');
+  assert.equal(colorOption.textContent, 'Kolor');
+  assert.equal(test.root.dataset.threeDBackground, 'original');
+  assert.equal(test.root.dataset.threeDBackgroundCustomColor, 'true');
+  assert.equal(test.wrapper.hidden, false);
+  assert.equal(test.color.value, '#2aabe4');
+  const language = test.query('[data-ui-language]');
+  language.value = 'en';
+  test.fire(language, 'change');
+  assert.equal(colorOption.textContent, 'Color');
+  for (const option of chooser.querySelectorAll('option')) {
+    if (option.value === 'original') continue;
+    chooser.value = option.value;
+    test.fire(chooser, 'change');
+    assert.equal(test.root.dataset.threeDBackground, option.value);
+    assert.equal(test.wrapper.hidden, true);
+    assert.equal(test.color.disabled, true);
+    test.setColor('#554433');
+    test.fire(test.reset, 'click');
+    assert.equal(test.context.localStorage.getItem(config.key), '#2AaBe4');
+  }
+  chooser.value = 'original';
+  test.fire(chooser, 'change');
+  assert.equal(test.color.value, '#2aabe4');
+  test.fire(test.reset, 'click');
+  assert.equal(test.root.dataset.threeDBackgroundCustomColor, 'false');
+  assert.equal(test.color.value, config.defaultColor);
+  assert.equal(test.context.localStorage.getItem(config.key), null);
+  assert.equal(test.context.localStorage.getItem(backgroundKey), 'original');
+  const restored = colorHarness([theme, [backgroundKey, 'light-cycle'], [config.key, '#2aabe4']]);
+  assert.equal(restored.root.dataset.threeDBackground, 'light-cycle');
+  assert.equal(restored.wrapper.hidden, true);
+  test.windowEvents.pagehide({ persisted: false });
+  restored.windowEvents.pagehide({ persisted: false });
+  console.log('PASS: the renamed 3D Color preserves its preference independently of all seven animated options');
+}
+
+{
   const macCss = fs.readFileSync(path.join(rootDirectory, 'mac.css'), 'utf8');
   const sevenCss = fs.readFileSync(path.join(rootDirectory, 'seven-themes.css'), 'utf8');
   const colorCss = fs.readFileSync(path.join(rootDirectory, 'static-background-colors.css'), 'utf8');
@@ -244,7 +288,7 @@ function colorHarness(entries = [], { blocked = false, renderers = true } = {}) 
 {
   const bee = configurations.find(config => config.theme === 'bee');
   const others = configurations.filter(config => config !== bee);
-  const saved = others.map((config, index) => [config.key, ['#123456', '#234567', '#345678', '#456789'][index]]);
+  const saved = others.map((config, index) => [config.key, ['#123456', '#234567', '#345678', '#456789', '#56789a'][index]]);
   const test = colorHarness([
     ...saved, [bee.key, '#Ac42F0'], [AERO_COLOR_KEY, '#8b2fcb'],
     ['savepoint-dos-background-v1', 'matrix'],
@@ -388,6 +432,7 @@ function colorHarness(entries = [], { blocked = false, renderers = true } = {}) 
     assert.equal(test.nodes.appMenu.hidden, false);
     assert.equal(test.nodes.backgroundColor.value, '#8b2fcb');
   }
+  test.choose('classic');
   language.value = 'pl';
   test.fire(language, 'change');
   assert.equal(test.reset.textContent, polishReset);

@@ -13,7 +13,9 @@
     { theme: 'platinum', defaultColor: '#858da8',
       key: 'savepoint-platinum-desktop-color-v1', property: '--platinum-desktop-color' },
     { theme: 'bee', defaultColor: '#07486d',
-      key: 'savepoint-bee-desktop-color-v1', property: '--bee-desktop-color' }
+      key: 'savepoint-bee-desktop-color-v1', property: '--bee-desktop-color' },
+    { theme: '3d', background: 'threeDBackground', backgroundValue: 'original', defaultColor: '#2d1b2a',
+      key: 'savepoint-3d-background-color-v1', property: '--three-d-background-color' }
   ];
   const colors = new Map();
 
@@ -24,6 +26,9 @@
   function applyColor(configuration, color) {
     colors.set(configuration.theme, color);
     root.style.setProperty(configuration.property, color);
+    if (configuration.theme === '3d') {
+      root.dataset.threeDBackgroundCustomColor = String(color !== configuration.defaultColor);
+    }
     if (configuration.theme !== 'bee') return;
 
     // Tint Bee's woven desktop without changing its gradient geometry. The
@@ -51,11 +56,11 @@
     if (!controls || !picker || !reset) return;
     let displayedConfiguration = null;
 
-    // Use the displayed background, including renderer-failure fallback. A
-    // saved animated choice does not authorize editing its hidden desktop color.
+    // The appearance attributes represent the backgrounds eligible for editing.
     function currentConfiguration() {
       return configurations.find(configuration => root.dataset.theme === configuration.theme
-        && (!configuration.background || root.dataset[configuration.background] === 'classic')) ?? null;
+        && (!configuration.background
+          || root.dataset[configuration.background] === (configuration.backgroundValue ?? 'classic'))) ?? null;
     }
     function render() {
       displayedConfiguration = currentConfiguration();

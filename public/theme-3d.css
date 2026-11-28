@@ -1,7 +1,14 @@
 /* This sheet can stay loaded after changing the appearance. Every rule
    belongs to 3D and the shared controls retain their existing behavior. */
+html[data-theme="3d"][data-three-d-background="original"][data-three-d-background-custom-color="true"] {
+  --three-d-backdrop-glow: color-mix(in srgb, var(--three-d-background-color) 48%, #100c17);
+  --three-d-backdrop: color-mix(in srgb, var(--three-d-background-color) 28%, #100c17);
+  --three-d-backdrop-shadow: color-mix(in srgb, var(--three-d-background-color) 14%, #100c17);
+}
+
 html[data-theme="3d"] body {
-  background: radial-gradient(ellipse at 50% 0%, #2d1b2a, #151118 64%, #0f0d13);
+  background: radial-gradient(ellipse at 50% 0%,
+    var(--three-d-backdrop-glow, #2d1b2a), var(--three-d-backdrop, #151118) 64%, var(--three-d-backdrop-shadow, #0f0d13));
 }
 
 html[data-theme="3d"] #xmbBackground {
@@ -227,7 +234,7 @@ html[data-theme="3d"] .theme3d-library {
   overflow: hidden;
   border: 1px solid #40303c;
   border-radius: 15px;
-  background: #141119;
+  background: var(--three-d-backdrop, #141119);
   color: #faf5f7;
   --case-w: clamp(104px, 20.2cqw, 184px);
   --case-h: calc(var(--case-w) * 1.53);
@@ -290,7 +297,8 @@ html[data-theme="3d"] .theme3d-stage {
   margin-top: -4px;
   padding: calc(var(--case-top) + var(--case-h) + 35px) 16px clamp(28px, 4.3cqw, 45px);
   overflow: hidden;
-  background: linear-gradient(180deg, #17121a, #211827 50%, #121019 94%);
+  background: linear-gradient(180deg,
+    var(--three-d-backdrop, #17121a), var(--three-d-backdrop-glow, #211827) 50%, var(--three-d-backdrop-shadow, #121019) 94%);
 }
 
 html[data-theme="3d"] .theme3d-stage::before {
@@ -318,7 +326,7 @@ html[data-theme="3d"] .theme3d-stage::after {
   pointer-events: none;
   background:
     radial-gradient(ellipse 56% 46% at 50% 0%, #7c526e54, transparent),
-    linear-gradient(180deg, #3b283629, #131019 82%);
+    linear-gradient(180deg, #3b283629, var(--three-d-backdrop-shadow, #131019) 82%);
 }
 
 html[data-theme="3d"] .theme3d-shelf {
@@ -663,7 +671,7 @@ html[data-theme="3d"] #authScreen {
   background:
     radial-gradient(ellipse at 17% 28%, #672b3f72, transparent 48%),
     radial-gradient(ellipse at 86% 20%, #40533465, transparent 45%),
-    #141119;
+    var(--three-d-backdrop, #141119);
 }
 
 html[data-theme="3d"] :is(#modalBackdrop, #aiImportBackdrop, #duplicatesBackdrop) {
